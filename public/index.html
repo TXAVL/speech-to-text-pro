@@ -204,13 +204,28 @@
 
           <div class="models-grid">
             
+            <!-- Model 0: Web Speech Local AI (Không Cần Key) -->
+            <label class="model-card active" for="model-local-speech">
+              <input type="radio" name="aiModel" id="model-local-speech" value="local-speech" checked>
+              <div class="model-card-content">
+                <div class="model-header">
+                  <span class="model-title">Web Speech Local AI</span>
+                  <span class="local-badge"><i class="fa-solid fa-laptop-code"></i> Không Cần Key</span>
+                </div>
+                <p class="model-desc">Chạy trực tiếp trên trình duyệt, miễn phí 100%, không cần bất kỳ API Key nào. Hỗ trợ Tiếng Việt & Anh cực chuẩn.</p>
+                <div class="model-tags">
+                  <span>100% Miễn Phí</span><span>Không Cần Key</span><span>Offline / Trình duyệt</span>
+                </div>
+              </div>
+            </label>
+
             <!-- Model 1: Groq Whisper Large v3 -->
-            <label class="model-card active" for="model-groq-whisper">
-              <input type="radio" name="aiModel" id="model-groq-whisper" value="whisper-groq" checked>
+            <label class="model-card" for="model-groq-whisper">
+              <input type="radio" name="aiModel" id="model-groq-whisper" value="whisper-groq">
               <div class="model-card-content">
                 <div class="model-header">
                   <span class="model-title">Whisper Large v3</span>
-                  <span class="speed-badge"><i class="fa-solid fa-bolt"></i> Siêu tốc</span>
+                  <span class="speed-badge"><i class="fa-solid fa-bolt"></i> Siêu tốc (Groq)</span>
                 </div>
                 <p class="model-desc">Động cơ Whisper mạnh nhất thế giới qua Groq LPUs. Xử lý âm thanh 5 phút chỉ trong 2 giây.</p>
                 <div class="model-tags">

@@ -138,6 +138,10 @@ document.addEventListener('DOMContentLoaded', () => {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   }
 
+  let serverHasGroqKey = false;
+  let serverHasGeminiKey = false;
+  let serverHasOpenAiKey = false;
+
   function formatTime(seconds) {
     if (isNaN(seconds) || seconds < 0) return '00:00';
     const mins = Math.floor(seconds / 60);
@@ -145,11 +149,33 @@ document.addEventListener('DOMContentLoaded', () => {
     return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
   }
 
-  // Check Tunnel Status from Server
+  function formatSrtTime(totalSec) {
+    if (isNaN(totalSec) || totalSec < 0) totalSec = 0;
+    const hours = Math.floor(totalSec / 3600);
+    const minutes = Math.floor((totalSec % 3600) / 60);
+    const seconds = Math.floor(totalSec % 60);
+    const ms = Math.floor((totalSec % 1) * 1000);
+    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')},${String(ms).padStart(3, '0')}`;
+  }
+
+  function formatVttTime(totalSec) {
+    if (isNaN(totalSec) || totalSec < 0) totalSec = 0;
+    const hours = Math.floor(totalSec / 3600);
+    const minutes = Math.floor((totalSec % 3600) / 60);
+    const seconds = Math.floor(totalSec % 60);
+    const ms = Math.floor((totalSec % 1) * 1000);
+    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}.${String(ms).padStart(3, '0')}`;
+  }
+
+  // Check Tunnel Status and Server Keys from Server
   async function fetchTunnelStatus() {
     try {
       const res = await fetch('/api/status');
       const data = await res.json();
+      if (data.hasServerGroqKey) serverHasGroqKey = true;
+      if (data.hasServerGeminiKey) serverHasGeminiKey = true;
+      if (data.hasServerOpenAiKey) serverHasOpenAiKey = true;
+
       if (data.publicUrl) {
         tunnelStatusText.textContent = 'Link công khai: Online';
         publicUrlInput.value = data.publicUrl;
@@ -694,19 +720,143 @@ document.addEventListener('DOMContentLoaded', () => {
     const openaiKey = localStorage.getItem('apiKey_openai') || '';
 
     // Check if API key is needed
-    if ((selectedModel === 'whisper-groq' || selectedModel === 'capcut-ai') && !groqKey) {
+    if ((selectedModel === 'whisper-groq' || selectedModel === 'capcut-ai') && !groqKey && !serverHasGroqKey) {
       modalSettings.style.display = 'flex';
-      showToast('Vui lòng nhập Groq API Key (Miễn phí 100%) để chạy mô hình Whisper Large v3 siêu tốc!', 'info');
+      showToast('Chưa có Groq API Key. Bạn có thể nhập Key hoặc chọn "Web Speech Local AI" để dùng miễn phí không cần Key!', 'info');
       return;
     }
-    if (selectedModel === 'gemini-flash' && !geminiKey) {
+    if (selectedModel === 'gemini-flash' && !geminiKey && !serverHasGeminiKey) {
       modalSettings.style.display = 'flex';
-      showToast('Vui lòng nhập Gemini API Key (Miễn phí tại AI Studio) để dùng Gemini Flash!', 'info');
+      showToast('Chưa có Gemini API Key. Bạn có thể nhập Key hoặc chọn "Web Speech Local AI" để dùng miễn phí không cần Key!', 'info');
       return;
     }
-    if (selectedModel === 'whisper-openai' && !openaiKey) {
+    if (selectedModel === 'whisper-openai' && !openaiKey && !serverHasOpenAiKey) {
       modalSettings.style.display = 'flex';
-      showToast('Vui lòng nhập OpenAI API Key để dùng Whisper-1!', 'info');
+      showToast('Chưa có OpenAI API Key. Bạn có thể nhập Key hoặc chọn "Web Speech Local AI" để dùng miễn phí không cần Key!', 'info');
+      return;
+    }
+
+    // Helper: Finish and render local speech transcription
+    function finishLocalTranscription(fullText, segments = []) {
+      if (!segments || segments.length === 0) {
+        const sentences = (fullText || '').split(/(?<=[.?!,])\s+/).filter(s => s.trim().length > 0);
+        let curTime = 0;
+        const duration = currentFile?.duration || 60;
+        const timePerSentence = Math.max(2, duration / Math.max(1, sentences.length));
+        segments = sentences.map((sent, idx) => ({
+          id: idx + 1,
+          start: curTime,
+          end: (curTime += timePerSentence),
+          text: sent.trim(),
+          startFormatted: formatSrtTime(curTime - timePerSentence),
+          endFormatted: formatSrtTime(curTime)
+        }));
+      }
+
+      let srtContent = '';
+      let vttContent = 'WEBVTT\n\n';
+      segments.forEach((seg, idx) => {
+        srtContent += `${idx + 1}\n${seg.startFormatted || formatSrtTime(seg.start)} --> ${seg.endFormatted || formatSrtTime(seg.end)}\n${seg.text}\n\n`;
+        vttContent += `${idx + 1}\n${formatVttTime(seg.start)} --> ${formatVttTime(seg.end)}\n${seg.text}\n\n`;
+      });
+
+      currentTranscriptData = {
+        model: 'Web Speech Native AI (Offline / Local)',
+        language: selectLanguage.value === 'auto' ? 'vi' : selectLanguage.value,
+        text: fullText || 'Không phát hiện được giọng nói trong đoạn âm thanh.',
+        segments: segments,
+        srt: srtContent.trim(),
+        vtt: vttContent.trim()
+      };
+
+      processingState.style.display = 'none';
+      emptyState.style.display = 'none';
+      transcriptDisplayContainer.style.display = 'block';
+      aiToolsBar.style.display = 'flex';
+      btnStartTranscribe.disabled = false;
+
+      updateTranscriptDisplay();
+      updateStats(currentTranscriptData.text, currentFile?.duration);
+      showToast('Chuyển đổi thành công bằng Web Speech Local AI!', 'success');
+    }
+
+    // 0. LOCAL WEB SPEECH MODEL (NO API KEY REQUIRED)
+    if (selectedModel === 'local-speech') {
+      emptyState.style.display = 'none';
+      summaryBox.style.display = 'none';
+      transcriptDisplayContainer.style.display = 'none';
+      processingState.style.display = 'block';
+      processingMessage.textContent = 'Đang nhận diện giọng nói bằng Web Speech AI (Không Cần Key)...';
+      btnStartTranscribe.disabled = true;
+
+      // If user recorded with mic and already has text accumulated
+      if (liveTranscriptAccumulated && liveTranscriptAccumulated.trim().length > 0) {
+        finishLocalTranscription(liveTranscriptAccumulated);
+        return;
+      }
+
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SpeechRecognition) {
+        processingState.style.display = 'none';
+        btnStartTranscribe.disabled = false;
+        showToast('Trình duyệt chưa hỗ trợ Web Speech. Vui lòng mở bằng Chrome, Edge hoặc Cốc Cốc, hoặc nhập Groq API Key miễn phí!', 'error');
+        modalSettings.style.display = 'flex';
+        return;
+      }
+
+      const recognizer = new SpeechRecognition();
+      recognizer.continuous = true;
+      recognizer.interimResults = true;
+      const langChoice = selectLanguage.value;
+      recognizer.lang = (langChoice === 'auto' || langChoice === 'vi') ? 'vi-VN' : (langChoice === 'en' ? 'en-US' : langChoice);
+
+      let accumulatedText = '';
+      let segments = [];
+      const startTime = Date.now();
+
+      recognizer.onresult = (event) => {
+        let currentInterim = '';
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          const transcript = event.results[i][0].transcript;
+          if (event.results[i].isFinal) {
+            accumulatedText += (accumulatedText ? ' ' : '') + transcript.trim();
+            const segSec = (Date.now() - startTime) / 1000;
+            segments.push({
+              id: segments.length + 1,
+              start: Math.max(0, segSec - 2.5),
+              end: segSec,
+              text: transcript.trim(),
+              startFormatted: formatSrtTime(Math.max(0, segSec - 2.5)),
+              endFormatted: formatSrtTime(segSec)
+            });
+          } else {
+            currentInterim += transcript;
+          }
+        }
+        processingMessage.textContent = 'Đang nghe nhận diện: ' + (currentInterim || accumulatedText.slice(-60));
+      };
+
+      recognizer.onerror = (e) => {
+        console.warn('[Web Speech Recognizer Error]', e);
+      };
+
+      recognizer.onend = () => {
+        finishLocalTranscription(accumulatedText, segments);
+      };
+
+      try {
+        nativeAudio.currentTime = 0;
+        await nativeAudio.play();
+        recognizer.start();
+
+        nativeAudio.onended = () => {
+          try { recognizer.stop(); } catch (e) {}
+        };
+      } catch (err) {
+        try { recognizer.start(); } catch (e) {}
+        showToast('Đang lắng nghe nhận diện từ Micro trực tiếp...', 'info');
+      }
+
       return;
     }
 

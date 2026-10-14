@@ -148,7 +148,10 @@ app.get('/api/status', (req, res) => {
     publicUrl: publicTunnelUrl,
     qrCode: tunnelQrCode,
     maxFileSizeMB: 30,
-    maxDurationMinutes: 10
+    maxDurationMinutes: 10,
+    hasServerGroqKey: !!(process.env.GROQ_API_KEY && process.env.GROQ_API_KEY.trim()),
+    hasServerGeminiKey: !!(process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY.trim()),
+    hasServerOpenAiKey: !!(process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY.trim())
   });
 });
 

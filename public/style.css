@@ -728,12 +728,13 @@ input:checked + .slider:before {
   font-size: 13px;
   font-weight: 700;
 }
-.speed-badge, .capcut-badge, .google-badge, .openai-badge {
+.speed-badge, .capcut-badge, .google-badge, .openai-badge, .local-badge {
   font-size: 10px;
   font-weight: 700;
   padding: 2px 6px;
   border-radius: 4px;
 }
+.local-badge { background: rgba(16, 185, 129, 0.25); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.4); }
 .speed-badge { background: rgba(99, 102, 241, 0.2); color: #818cf8; }
 .capcut-badge { background: rgba(6, 182, 212, 0.2); color: #22d3ee; }
 .google-badge { background: rgba(245, 158, 11, 0.2); color: #fbbf24; }
