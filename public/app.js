@@ -143,14 +143,14 @@ document.addEventListener('DOMContentLoaded', () => {
   let serverHasOpenAiKey = false;
 
   function formatTime(seconds) {
-    if (isNaN(seconds) || seconds < 0) return '00:00';
+    if (!isFinite(seconds) || isNaN(seconds) || seconds < 0) return '00:00';
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
     return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
   }
 
   function formatSrtTime(totalSec) {
-    if (isNaN(totalSec) || totalSec < 0) totalSec = 0;
+    if (!isFinite(totalSec) || isNaN(totalSec) || totalSec < 0) totalSec = 0;
     const hours = Math.floor(totalSec / 3600);
     const minutes = Math.floor((totalSec % 3600) / 60);
     const seconds = Math.floor(totalSec % 60);
@@ -159,7 +159,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function formatVttTime(totalSec) {
-    if (isNaN(totalSec) || totalSec < 0) totalSec = 0;
+    if (!isFinite(totalSec) || isNaN(totalSec) || totalSec < 0) totalSec = 0;
     const hours = Math.floor(totalSec / 3600);
     const minutes = Math.floor((totalSec % 3600) / 60);
     const seconds = Math.floor(totalSec % 60);
@@ -277,7 +277,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // Validate Audio File (Size <= 30MB, Duration <= 10 min)
-  function validateAndSetMedia(file, objectUrl, nameOverride = null) {
+  function validateAndSetMedia(file, objectUrl, nameOverride = null, knownDuration = null) {
     if (file.size > MAX_FILE_SIZE_BYTES) {
       showToast(`File vượt quá 30MB (${formatBytes(file.size)}). Giới hạn tối đa là 30MB!`, 'error');
       return false;
@@ -287,10 +287,15 @@ document.addEventListener('DOMContentLoaded', () => {
     tempAudio.preload = 'metadata';
     tempAudio.src = objectUrl;
 
-    tempAudio.onloadedmetadata = () => {
-      const duration = tempAudio.duration;
-      if (duration > MAX_DURATION_SECONDS) {
-        showToast(`Thời lượng file (${formatTime(duration)}) vượt quá giới hạn 10 phút!`, 'error');
+    const finalizeMedia = (dur) => {
+      let finalDuration = dur;
+      // Handle browser WebM MediaRecorder bug where duration is Infinity or NaN
+      if (!isFinite(finalDuration) || isNaN(finalDuration) || finalDuration <= 0) {
+        finalDuration = (knownDuration && isFinite(knownDuration) && knownDuration > 0) ? knownDuration : 0;
+      }
+
+      if (isFinite(finalDuration) && finalDuration > MAX_DURATION_SECONDS) {
+        showToast(`Thời lượng file (${formatTime(finalDuration)}) vượt quá giới hạn 10 phút!`, 'error');
         previewStatusBadge.className = 'badge badge-danger';
         previewStatusBadge.textContent = 'Quá 10 phút';
         btnStartTranscribe.disabled = true;
@@ -305,36 +310,34 @@ document.addEventListener('DOMContentLoaded', () => {
         url: objectUrl,
         name: nameOverride || file.name || 'audio_file',
         size: file.size,
-        duration: duration
+        duration: finalDuration
       };
 
       // Update UI
       previewFilename.textContent = currentFile.name;
       previewSize.textContent = formatBytes(currentFile.size);
-      previewDuration.textContent = formatTime(duration);
+      previewDuration.textContent = finalDuration > 0 ? formatTime(finalDuration) : 'Hợp lệ';
       nativeAudio.src = objectUrl;
       mediaPreviewCard.style.display = 'block';
 
-      showToast(`Đã nhận file âm thanh: ${formatTime(duration)} - ${formatBytes(file.size)}`, 'success');
+      showToast(`Đã nhận file âm thanh: ${finalDuration > 0 ? formatTime(finalDuration) : 'Hợp lệ'} - ${formatBytes(file.size)}`, 'success');
+    };
+
+    tempAudio.onloadedmetadata = () => {
+      let dur = tempAudio.duration;
+      // WebM recording duration in Chrome is often Infinity until seeked or handled
+      if (!isFinite(dur) || isNaN(dur)) {
+        if (knownDuration && isFinite(knownDuration)) {
+          dur = knownDuration;
+        } else {
+          dur = 0;
+        }
+      }
+      finalizeMedia(dur);
     };
 
     tempAudio.onerror = () => {
-      // Audio codec might still play on server or webm recording
-      currentFile = {
-        file: file,
-        url: objectUrl,
-        name: nameOverride || file.name || 'recorded_audio',
-        size: file.size,
-        duration: 0
-      };
-      previewFilename.textContent = currentFile.name;
-      previewSize.textContent = formatBytes(currentFile.size);
-      previewDuration.textContent = 'Đang phân tích';
-      previewStatusBadge.className = 'badge badge-success';
-      previewStatusBadge.textContent = 'Hợp lệ';
-      nativeAudio.src = objectUrl;
-      mediaPreviewCard.style.display = 'block';
-      btnStartTranscribe.disabled = false;
+      finalizeMedia(knownDuration || 0);
     };
 
     return true;
@@ -530,9 +533,10 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         mediaRecorder.onstop = () => {
+          const recordedSec = recordStartTime ? Math.max(1, Math.round((Date.now() - recordStartTime) / 1000)) : 0;
           const blob = new Blob(audioChunks, { type: 'audio/webm' });
           const url = URL.createObjectURL(blob);
-          validateAndSetMedia(blob, url, `record_${new Date().toISOString().slice(11, 19).replace(/:/g, '-')}.webm`);
+          validateAndSetMedia(blob, url, `record_${new Date().toISOString().slice(11, 19).replace(/:/g, '-')}.webm`, recordedSec);
 
           // Stop visualizer
           if (animFrameId) cancelAnimationFrame(animFrameId);

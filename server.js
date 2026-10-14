@@ -268,6 +268,7 @@ app.post('/api/fetch-url', async (req, res) => {
 
 // Helper: Format seconds to SRT timestamp 00:00:00,000
 function formatSrtTime(totalSec) {
+  if (!isFinite(totalSec) || isNaN(totalSec) || totalSec < 0) totalSec = 0;
   const hours = Math.floor(totalSec / 3600);
   const minutes = Math.floor((totalSec % 3600) / 60);
   const seconds = Math.floor(totalSec % 60);
@@ -277,6 +278,7 @@ function formatSrtTime(totalSec) {
 
 // Helper: Format seconds to VTT timestamp 00:00:00.000
 function formatVttTime(totalSec) {
+  if (!isFinite(totalSec) || isNaN(totalSec) || totalSec < 0) totalSec = 0;
   const hours = Math.floor(totalSec / 3600);
   const minutes = Math.floor((totalSec % 3600) / 60);
   const seconds = Math.floor(totalSec % 60);
@@ -314,7 +316,7 @@ app.post('/api/transcribe', async (req, res) => {
   }
 
   // Duration check if reported from frontend
-  if (duration && duration > MAX_DURATION_SECONDS) {
+  if (duration && isFinite(duration) && duration > MAX_DURATION_SECONDS) {
     return res.status(400).json({
       error: `Thời lượng âm thanh (${Math.round(duration)}s) vượt quá giới hạn 10 phút (600s).`
     });
