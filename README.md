@@ -66,9 +66,20 @@ Không cần cùng mạng Wifi, không cần cài đặt mạng:
 
 ## 🌐 Hướng Dẫn Đưa Lên Hosting & Gắn Tên Miền Riêng (Domain)
 
-Nếu bạn muốn mở trang web này 24/7 trên Internet với tên miền riêng (ví dụ: `stt.tenmienban.com`):
+### Cách 1: Lấy Tên Miền Miễn Phí `*.workers.dev` (Cloudflare Workers) ⭐ Khuyên dùng
+Cloudflare cung cấp sẵn tên miền con miễn phí dạng **`https://ten-ban.workers.dev`** cực nhanh và có sẵn chứng chỉ bảo mật HTTPS:
+1. Đăng nhập [dash.cloudflare.com](https://dash.cloudflare.com) ➔ Chọn mục **Workers & Pages**.
+2. Đặt tên subdomain miễn phí của bạn (ví dụ: `myvoice.workers.dev`).
+3. **Cách triển khai 1 dòng lệnh**:
+   * Mở terminal tại thư mục dự án và chạy:
+     ```powershell
+     npx wrangler deploy
+     ```
+   * Trình duyệt sẽ mở ra để bạn xác nhận đăng nhập Cloudflare ➔ Hệ thống sẽ tự động đưa toàn bộ web lên link: **`https://speech-to-text-pro.<subdomain>.workers.dev`**.
+4. **Hoặc làm Proxy cố định cho máy tính**:
+   * Mỗi khi chạy `start.bat` có link `trycloudflare.com`, bạn có thể gán link đó vào `TARGET_BACKEND` trong Worker để luôn có 1 domain `workers.dev` cố định truy cập về máy nhà.
 
-### Cách 1: Treo trên máy tính cá nhân bằng Cloudflare Tunnel (Miễn phí 100%, không cần mua Host)
+### Cách 2: Gắn Tên Miền Riêng (Custom Domain) Không Tốn Tiền Host
 1. Thêm tên miền của bạn vào [Cloudflare](https://dash.cloudflare.com).
 2. Vào **Zero Trust** ➔ **Networks** ➔ **Tunnels** ➔ Tạo Tunnel mới.
 3. Chọn dịch vụ chuyển tiếp về: `http://localhost:3000`.

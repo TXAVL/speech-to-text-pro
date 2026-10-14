@@ -1,0 +1,12 @@
+name = "speech-to-text-pro"
+main = "worker.js"
+compatibility_date = "2024-09-23"
+
+# Chế độ Static Assets: Cloudflare Workers tự động host toàn bộ giao diện HTML, CSS, JS trong thư mục public
+[assets]
+directory = "./public"
+binding = "ASSETS"
+
+[vars]
+# Nếu muốn Worker làm Proxy cố định trỏ về máy tính cá nhân khi bật start.bat, điền URL vào đây:
+# TARGET_BACKEND = "https://your-tunnel.trycloudflare.com"
