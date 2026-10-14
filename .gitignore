@@ -20,6 +20,11 @@ logs
 *.log
 npm-debug.log*
 
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
 # System & IDE files
 .DS_Store
 Thumbs.db
