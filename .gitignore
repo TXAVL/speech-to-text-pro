@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# Audio uploads & temporary files
+uploads/*
+!uploads/.gitkeep
+
+# Environment variables & local secrets
+.env
+.env.local
+
+# Executables & large binaries
+cloudflared.exe
+cloudflared
+*.exe
+
+# Logs
+logs
+*.log
+npm-debug.log*
+
+# System & IDE files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

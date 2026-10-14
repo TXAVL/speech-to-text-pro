@@ -1,0 +1,8 @@
+node_modules
+uploads
+cloudflared.exe
+cloudflared
+.git
+.env
+.DS_Store
+npm-debug.log
