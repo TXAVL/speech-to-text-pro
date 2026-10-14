@@ -534,11 +534,53 @@ Output ONLY the JSON object without markdown fences or extra text.`;
           capcutReady: true
         };
       } else {
-        return res.status(400).json({
-          needApiKey: true,
-          provider: 'groq',
-          error: 'Để sử dụng Model CapCut Subtitle AI, vui lòng nhập Groq API Key (Miễn phí) trong Cài đặt.'
-        });
+        // Fallback to CapCut Native STT (Zero API key required)
+        try {
+          const capcutRes = await new Promise((resolve, reject) => {
+            const py = spawn('python', [
+              path.join(__dirname, 'capcut_service.py'),
+              'stt',
+              '--file', targetFilepath,
+              '--lang', (language === 'auto' || language === 'vi') ? 'vi-VN' : 'en-US'
+            ]);
+            let out = '';
+            let err = '';
+            py.stdout.on('data', d => out += d.toString());
+            py.stderr.on('data', d => err += d.toString());
+            py.on('close', code => {
+              try {
+                const parsed = JSON.parse(out);
+                if (parsed.success) resolve(parsed);
+                else reject(new Error(parsed.error || err || 'Lỗi nhận diện phụ đề CapCut'));
+              } catch (e) {
+                reject(new Error(err || out || 'Lỗi parse JSON từ CapCut service'));
+              }
+            });
+          });
+
+          const capcutSegments = (capcutRes.segments || []).map((seg, idx) => ({
+            id: idx + 1,
+            start: seg.start,
+            end: seg.end,
+            text: seg.text.trim(),
+            startFormatted: formatSrtTime(seg.start),
+            endFormatted: formatSrtTime(seg.end)
+          }));
+
+          result = {
+            model: 'CapCut Native Subtitle Engine (Miễn phí)',
+            language: language,
+            text: capcutRes.text,
+            segments: capcutSegments,
+            capcutReady: true
+          };
+        } catch (sttErr) {
+          return res.status(400).json({
+            needApiKey: true,
+            provider: 'groq',
+            error: 'Để sử dụng Model CapCut Subtitle AI siêu tốc, bạn có thể nhập Groq API Key (Miễn phí 100%) trong Cài đặt: ' + sttErr.message
+          });
+        }
       }
     }
 
@@ -660,6 +702,60 @@ app.post('/api/ai-assist', async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: 'Lỗi AI Assist: ' + (err.response?.data?.error?.message || err.message) });
   }
+});
+
+// CapCut Text-to-Speech (TTS) Voice Catalog
+app.get('/api/tts/voices', (req, res) => {
+  const lang = req.query.lang || 'vi';
+  const pyProc = spawn('python', [path.join(__dirname, 'capcut_service.py'), 'voices', '--lang', lang]);
+  let stdout = '';
+  let stderr = '';
+  pyProc.stdout.on('data', (d) => { stdout += d.toString(); });
+  pyProc.stderr.on('data', (d) => { stderr += d.toString(); });
+  pyProc.on('close', (code) => {
+    try {
+      const data = JSON.parse(stdout);
+      res.json(data);
+    } catch (e) {
+      res.status(500).json({ success: false, error: stderr || stdout || 'Lỗi tải danh sách giọng đọc CapCut' });
+    }
+  });
+});
+
+// CapCut Text-to-Speech (TTS) Generation
+app.post('/api/tts/generate', (req, res) => {
+  const { text, voice = 'BV421_vivn_streaming', rate = '1.0' } = req.body;
+  if (!text || !text.trim()) {
+    return res.status(400).json({ success: false, error: 'Văn bản không được để trống.' });
+  }
+
+  const tmpFile = path.join(uploadDir, `tts-${Date.now()}-${Math.random().toString(36).substring(7)}.txt`);
+  fs.writeFileSync(tmpFile, text, 'utf8');
+
+  const pyProc = spawn('python', [
+    path.join(__dirname, 'capcut_service.py'),
+    'tts',
+    '--text-file', tmpFile,
+    '--voice', voice,
+    '--rate', String(rate)
+  ]);
+
+  let stdout = '';
+  let stderr = '';
+  pyProc.stdout.on('data', (d) => { stdout += d.toString(); });
+  pyProc.stderr.on('data', (d) => { stderr += d.toString(); });
+  pyProc.on('close', (code) => {
+    fs.unlink(tmpFile, () => {});
+    try {
+      const data = JSON.parse(stdout);
+      if (!data.success) {
+        return res.status(500).json(data);
+      }
+      res.json(data);
+    } catch (e) {
+      res.status(500).json({ success: false, error: stderr || stdout || 'Lỗi tạo giọng đọc CapCut' });
+    }
+  });
 });
 
 // Start Server

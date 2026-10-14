@@ -364,6 +364,9 @@
           <button id="btn-ai-translate" class="btn-chip" title="Dịch văn bản sang tiếng Việt / tiếng Anh">
             <i class="fa-solid fa-language"></i> Dịch ngôn ngữ
           </button>
+          <button id="btn-capcut-tts" class="btn-chip" style="background: rgba(6, 182, 212, 0.15); color: #22d3ee; border-color: rgba(6, 182, 212, 0.4);" title="Đọc văn bản thành giọng nói CapCut AI (TTS)">
+            <i class="fa-solid fa-volume-high"></i> Đọc Giọng CapCut AI (TTS)
+          </button>
         </div>
 
         <!-- Progress Indicator -->
@@ -530,6 +533,80 @@
         <button class="btn-secondary" id="btn-cancel-settings">Đóng</button>
         <button class="btn-primary" id="btn-save-settings">
           <i class="fa-solid fa-floppy-disk"></i> Lưu Cấu Hình
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- CapCut Text to Speech (TTS) Modal -->
+  <div class="modal-overlay" id="modal-tts" style="display: none;">
+    <div class="modal-box glass-card" style="max-width: 620px;">
+      <div class="modal-header">
+        <h3><i class="fa-solid fa-volume-high"></i> CapCut Text-to-Speech Studio (Đọc Giọng AI)</h3>
+        <button class="modal-close" id="btn-close-tts">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-intro">
+          Tạo file âm thanh đọc tự nhiên từ kho giọng CapCut / TikTok Việt Nam phổ biến nhất.
+        </p>
+
+        <!-- Voice Selection -->
+        <div class="setting-group">
+          <div class="setting-label">
+            <strong><i class="fa-solid fa-user-gear"></i> Chọn Giọng Đọc CapCut:</strong>
+          </div>
+          <select id="select-tts-voice" style="width: 100%; padding: 10px; background: rgba(0,0,0,0.5); color: #fff; border: 1px solid var(--border-color); border-radius: var(--radius-sm); outline: none;">
+            <option value="BV421_vivn_streaming" selected>Nhỏ Ngọt Ngào (Nữ ngọt ngào TikTok)</option>
+            <option value="BV074_streaming">Cô Gái Hoạt Ngôn (Nữ sôi nổi review)</option>
+            <option value="vi_female_huong">Giọng Nữ Phổ Thông (Truyền cảm)</option>
+            <option value="BV074_streaming_dsp">Giọng Bé (Dễ thương)</option>
+            <option value="BV075_streaming">Thanh Niên Tự Tin (Nam cuốn hút)</option>
+            <option value="multi_male_felipe_uranus_bigtts">Giọng Nam Trầm (Review phim, tin tức)</option>
+            <option value="vi-VN-NamMinhNeural">Nam Minh (Giọng Nam chuẩn phổ thông)</option>
+            <option value="vi-VN-HoaiMyNeural">Hoài My (Giọng Nữ chuẩn phổ thông)</option>
+            <option value="multi_female_richgirl_uranus_bigtts">Review Phim new (Chuyên review TikTok)</option>
+            <option value="multi_female_quanweinv_uranus_bigtts">Bản Tin 1 (MC truyền hình)</option>
+            <option value="BV075_streaming_vibrato_dsp">Việt Méo (Hài hước)</option>
+          </select>
+        </div>
+
+        <!-- Speech Rate -->
+        <div class="setting-group" style="margin-top: 14px;">
+          <div class="setting-label">
+            <strong><i class="fa-solid fa-gauge-high"></i> Tốc Độ Đọc:</strong>
+          </div>
+          <select id="select-tts-rate" style="width: 100%; padding: 10px; background: rgba(0,0,0,0.5); color: #fff; border: 1px solid var(--border-color); border-radius: var(--radius-sm); outline: none;">
+            <option value="0.8">0.8x (Chậm rãi)</option>
+            <option value="1.0" selected>1.0x (Chuẩn bình thường)</option>
+            <option value="1.2">1.2x (Hơi nhanh)</option>
+            <option value="1.4">1.4x (Nhanh ngắn gọn)</option>
+          </select>
+        </div>
+
+        <!-- Text Input for TTS -->
+        <div class="setting-group" style="margin-top: 14px;">
+          <div class="setting-label">
+            <strong><i class="fa-regular fa-file-lines"></i> Nội Dung Cần Đọc:</strong>
+          </div>
+          <textarea id="tts-input-text" rows="5" style="width: 100%; padding: 12px; background: rgba(0,0,0,0.5); color: white; border: 1px solid var(--border-color); border-radius: var(--radius-sm); outline: none; font-family: inherit; font-size: 13px; resize: vertical;" placeholder="Nhập hoặc chỉnh sửa đoạn văn bản cần chuyển thành giọng nói..."></textarea>
+        </div>
+
+        <!-- Result Player -->
+        <div id="tts-result-card" style="display: none; margin-top: 16px; padding: 14px; background: rgba(6, 182, 212, 0.08); border: 1px solid rgba(6, 182, 212, 0.3); border-radius: var(--radius-md);">
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+            <span style="font-size: 13px; font-weight: 600; color: #22d3ee;"><i class="fa-solid fa-circle-check"></i> Đã tạo giọng đọc thành công!</span>
+            <a id="btn-download-tts-audio" href="#" target="_blank" download="capcut_audio.mp3" class="btn-action-small" style="text-decoration: none;">
+              <i class="fa-solid fa-download"></i> Tải MP3
+            </a>
+          </div>
+          <audio id="tts-audio-player" controls style="width: 100%; height: 40px;"></audio>
+        </div>
+
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" id="btn-cancel-tts">Đóng</button>
+        <button class="btn-primary" id="btn-submit-tts">
+          <i class="fa-solid fa-wand-magic-sparkles"></i> Tạo Giọng Đọc Ngay
         </button>
       </div>
     </div>

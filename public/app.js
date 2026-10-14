@@ -1062,4 +1062,71 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   btnCloseSummary.addEventListener('click', () => summaryBox.style.display = 'none');
 
+  // CapCut Text-to-Speech (TTS) Studio Handlers
+  const btnCapcutTts = document.getElementById('btn-capcut-tts');
+  const modalTts = document.getElementById('modal-tts');
+  const btnCloseTts = document.getElementById('btn-close-tts');
+  const btnCancelTts = document.getElementById('btn-cancel-tts');
+  const btnSubmitTts = document.getElementById('btn-submit-tts');
+  const selectTtsVoice = document.getElementById('select-tts-voice');
+  const selectTtsRate = document.getElementById('select-tts-rate');
+  const ttsInputText = document.getElementById('tts-input-text');
+  const ttsResultCard = document.getElementById('tts-result-card');
+  const ttsAudioPlayer = document.getElementById('tts-audio-player');
+  const btnDownloadTtsAudio = document.getElementById('btn-download-tts-audio');
+
+  if (btnCapcutTts) {
+    btnCapcutTts.addEventListener('click', () => {
+      const textToRead = currentTranscriptData?.text || transcriptPlainText.textContent || '';
+      ttsInputText.value = textToRead.trim();
+      ttsResultCard.style.display = 'none';
+      modalTts.style.display = 'flex';
+    });
+  }
+
+  if (btnCloseTts) btnCloseTts.addEventListener('click', () => modalTts.style.display = 'none');
+  if (btnCancelTts) btnCancelTts.addEventListener('click', () => modalTts.style.display = 'none');
+
+  if (btnSubmitTts) {
+    btnSubmitTts.addEventListener('click', async () => {
+      const text = ttsInputText.value.trim();
+      if (!text) {
+        showToast('Vui lòng nhập nội dung cần đọc.', 'error');
+        return;
+      }
+
+      btnSubmitTts.disabled = true;
+      btnSubmitTts.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Đang tạo giọng đọc CapCut...';
+
+      try {
+        const res = await fetch('/api/tts/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            text: text,
+            voice: selectTtsVoice.value,
+            rate: selectTtsRate.value
+          })
+        });
+
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+          throw new Error(data.error || 'Lỗi tạo giọng đọc CapCut');
+        }
+
+        ttsAudioPlayer.src = data.audioUrl;
+        btnDownloadTtsAudio.href = data.audioUrl;
+        ttsResultCard.style.display = 'block';
+        try { await ttsAudioPlayer.play(); } catch (e) {}
+
+        showToast('Đã tạo giọng đọc CapCut thành công!', 'success');
+      } catch (err) {
+        showToast('Lỗi TTS: ' + err.message, 'error');
+      } finally {
+        btnSubmitTts.disabled = false;
+        btnSubmitTts.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i> Tạo Giọng Đọc Ngay';
+      }
+    });
+  }
+
 });

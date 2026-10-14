@@ -6,7 +6,8 @@
 
 ## 📸 Điểm Nổi Bật Dành Cho Bạn
 
-* ⚡ **Siêu Tốc (~1 - 2 Giây)**: Chuyển đổi đoạn âm thanh 5 - 10 phút gần như ngay lập tức với Groq Whisper Large v3.
+* ⚡ **Siêu Tốc (~1 - 2 Giây)**: Chuyển đổi đoạn âm thanh 5 - 10 phút gần như ngay lập tức với Groq Whisper Large v3 hoặc Web Speech Local AI (không cần Key).
+* 🗣️ **CapCut Text-to-Speech (TTS) Studio**: Chuyển ngược văn bản thành giọng đọc CapCut / TikTok siêu hot (Nhỏ Ngọt Ngào, Cô Gái Hoạt Ngôn, Nam Trầm, Thanh Niên Tự Tin, v.v.), nghe thử và tải file MP3 tức thì!
 * 🎬 **Xuất Phụ Đề Chuẩn CapCut / TikTok**: Tự động ngắt câu ngắn vừa nhịp đọc, bấm 1 nút tải file `.SRT` nhập thẳng vào CapCut dựng video.
 * 🧠 **AI Thông Minh**: Tự động chấm câu, phân biệt từng người nói (*Speaker 1, Speaker 2*), tóm tắt ý chính và dịch thuật đa ngôn ngữ.
 * 📱 **Dùng Trên Điện Thoại Dễ Dàng**: Tự động tạo link HTTPS và **Mã QR Code**, chỉ cần quét bằng camera điện thoại là dùng được ngay.
