@@ -704,58 +704,39 @@ app.post('/api/ai-assist', async (req, res) => {
   }
 });
 
+const { generateCapCutSpeech, getVoiceCatalog } = require('./capcut_tts');
+
 // CapCut Text-to-Speech (TTS) Voice Catalog
 app.get('/api/tts/voices', (req, res) => {
   const lang = req.query.lang || 'vi';
-  const pyProc = spawn('python', [path.join(__dirname, 'capcut_service.py'), 'voices', '--lang', lang]);
-  let stdout = '';
-  let stderr = '';
-  pyProc.stdout.on('data', (d) => { stdout += d.toString(); });
-  pyProc.stderr.on('data', (d) => { stderr += d.toString(); });
-  pyProc.on('close', (code) => {
-    try {
-      const data = JSON.parse(stdout);
-      res.json(data);
-    } catch (e) {
-      res.status(500).json({ success: false, error: stderr || stdout || 'Lỗi tải danh sách giọng đọc CapCut' });
-    }
+  const catalog = getVoiceCatalog();
+  const voices = catalog.filter(v => !lang || v.lang?.toLowerCase().startsWith(lang.toLowerCase()) || v.lan?.toLowerCase() === lang.toLowerCase());
+  res.json({
+    success: true,
+    voices: voices.map(v => ({
+      displayName: v.display_name,
+      voiceType: v.voice_type,
+      resourceId: v.resource_id,
+      lang: v.lang,
+      lan: v.lan
+    }))
   });
 });
 
-// CapCut Text-to-Speech (TTS) Generation
-app.post('/api/tts/generate', (req, res) => {
+// CapCut Text-to-Speech (TTS) Generation (Pure JavaScript - Siêu tốc, không cần Python)
+app.post('/api/tts/generate', async (req, res) => {
   const { text, voice = 'BV421_vivn_streaming', rate = '1.0' } = req.body;
   if (!text || !text.trim()) {
     return res.status(400).json({ success: false, error: 'Văn bản không được để trống.' });
   }
 
-  const tmpFile = path.join(uploadDir, `tts-${Date.now()}-${Math.random().toString(36).substring(7)}.txt`);
-  fs.writeFileSync(tmpFile, text, 'utf8');
-
-  const pyProc = spawn('python', [
-    path.join(__dirname, 'capcut_service.py'),
-    'tts',
-    '--text-file', tmpFile,
-    '--voice', voice,
-    '--rate', String(rate)
-  ]);
-
-  let stdout = '';
-  let stderr = '';
-  pyProc.stdout.on('data', (d) => { stdout += d.toString(); });
-  pyProc.stderr.on('data', (d) => { stderr += d.toString(); });
-  pyProc.on('close', (code) => {
-    fs.unlink(tmpFile, () => {});
-    try {
-      const data = JSON.parse(stdout);
-      if (!data.success) {
-        return res.status(500).json(data);
-      }
-      res.json(data);
-    } catch (e) {
-      res.status(500).json({ success: false, error: stderr || stdout || 'Lỗi tạo giọng đọc CapCut' });
-    }
-  });
+  try {
+    const result = await generateCapCutSpeech(text, voice, rate);
+    res.json(result);
+  } catch (err) {
+    console.error('[CapCut TTS Error]', err.message);
+    res.status(500).json({ success: false, error: 'Lỗi tạo giọng đọc CapCut: ' + err.message });
+  }
 });
 
 // Start Server
