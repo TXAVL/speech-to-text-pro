@@ -21,16 +21,20 @@
 * Chỉ cần **nhấp đúp chuột vào file `start.bat`**.
 * Màn hình trình duyệt sẽ tự động mở lên tại địa chỉ: `http://localhost:3000`.
 
-### Bước 2: Nhập API Key (Miễn phí 100%)
-Bấm vào nút **"Cấu hình API"** ở góc phải trên cùng và dán Key vào (chỉ cần làm 1 lần duy nhất):
-1. **Groq API Key (Khuyên dùng - Siêu tốc & Miễn phí)**:
+### Bước 2: Nhập API Key (Hoặc Dùng Miễn Phí Không Cần Key)
+Bạn có thể chọn **Web Speech Local AI** để dùng ngay 100% không cần key, hoặc bấm vào nút **"Cấu hình API"** ở góc phải trên cùng để kích hoạt các mô hình AI mới nhất 2026 (Keys lưu an toàn trên trình duyệt của bạn):
+1. **Web Speech Local AI (Mới - Không Cần Key)**:
+   * Chạy trực tiếp trên trình duyệt bằng AI máy tính, hoàn toàn miễn phí, bảo mật riêng tư 100%.
+2. **Groq Whisper Large v3 Turbo (Mới nhất 2026 - Siêu tốc & Miễn phí 100%)**:
    * Truy cập: [console.groq.com/keys](https://console.groq.com/keys)
-   * Đăng nhập bằng Google ➔ Bấm **Create API Key** ➔ Copy và dán vào web.
-2. **Google Gemini API Key (Miễn phí)**:
+   * Đăng ký miễn phí ➔ Copy API key và dán vào web. Tốc độ chuyển đổi 216x (file 5 phút chỉ mất 1-2 giây).
+3. **Google Gemini 2.5 Flash Audio (Mới nhất 2026 - Miễn phí 100%)**:
    * Truy cập: [aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey)
-   * Đăng nhập Google ➔ Bấm **Create API Key** ➔ Dán vào web.
-
-*(Nếu chưa có key, bạn vẫn có thể chọn chế độ **Thu âm Micro** và dùng **Live Captions** miễn phí không cần key!)*
+   * Đăng ký miễn phí tại Google AI Studio ➔ Nhận miễn phí 1,500 lượt gọi/ngày. Tự động ngắt dấu câu chuẩn xác, phân biệt người nói và tóm tắt AI.
+4. **CapCut Subtitle AI & CapCut TTS Studio**:
+   * Tối ưu nhịp ngắt phụ đề ngắn cho video ngắn TikTok/Reels/Shorts kèm studio tạo giọng đọc AI CapCut tiếng Việt chuẩn.
+5. **OpenAI GPT-4o Transcribe (Mới nhất 2026)**:
+   * Kiến trúc nhận diện giọng nói thế hệ mới từ OpenAI, tỉ lệ lỗi WER thấp vượt trội so với Whisper-1 cũ (tự động fallback Whisper-1).
 
 ### Bước 3: Chọn cách nhập âm thanh
 Bạn có 3 lựa chọn cực kỳ thuận tiện:
@@ -41,7 +45,7 @@ Bạn có 3 lựa chọn cực kỳ thuận tiện:
 *(Giới hạn: Tối đa 10 phút hoặc 30MB mỗi file - phù hợp cho hầu hết video TikTok/Reels, podcast, phỏng vấn, ghi âm cuộc họp).*
 
 ### Bước 4: Bấm "Bắt đầu chuyển đổi ngay"
-* Chọn mô hình AI mong muốn (ví dụ **Whisper Large v3** hoặc **CapCut Subtitle AI**).
+* Chọn mô hình AI mong muốn (ví dụ **Web Speech Local AI**, **Whisper Large v3 Turbo**, **Gemini 2.5 Flash Audio**, hoặc **CapCut Subtitle AI**).
 * Chờ 1 - 3 giây, toàn bộ nội dung lời nói sẽ hiện ra chuẩn xác 99%!
 
 ---

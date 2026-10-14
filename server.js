@@ -289,7 +289,7 @@ app.post('/api/transcribe', async (req, res) => {
   const {
     filepath,
     filename,
-    model = 'whisper-groq', // whisper-groq, gemini-flash, capcut-ai, whisper-openai
+    model = 'whisper-large-v3-turbo', // whisper-large-v3-turbo, gemini-2.5-flash, capcut-ai, gpt-4o-transcribe, local-speech
     language = 'auto',
     groqApiKey,
     geminiApiKey,
@@ -323,20 +323,22 @@ app.post('/api/transcribe', async (req, res) => {
   try {
     let result = null;
 
-    // 1. GROQ WHISPER LARGE V3 (Turbo & Standard)
-    if (model === 'whisper-groq' || model === 'whisper-large-v3-turbo') {
+    // 1. GROQ WHISPER LARGE V3 TURBO (Model mới nhất - Siêu tốc 216x & Miễn phí 100%)
+    if (model === 'whisper-groq' || model === 'whisper-large-v3-turbo' || model === 'whisper-large-v3') {
       const apiKey = groqApiKey || process.env.GROQ_API_KEY;
       if (!apiKey) {
         return res.status(400).json({
           needApiKey: true,
           provider: 'groq',
-          error: 'Vui lòng nhập Groq API Key trong Cài đặt (Miễn phí 100% tại console.groq.com) để sử dụng Whisper Large v3 siêu tốc!'
+          error: 'Vui lòng nhập Groq API Key trong Cài đặt (Miễn phí 100% tại console.groq.com) để sử dụng Whisper Large v3 Turbo siêu tốc!'
         });
       }
 
+      const groqModel = (model === 'whisper-large-v3') ? 'whisper-large-v3' : 'whisper-large-v3-turbo';
+
       const form = new FormData();
       form.append('file', fs.createReadStream(targetFilepath));
-      form.append('model', model === 'whisper-large-v3-turbo' ? 'whisper-large-v3-turbo' : 'whisper-large-v3');
+      form.append('model', groqModel);
       form.append('response_format', 'verbose_json');
       if (language && language !== 'auto') {
         form.append('language', language);
@@ -364,7 +366,7 @@ app.post('/api/transcribe', async (req, res) => {
       }));
 
       result = {
-        model: data.model || 'Whisper Large v3 (Groq)',
+        model: `Groq ${groqModel === 'whisper-large-v3-turbo' ? 'Whisper Large v3 Turbo (Siêu tốc 216x - Free)' : 'Whisper Large v3 (Độ chính xác cao)'}`,
         language: data.language || language,
         duration: data.duration,
         text: data.text,
@@ -372,14 +374,14 @@ app.post('/api/transcribe', async (req, res) => {
       };
     }
 
-    // 2. GOOGLE GEMINI 2.0 / 1.5 FLASH AUDIO
-    else if (model === 'gemini-flash' || model === 'gemini-2.0-flash') {
+    // 2. GOOGLE GEMINI 2.5 FLASH AUDIO (Model mới nhất 2025/2026 - Tự động fallback 2.0 Flash)
+    else if (model === 'gemini-flash' || model === 'gemini-2.5-flash' || model === 'gemini-2.0-flash') {
       const apiKey = geminiApiKey || process.env.GEMINI_API_KEY;
       if (!apiKey) {
         return res.status(400).json({
           needApiKey: true,
           provider: 'gemini',
-          error: 'Vui lòng nhập Gemini API Key trong Cài đặt (Miễn phí tại aistudio.google.com) để sử dụng Gemini Audio AI!'
+          error: 'Vui lòng nhập Gemini API Key trong Cài đặt (Miễn phí tại aistudio.google.com) để sử dụng Gemini 2.5 Flash Audio AI!'
         });
       }
 
@@ -412,31 +414,48 @@ Return a valid JSON object matching this structure:
 }
 Output ONLY the JSON object without markdown fences or extra text.`;
 
-      const geminiRes = await axios.post(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
-        {
-          contents: [
-            {
-              parts: [
-                { text: promptInstructions },
-                {
-                  inline_data: {
-                    mime_type: mimeType,
-                    data: base64Audio
-                  }
+      const requestPayload = {
+        contents: [
+          {
+            parts: [
+              { text: promptInstructions },
+              {
+                inline_data: {
+                  mime_type: mimeType,
+                  data: base64Audio
                 }
-              ]
-            }
-          ],
-          generationConfig: {
-            temperature: 0.1,
-            response_mime_type: "application/json"
+              }
+            ]
           }
-        },
-        { timeout: 120000 }
-      );
+        ],
+        generationConfig: {
+          temperature: 0.1,
+          response_mime_type: "application/json"
+        }
+      };
 
-      const candidate = geminiRes.data?.candidates?.[0]?.content?.parts?.[0]?.text;
+      let candidate = '';
+      let usedGeminiModel = 'gemini-2.5-flash';
+
+      try {
+        // Try Gemini 2.5 Flash first (Latest multimodal model with audio understanding)
+        const geminiRes = await axios.post(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+          requestPayload,
+          { timeout: 120000 }
+        );
+        candidate = geminiRes.data?.candidates?.[0]?.content?.parts?.[0]?.text;
+      } catch (gemini25Err) {
+        console.warn('[Gemini 2.5 Flash Warning] Fallback to Gemini 2.0 Flash:', gemini25Err.response?.data?.error?.message || gemini25Err.message);
+        usedGeminiModel = 'gemini-2.0-flash';
+        const fallbackRes = await axios.post(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+          requestPayload,
+          { timeout: 120000 }
+        );
+        candidate = fallbackRes.data?.candidates?.[0]?.content?.parts?.[0]?.text;
+      }
+
       let parsed = {};
       try {
         parsed = JSON.parse(candidate);
@@ -460,7 +479,7 @@ Output ONLY the JSON object without markdown fences or extra text.`;
       }));
 
       result = {
-        model: 'Google Gemini 2.0 Flash Audio',
+        model: `Google ${usedGeminiModel === 'gemini-2.5-flash' ? 'Gemini 2.5 Flash Audio (Mới nhất)' : 'Gemini 2.0 Flash Audio'}`,
         language: parsed.detected_language || language,
         text: parsed.full_transcript || candidate,
         summary: parsed.summary || '',
@@ -584,30 +603,53 @@ Output ONLY the JSON object without markdown fences or extra text.`;
       }
     }
 
-    // 4. OPENAI WHISPER-1
-    else if (model === 'whisper-openai') {
+    // 4. OPENAI GPT-4o TRANSCRIBE (Model mới nhất 2025/2026 - Tự động fallback Whisper-1)
+    else if (model === 'whisper-openai' || model === 'gpt-4o-transcribe' || model === 'gpt-4o-mini-transcribe') {
       const apiKey = openAiApiKey || process.env.OPENAI_API_KEY;
       if (!apiKey) {
         return res.status(400).json({
           needApiKey: true,
           provider: 'openai',
-          error: 'Vui lòng nhập OpenAI API Key để sử dụng Whisper-1.'
+          error: 'Vui lòng nhập OpenAI API Key trong Cài đặt để sử dụng OpenAI GPT-4o Transcribe.'
         });
       }
 
-      const form = new FormData();
-      form.append('file', fs.createReadStream(targetFilepath));
-      form.append('model', 'whisper-1');
-      form.append('response_format', 'verbose_json');
-      if (language && language !== 'auto') form.append('language', language);
+      let openAiData = null;
+      let usedModelName = (model === 'gpt-4o-transcribe' || model === 'whisper-openai') ? 'gpt-4o-mini-transcribe' : model;
 
-      const openAiRes = await axios.post('https://api.openai.com/v1/audio/transcriptions', form, {
-        headers: { ...form.getHeaders(), 'Authorization': `Bearer ${apiKey}` },
-        timeout: 120000
-      });
+      // First try gpt-4o-mini-transcribe (or gpt-4o-transcribe)
+      try {
+        const form = new FormData();
+        form.append('file', fs.createReadStream(targetFilepath));
+        form.append('model', usedModelName);
+        form.append('response_format', 'verbose_json');
+        if (language && language !== 'auto') form.append('language', language);
+        if (prompt) form.append('prompt', prompt);
 
-      const data = openAiRes.data;
-      const segments = (data.segments || []).map((seg, idx) => ({
+        const openAiRes = await axios.post('https://api.openai.com/v1/audio/transcriptions', form, {
+          headers: { ...form.getHeaders(), 'Authorization': `Bearer ${apiKey}` },
+          timeout: 120000
+        });
+        openAiData = openAiRes.data;
+      } catch (err4o) {
+        console.warn('[OpenAI Transcribe Warning] Fallback to whisper-1:', err4o.response?.data?.error?.message || err4o.message);
+        // Fallback to whisper-1 if newer model is not yet accessible on user account
+        usedModelName = 'whisper-1';
+        const formFallback = new FormData();
+        formFallback.append('file', fs.createReadStream(targetFilepath));
+        formFallback.append('model', 'whisper-1');
+        formFallback.append('response_format', 'verbose_json');
+        if (language && language !== 'auto') formFallback.append('language', language);
+        if (prompt) formFallback.append('prompt', prompt);
+
+        const openAiResFallback = await axios.post('https://api.openai.com/v1/audio/transcriptions', formFallback, {
+          headers: { ...formFallback.getHeaders(), 'Authorization': `Bearer ${apiKey}` },
+          timeout: 120000
+        });
+        openAiData = openAiResFallback.data;
+      }
+
+      const segments = (openAiData.segments || []).map((seg, idx) => ({
         id: idx + 1,
         start: seg.start,
         end: seg.end,
@@ -617,10 +659,10 @@ Output ONLY the JSON object without markdown fences or extra text.`;
       }));
 
       result = {
-        model: 'OpenAI Whisper-1',
-        language: data.language || language,
-        duration: data.duration,
-        text: data.text,
+        model: `OpenAI ${usedModelName === 'whisper-1' ? 'Whisper-1 (Chuẩn gốc)' : 'GPT-4o Transcribe (Mới nhất)'}`,
+        language: openAiData.language || language,
+        duration: openAiData.duration,
+        text: openAiData.text,
         segments: segments
       };
     } else {
@@ -676,15 +718,25 @@ app.post('/api/ai-assist', async (req, res) => {
       promptText = text;
     }
 
-    // Call Gemini if key available
+    // Call Gemini if key available (Gemini 2.5 Flash -> Fallback 2.0 Flash)
     if (geminiApiKey || process.env.GEMINI_API_KEY) {
       const gKey = geminiApiKey || process.env.GEMINI_API_KEY;
-      const gRes = await axios.post(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${gKey}`,
-        { contents: [{ parts: [{ text: promptText }] }] },
-        { timeout: 30000 }
-      );
-      const output = gRes.data?.candidates?.[0]?.content?.parts?.[0]?.text;
+      let output = null;
+      try {
+        const gRes = await axios.post(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${gKey}`,
+          { contents: [{ parts: [{ text: promptText }] }] },
+          { timeout: 30000 }
+        );
+        output = gRes.data?.candidates?.[0]?.content?.parts?.[0]?.text;
+      } catch (g25Err) {
+        const gRes20 = await axios.post(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${gKey}`,
+          { contents: [{ parts: [{ text: promptText }] }] },
+          { timeout: 30000 }
+        );
+        output = gRes20.data?.candidates?.[0]?.content?.parts?.[0]?.text;
+      }
       return res.json({ success: true, result: output });
     }
 

@@ -720,19 +720,19 @@ document.addEventListener('DOMContentLoaded', () => {
     const openaiKey = localStorage.getItem('apiKey_openai') || '';
 
     // Check if API key is needed
-    if ((selectedModel === 'whisper-groq' || selectedModel === 'capcut-ai') && !groqKey && !serverHasGroqKey) {
+    if ((selectedModel === 'whisper-large-v3-turbo' || selectedModel === 'whisper-groq' || selectedModel === 'capcut-ai') && !groqKey && !serverHasGroqKey) {
       modalSettings.style.display = 'flex';
-      showToast('Chưa có Groq API Key. Bạn có thể nhập Key hoặc chọn "Web Speech Local AI" để dùng miễn phí không cần Key!', 'info');
+      showToast('Chưa có Groq API Key. Bạn có thể lấy Key miễn phí 100% tại console.groq.com hoặc chọn "Web Speech Local AI" để dùng miễn phí không cần Key!', 'info');
       return;
     }
-    if (selectedModel === 'gemini-flash' && !geminiKey && !serverHasGeminiKey) {
+    if ((selectedModel === 'gemini-2.5-flash' || selectedModel === 'gemini-flash') && !geminiKey && !serverHasGeminiKey) {
       modalSettings.style.display = 'flex';
-      showToast('Chưa có Gemini API Key. Bạn có thể nhập Key hoặc chọn "Web Speech Local AI" để dùng miễn phí không cần Key!', 'info');
+      showToast('Chưa có Gemini API Key. Bạn có thể lấy Key miễn phí tại aistudio.google.com hoặc chọn "Web Speech Local AI" để dùng miễn phí không cần Key!', 'info');
       return;
     }
-    if (selectedModel === 'whisper-openai' && !openaiKey && !serverHasOpenAiKey) {
+    if ((selectedModel === 'gpt-4o-transcribe' || selectedModel === 'whisper-openai') && !openaiKey && !serverHasOpenAiKey) {
       modalSettings.style.display = 'flex';
-      showToast('Chưa có OpenAI API Key. Bạn có thể nhập Key hoặc chọn "Web Speech Local AI" để dùng miễn phí không cần Key!', 'info');
+      showToast('Chưa có OpenAI API Key. Bạn có thể nhập Key trong Cài đặt hoặc chọn "Web Speech Local AI" để dùng miễn phí không cần Key!', 'info');
       return;
     }
 
