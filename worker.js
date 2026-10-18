@@ -3,6 +3,9 @@
  * Hỗ trợ chạy trực tiếp trên *.workers.dev hoặc làm Proxy cố định về máy cá nhân
  */
 
+import { edgeVoices, edgeSynthesize } from './edge_tts_worker.js';
+import { capcutVoices, capcutSynthesize } from './capcut_worker.js';
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
@@ -117,6 +120,41 @@ export default {
         return Response.json({ success: true, result: grData.choices[0].message.content });
       } catch (err) {
         return Response.json({ error: 'Lỗi AI Assist: ' + err.message }, { status: 500 });
+      }
+    }
+
+    // Microsoft Edge Neural TTS (miễn phí, không cần key) - Worker làm proxy vì trình duyệt không tự gọi được
+    if (url.pathname === '/api/edge/voices') {
+      try {
+        return Response.json({ success: true, voices: await edgeVoices() });
+      } catch (err) {
+        return Response.json({ error: err.message }, { status: 500 });
+      }
+    }
+    if (url.pathname === '/api/edge/tts' && request.method === 'POST') {
+      try {
+        const { text, voice, rate, pitch } = await request.json();
+        if (!text || !text.trim()) return Response.json({ error: 'Văn bản trống.' }, { status: 400 });
+        if (text.length > 20000) return Response.json({ error: 'Văn bản quá dài (tối đa 20.000 ký tự).' }, { status: 400 });
+        const audio = await edgeSynthesize({ text, voice, rate, pitch });
+        return new Response(audio, { headers: { 'Content-Type': 'audio/mpeg' } });
+      } catch (err) {
+        return Response.json({ error: 'Lỗi Edge TTS: ' + err.message }, { status: 500 });
+      }
+    }
+
+    // CapCut / TikTok TTS (miễn phí, không cần key)
+    if (url.pathname === '/api/capcut/voices') {
+      return Response.json({ success: true, voices: capcutVoices() });
+    }
+    if (url.pathname === '/api/capcut/tts' && request.method === 'POST') {
+      try {
+        const { text, voice, rate } = await request.json();
+        if (!text || !text.trim()) return Response.json({ error: 'Văn bản trống.' }, { status: 400 });
+        const audio = await capcutSynthesize({ text, voice, rate });
+        return new Response(audio, { headers: { 'Content-Type': 'audio/mpeg' } });
+      } catch (err) {
+        return Response.json({ error: 'Lỗi CapCut TTS: ' + err.message }, { status: 500 });
       }
     }
 
