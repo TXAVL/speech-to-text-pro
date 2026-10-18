@@ -3,618 +3,322 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Speech To Text Pro - Chuyển Đổi Giọng Nói Thành Văn Bản Nhanh & Chính Xác</title>
-  <meta name="description" content="Website chuyển đổi âm thanh và giọng nói thành văn bản siêu tốc bằng Whisper AI, CapCut Subtitle Engine và Gemini Audio. Hỗ trợ kéo thả, URL và Micro.">
-  
-  <!-- Google Fonts: Inter & Outfit -->
+  <title>VoiceKit - Giọng nói ⇄ Văn bản miễn phí</title>
+  <meta name="description" content="Chuyển giọng nói thành văn bản bằng Whisper chạy ngay trong trình duyệt và đọc văn bản bằng giọng Neural. Miễn phí, không cần API key.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
-  <!-- FontAwesome Icons -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  
+  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <!-- Ambient background glow elements -->
-  <div class="glow-bg glow-1"></div>
-  <div class="glow-bg glow-2"></div>
-  <div class="glow-bg glow-3"></div>
+  <!-- Icon sprite -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <symbol id="i-mic" viewBox="0 0 24 24"><path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3Zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2Z"/></symbol>
+      <symbol id="i-upload" viewBox="0 0 24 24"><path d="M11 16V7.85l-2.6 2.6L7 9l5-5 5 5-1.4 1.45-2.6-2.6V16h-2Zm-5 4a2 2 0 0 1-2-2v-3h2v3h12v-3h2v3a2 2 0 0 1-2 2H6Z"/></symbol>
+      <symbol id="i-link" viewBox="0 0 24 24"><path d="M10.6 13.4a1 1 0 0 1 0-1.4l3-3a3 3 0 0 1 4.2 4.2l-2 2-1.4-1.4 2-2a1 1 0 0 0-1.4-1.4l-3 3a1 1 0 0 1-1.4 0ZM13.4 10.6a1 1 0 0 1 0 1.4l-3 3a3 3 0 0 1-4.2-4.2l2-2 1.4 1.4-2 2a1 1 0 0 0 1.4 1.4l3-3a1 1 0 0 1 1.4 0Z"/></symbol>
+      <symbol id="i-copy" viewBox="0 0 24 24"><path d="M8 3h10a2 2 0 0 1 2 2v12h-2V5H8V3Zm-3 4h9a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Z"/></symbol>
+      <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 16 7 11l1.4-1.45 2.6 2.6V4h2v8.15l2.6-2.6L17 11l-5 5Zm-6 4a2 2 0 0 1-2-2v-3h2v3h12v-3h2v3a2 2 0 0 1-2 2H6Z"/></symbol>
+      <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5v14l11-7L8 5Z"/></symbol>
+      <symbol id="i-stop" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/></symbol>
+      <symbol id="i-trash" viewBox="0 0 24 24"><path d="M9 3h6l1 2h4v2H4V5h4l1-2Zm-3 6h12l-1 11a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L6 9Z"/></symbol>
+      <symbol id="i-gear" viewBox="0 0 24 24"><path d="M19.4 13a7.9 7.9 0 0 0 0-2l2-1.6-2-3.4-2.4 1a7.6 7.6 0 0 0-1.7-1L15 3h-4l-.3 3a7.6 7.6 0 0 0-1.7 1l-2.4-1-2 3.4 2 1.6a7.9 7.9 0 0 0 0 2l-2 1.6 2 3.4 2.4-1a7.6 7.6 0 0 0 1.7 1l.3 3h4l.3-3a7.6 7.6 0 0 0 1.7-1l2.4 1 2-3.4-2-1.6ZM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7Z"/></symbol>
+      <symbol id="i-qr" viewBox="0 0 24 24"><path d="M3 3h8v8H3V3Zm2 2v4h4V5H5Zm8-2h8v8h-8V3Zm2 2v4h4V5h-4ZM3 13h8v8H3v-8Zm2 2v4h4v-4H5Zm8-2h3v3h-3v-3Zm5 0h3v3h-3v-3Zm-5 5h3v3h-3v-3Zm5 0h3v3h-3v-3Z"/></symbol>
+      <symbol id="i-spark" viewBox="0 0 24 24"><path d="m12 2 2.4 6.6L21 11l-6.6 2.4L12 20l-2.4-6.6L3 11l6.6-2.4L12 2Z"/></symbol>
+      <symbol id="i-check" viewBox="0 0 24 24"><path d="m9.5 17-4.5-4.5 1.4-1.4 3.1 3.1 8.1-8.1L19 7.5 9.5 17Z"/></symbol>
+      <symbol id="i-clock" viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm1 5v5.4l3.6 2.1-1 1.7L11 13V7h2Z"/></symbol>
+      <symbol id="i-pause" viewBox="0 0 24 24"><path d="M7 5h4v14H7V5Zm6 0h4v14h-4V5Z"/></symbol>
+    </defs>
+  </svg>
 
-  <!-- Header -->
-  <header class="app-header">
-    <div class="header-container">
-      <div class="brand">
-        <div class="logo-icon">
-          <i class="fa-solid fa-waveform-lines"></i>
-          <span class="pulse-ring"></span>
-        </div>
-        <div class="brand-text">
-          <h1>SPEECH<span class="gradient-text">VOICE</span>.AI</h1>
-          <span class="badge-tag">SIÊU TỐC & ĐA NGÔN NGỮ</span>
-        </div>
-      </div>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="/">
+        <span class="brand-mark"><svg><use href="#i-mic"/></svg></span>
+        <span class="brand-name">Voice<b>Kit</b></span>
+      </a>
 
-      <div class="header-actions">
-        <!-- Tunnel Public Access Status -->
-        <button id="btn-public-tunnel" class="tunnel-badge-btn" title="Xem link công khai & QR Code để dùng trên điện thoại / máy khác">
-          <span class="status-dot"></span>
-          <span id="tunnel-status-text">Đang kết nối Link Công Khai...</span>
-          <i class="fa-solid fa-qrcode ml-1"></i>
-        </button>
+      <nav class="main-tabs" role="tablist">
+        <button class="main-tab active" data-view="stt" role="tab">Giọng → Chữ</button>
+        <button class="main-tab" data-view="tts" role="tab">Chữ → Giọng</button>
+        <button class="main-tab" data-view="history" role="tab">Lịch sử</button>
+      </nav>
 
-        <!-- API Settings Button -->
-        <button id="btn-open-settings" class="icon-btn" title="Cài đặt API Key">
-          <i class="fa-solid fa-sliders"></i>
-          <span>Cấu hình API</span>
-        </button>
+      <div class="topbar-actions">
+        <button class="icon-btn" id="btn-share" title="Link công khai / QR cho điện thoại" hidden><svg><use href="#i-qr"/></svg></button>
+        <button class="icon-btn" id="btn-settings" title="Cài đặt nâng cao"><svg><use href="#i-gear"/></svg></button>
       </div>
     </div>
   </header>
 
-  <!-- Main Container -->
-  <main class="main-container">
-    
-    <!-- Hero / Limits Info Bar -->
-    <section class="limits-banner">
-      <div class="limit-item">
-        <i class="fa-solid fa-clock-rotate-left"></i>
-        <span>Giới hạn thời lượng: <strong>Tối đa 10 phút</strong></span>
+  <main class="page">
+
+    <!-- ============ GIỌNG → CHỮ ============ -->
+    <section class="view active" id="view-stt">
+      <div class="hero">
+        <h1>Giọng nói thành văn bản,<br><span class="grad">chạy ngay trên máy bạn</span></h1>
+        <p>Whisper AI chạy trực tiếp trong trình duyệt. Miễn phí, không cần API key, âm thanh không rời khỏi máy. Không giới hạn dung lượng hay thời lượng.</p>
       </div>
-      <div class="limit-divider"></div>
-      <div class="limit-item">
-        <i class="fa-solid fa-database"></i>
-        <span>Dung lượng file: <strong>Tối đa 30MB</strong></span>
-      </div>
-      <div class="limit-divider"></div>
-      <div class="limit-item">
-        <i class="fa-solid fa-globe"></i>
-        <span>Hỗ trợ: <strong>Tiếng Việt, Anh & 99+ thứ tiếng</strong></span>
+
+      <div class="grid-2">
+        <!-- Input -->
+        <div class="card">
+          <div class="seg" id="source-seg">
+            <button class="seg-btn active" data-src="file"><svg><use href="#i-upload"/></svg>Tải file</button>
+            <button class="seg-btn" data-src="mic"><svg><use href="#i-mic"/></svg>Ghi âm</button>
+            <button class="seg-btn" data-src="url"><svg><use href="#i-link"/></svg>Dán link</button>
+          </div>
+
+          <div class="src-panel active" id="src-file">
+            <label class="dropzone" id="dropzone" for="file-input">
+              <input type="file" id="file-input" accept="audio/*,video/*,.mp3,.wav,.m4a,.ogg,.flac,.webm,.mp4,.mkv,.aac,.opus" hidden>
+              <span class="dz-icon"><svg><use href="#i-upload"/></svg></span>
+              <strong>Kéo thả file vào đây</strong>
+              <span class="muted">hoặc bấm để chọn · MP3, WAV, M4A, MP4, WEBM, OGG, FLAC…</span>
+            </label>
+          </div>
+
+          <div class="src-panel" id="src-mic">
+            <div class="mic-box">
+              <canvas id="mic-canvas" width="600" height="110"></canvas>
+              <div class="mic-time" id="mic-time">00:00</div>
+              <button class="rec-btn" id="btn-rec" title="Bắt đầu / dừng ghi âm"><svg><use href="#i-mic"/></svg></button>
+              <div class="muted" id="mic-hint">Bấm để bắt đầu ghi âm</div>
+            </div>
+          </div>
+
+          <div class="src-panel" id="src-url">
+            <div class="url-row">
+              <input type="url" id="url-input" placeholder="https://… (link trực tiếp tới file mp3/mp4/wav)" autocomplete="off">
+              <button class="btn" id="btn-fetch-url">Tải</button>
+            </div>
+            <p class="muted small">Cần chạy bằng <code>start.bat</code> (server tải hộ file). Link YouTube không hỗ trợ.</p>
+          </div>
+
+          <div class="media-card" id="media-card" hidden>
+            <div class="media-top">
+              <div class="media-info">
+                <strong id="media-name">file.mp3</strong>
+                <span class="muted small" id="media-meta"></span>
+              </div>
+              <button class="icon-btn sm" id="btn-clear-media" title="Bỏ file"><svg><use href="#i-trash"/></svg></button>
+            </div>
+            <audio id="player" controls preload="metadata"></audio>
+          </div>
+
+          <div class="field-group">
+            <label class="field">
+              <span>Công cụ nhận diện</span>
+              <select id="engine">
+                <optgroup label="Miễn phí · chạy trên máy bạn · không cần key">
+                  <option value="local:onnx-community/whisper-small" selected>Whisper Small — cân bằng (~250 MB)</option>
+                  <option value="local:onnx-community/whisper-base">Whisper Base — nhẹ nhất, chỉ nên dùng cho tiếng Anh (~80 MB)</option>
+                  <option value="local:onnx-community/whisper-large-v3-turbo">Whisper Large v3 Turbo — chính xác nhất (~600 MB, cần WebGPU)</option>
+                </optgroup>
+              </select>
+              <small class="muted" id="engine-extra">Muốn dùng Gemini / Groq? Nhập API key ở ⚙ Cài đặt, danh sách model mới nhất sẽ tự hiện ở đây.</small>
+            </label>
+            <label class="field">
+              <span>Ngôn ngữ</span>
+              <select id="language">
+                <option value="vietnamese" selected>Tiếng Việt</option>
+                <option value="auto">Tự nhận diện</option>
+                <option value="english">English</option>
+                <option value="chinese">中文</option>
+                <option value="japanese">日本語</option>
+                <option value="korean">한국어</option>
+                <option value="french">Français</option>
+                <option value="spanish">Español</option>
+                <option value="german">Deutsch</option>
+                <option value="russian">Русский</option>
+                <option value="thai">ไทย</option>
+              </select>
+            </label>
+          </div>
+
+          <p class="hint" id="engine-hint">Lần đầu mô hình tải về một lần (~250 MB) rồi lưu cache, các lần sau chạy ngay, kể cả offline.</p>
+
+          <button class="btn primary big" id="btn-run" disabled><svg><use href="#i-spark"/></svg><span>Bắt đầu chuyển đổi</span></button>
+        </div>
+
+        <!-- Output -->
+        <div class="card result-card">
+          <div class="result-head">
+            <h2>Kết quả</h2>
+            <div class="result-tools" id="result-tools" hidden>
+              <button class="btn sm" id="btn-copy"><svg><use href="#i-copy"/></svg>Sao chép</button>
+              <div class="menu-wrap">
+                <button class="btn sm" id="btn-dl"><svg><use href="#i-download"/></svg>Tải về ▾</button>
+                <div class="menu" id="dl-menu" hidden>
+                  <button data-fmt="txt">Văn bản (.txt)</button>
+                  <button data-fmt="srt">Phụ đề (.srt)</button>
+                  <button data-fmt="vtt">Phụ đề web (.vtt)</button>
+                  <button data-fmt="json">Dữ liệu (.json)</button>
+                </div>
+              </div>
+              <button class="btn sm accent" id="btn-to-tts"><svg><use href="#i-play"/></svg>Đọc lại</button>
+            </div>
+          </div>
+
+          <div class="empty" id="empty">
+            <div class="empty-art"><svg><use href="#i-mic"/></svg></div>
+            <strong>Chưa có kết quả</strong>
+            <span class="muted">Chọn file hoặc ghi âm, rồi bấm “Bắt đầu chuyển đổi”.</span>
+          </div>
+
+          <div class="progress-box" id="progress-box" hidden>
+            <div class="wave"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+            <strong id="progress-title">Đang xử lý…</strong>
+            <div class="bar"><div class="bar-fill" id="bar-fill"></div></div>
+            <span class="muted small" id="progress-sub"></span>
+          </div>
+
+          <div id="result" hidden>
+            <div class="stats" id="stats"></div>
+
+            <div class="subtitle-opts">
+              <label class="inline-field">Độ dài dòng phụ đề
+                <select id="sub-len">
+                  <option value="0">Giữ nguyên câu</option>
+                  <option value="42" selected>Ngắn (~42 ký tự) — TikTok/CapCut</option>
+                  <option value="70">Vừa (~70 ký tự)</option>
+                </select>
+              </label>
+              <div class="seg tiny" id="view-seg">
+                <button class="seg-btn active" data-v="timeline">Theo mốc giờ</button>
+                <button class="seg-btn" data-v="plain">Văn bản liền</button>
+              </div>
+            </div>
+
+            <div class="ai-row" id="ai-row" hidden>
+              <button class="chip" data-ai="summarize">Tóm tắt</button>
+              <button class="chip" data-ai="clean">Làm sạch</button>
+              <button class="chip" data-ai="translate">Dịch sang tiếng Anh</button>
+            </div>
+            <div class="summary" id="summary" hidden></div>
+
+            <div class="timeline" id="timeline"></div>
+            <textarea class="plain" id="plain" spellcheck="false" hidden></textarea>
+          </div>
+        </div>
       </div>
     </section>
 
-    <!-- Core Grid Layout -->
-    <div class="workspace-grid">
-      
-      <!-- Left Column: Input Modes & Audio Config -->
-      <div class="left-card glass-card">
-        
-        <!-- Input Tabs -->
-        <div class="tabs-header">
-          <button class="tab-btn active" id="tab-upload" data-tab="upload">
-            <i class="fa-solid fa-cloud-arrow-up"></i>
-            <span>Tải Lên / Kéo Thả</span>
-          </button>
-          <button class="tab-btn" id="tab-url" data-tab="url">
-            <i class="fa-solid fa-link"></i>
-            <span>Dán Link URL</span>
-          </button>
-          <button class="tab-btn" id="tab-mic" data-tab="mic">
-            <i class="fa-solid fa-microphone-lines"></i>
-            <span>Thu Âm Micro</span>
-          </button>
-        </div>
-
-        <!-- Tab Content 1: Upload / Drag & Drop -->
-        <div class="tab-panel active" id="panel-upload">
-          <div class="dropzone" id="dropzone">
-            <input type="file" id="file-input" accept="audio/*,video/*,.mp3,.wav,.m4a,.ogg,.flac,.webm,.mp4,.mkv,.aac" hidden>
-            <div class="drop-icon">
-              <i class="fa-solid fa-file-audio"></i>
-            </div>
-            <h3>Kéo thả file âm thanh / video vào đây</h3>
-            <p>hoặc <button type="button" class="btn-text" id="btn-browse-file">chọn file từ máy tính</button></p>
-            <div class="format-chips">
-              <span>MP3</span><span>WAV</span><span>M4A</span><span>AAC</span><span>OGG</span><span>FLAC</span><span>WEBM</span><span>MP4</span>
-            </div>
-            <div class="limit-note">
-              <i class="fa-solid fa-circle-exclamation"></i> Tối đa 30MB / 10 phút mỗi file
-            </div>
-          </div>
-        </div>
-
-        <!-- Tab Content 2: URL -->
-        <div class="tab-panel" id="panel-url">
-          <div class="url-input-box">
-            <label for="input-url">Đường dẫn liên kết Audio / Video:</label>
-            <div class="input-with-action">
-              <i class="fa-solid fa-globe input-icon"></i>
-              <input type="url" id="input-url" placeholder="https://example.com/audio-podcast.mp3" autocomplete="off">
-              <button id="btn-paste-url" class="btn-secondary" title="Dán từ Clipboard">
-                <i class="fa-regular fa-paste"></i>
-              </button>
-            </div>
-            <button id="btn-fetch-url" class="btn-action w-100 mt-3">
-              <i class="fa-solid fa-cloud-arrow-down"></i> Tải & Phân Tích Âm Thanh
-            </button>
-            <div class="url-hint">
-              * Hỗ trợ direct link MP3, WAV, M4A, AAC hoặc file âm thanh công khai trên web (dưới 30MB & 10 phút).
-            </div>
-          </div>
-        </div>
-
-        <!-- Tab Content 3: Microphone Record -->
-        <div class="tab-panel" id="panel-mic">
-          <div class="mic-studio">
-            <div class="visualizer-wrapper">
-              <canvas id="mic-visualizer"></canvas>
-              <div class="mic-timer" id="mic-timer">00:00</div>
-              <div class="mic-limit-bar">
-                <div class="mic-limit-fill" id="mic-limit-fill"></div>
-              </div>
-              <div class="mic-time-limit-text">Tối đa 10:00</div>
-            </div>
-
-            <!-- Mic controls -->
-            <div class="mic-actions">
-              <button id="btn-record-mic" class="mic-big-btn" title="Bắt đầu thu âm">
-                <i class="fa-solid fa-microphone"></i>
-              </button>
-              <button id="btn-pause-mic" class="mic-sub-btn" title="Tạm dừng" style="display:none;">
-                <i class="fa-solid fa-pause"></i>
-              </button>
-              <button id="btn-stop-mic" class="mic-sub-btn stop" title="Dừng & Xem lại" style="display:none;">
-                <i class="fa-solid fa-stop"></i>
-              </button>
-            </div>
-            <div id="mic-status-label" class="mic-status-text">Nhấn Micro để bắt đầu ghi âm trực tiếp</div>
-
-            <!-- Live Speech option checkbox -->
-            <div class="realtime-toggle-box">
-              <label class="toggle-switch">
-                <input type="checkbox" id="chk-live-speech">
-                <span class="slider"></span>
-              </label>
-              <div class="toggle-label">
-                <strong>Chế độ nhận diện trực tiếp (Live Captions)</strong>
-                <small>Hiện chữ tức thì khi nói bằng Web Speech AI (Miễn phí 100%)</small>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Active Media Player & File Validation Info Card -->
-        <div class="media-preview-card" id="media-preview-card" style="display: none;">
-          <div class="preview-header">
-            <div class="file-meta">
-              <i class="fa-solid fa-music file-type-icon"></i>
-              <div class="file-text-meta">
-                <h4 id="preview-filename">ten_file.mp3</h4>
-                <div class="file-badges">
-                  <span id="preview-size" class="badge">0 MB</span>
-                  <span id="preview-duration" class="badge">00:00</span>
-                  <span id="preview-status-badge" class="badge badge-success">Hợp lệ</span>
-                </div>
-              </div>
-            </div>
-            <button id="btn-clear-media" class="btn-icon-danger" title="Xóa file">
-              <i class="fa-solid fa-trash-can"></i>
-            </button>
-          </div>
-
-          <!-- Native Audio player with custom styled wrapper -->
-          <div class="audio-player-wrapper">
-            <audio id="native-audio" controls preload="metadata"></audio>
-          </div>
-        </div>
-
-        <!-- AI Model & Transcribe Settings Section -->
-        <div class="model-selection-section">
-          <h3 class="section-title"><i class="fa-solid fa-microchip"></i> Chọn Mô Hình AI Nhận Diện</h3>
-
-          <div class="models-grid">
-            
-            <!-- Model 0: Web Speech Local AI (Không Cần Key) -->
-            <label class="model-card active" for="model-local-speech">
-              <input type="radio" name="aiModel" id="model-local-speech" value="local-speech" checked>
-              <div class="model-card-content">
-                <div class="model-header">
-                  <span class="model-title">Web Speech Local AI</span>
-                  <span class="local-badge"><i class="fa-solid fa-laptop-code"></i> Không Cần Key</span>
-                </div>
-                <p class="model-desc">Chạy trực tiếp trên trình duyệt bằng AI phần cứng, miễn phí 100%, không cần bất kỳ API Key nào. Hỗ trợ Tiếng Việt & Anh cực chuẩn.</p>
-                <div class="model-tags">
-                  <span>100% Miễn Phí</span><span>Không Cần Key</span><span>Offline / Trình duyệt</span>
-                </div>
-              </div>
-            </label>
-
-            <!-- Model 1: Groq Whisper Large v3 Turbo (Mới nhất 2026) -->
-            <label class="model-card" for="model-groq-whisper">
-              <input type="radio" name="aiModel" id="model-groq-whisper" value="whisper-large-v3-turbo">
-              <div class="model-card-content">
-                <div class="model-header">
-                  <span class="model-title">Whisper Large v3 Turbo</span>
-                  <span class="speed-badge"><i class="fa-solid fa-bolt"></i> Siêu tốc 216x (Free Key)</span>
-                </div>
-                <p class="model-desc">Phiên bản Turbo mới nhất từ Groq LPUs. Xử lý âm thanh 5 phút chỉ trong 1-2 giây. 100% Free tại console.groq.com.</p>
-                <div class="model-tags">
-                  <span>Mới nhất 2026</span><span>Siêu tốc 216x</span><span>Free 100%</span>
-                </div>
-              </div>
-            </label>
-
-            <!-- Model 2: CapCut Subtitle AI -->
-            <label class="model-card" for="model-capcut">
-              <input type="radio" name="aiModel" id="model-capcut" value="capcut-ai">
-              <div class="model-card-content">
-                <div class="model-header">
-                  <span class="model-title">CapCut Subtitle AI</span>
-                  <span class="capcut-badge"><i class="fa-solid fa-scissors"></i> Chuẩn Video</span>
-                </div>
-                <p class="model-desc">Tự động ngắt nhịp câu chuẩn phụ đề CapCut/TikTok. Xuất sẵn SRT kèm Studio đọc giọng AI CapCut.</p>
-                <div class="model-tags">
-                  <span>Ngắt câu ngắn</span><span>Karaoke Ready</span><span>Free</span>
-                </div>
-              </div>
-            </label>
-
-            <!-- Model 3: Google Gemini 2.5 Flash Audio (Mới nhất 2026) -->
-            <label class="model-card" for="model-gemini">
-              <input type="radio" name="aiModel" id="model-gemini" value="gemini-2.5-flash">
-              <div class="model-card-content">
-                <div class="model-header">
-                  <span class="model-title">Gemini 2.5 Flash Audio</span>
-                  <span class="google-badge"><i class="fa-brands fa-google"></i> Thế hệ mới (Free Key)</span>
-                </div>
-                <p class="model-desc">Google AI mới nhất hiểu sâu ngữ cảnh âm thanh, nhận diện chính xác dấu câu, phân tách người nói và tự động tóm tắt ý chính.</p>
-                <div class="model-tags">
-                  <span>Mới nhất 2026</span><span>Tự ngắt dấu câu</span><span>Phân người nói</span><span>Tóm tắt AI</span>
-                </div>
-              </div>
-            </label>
-
-            <!-- Model 4: OpenAI GPT-4o Transcribe (Mới nhất 2026) -->
-            <label class="model-card" for="model-openai">
-              <input type="radio" name="aiModel" id="model-openai" value="gpt-4o-transcribe">
-              <div class="model-card-content">
-                <div class="model-header">
-                  <span class="model-title">OpenAI GPT-4o Transcribe</span>
-                  <span class="openai-badge"><i class="fa-solid fa-robot"></i> Thế hệ mới</span>
-                </div>
-                <p class="model-desc">Thế hệ nhận diện giọng nói mới nhất của OpenAI dựa trên GPT-4o, tỉ lệ lỗi WER thấp hơn nhiều so với Whisper-1 cũ.</p>
-                <div class="model-tags">
-                  <span>GPT-4o Audio</span><span>Chuẩn xác cao</span><span>Fallback Whisper-1</span>
-                </div>
-              </div>
-            </label>
-
-          </div>
-
-          <!-- Secondary Options: Language & Timestamp format -->
-          <div class="options-row">
-            <div class="option-field">
-              <label for="select-language"><i class="fa-solid fa-language"></i> Ngôn ngữ giọng nói:</label>
-              <select id="select-language">
-                <option value="auto" selected>Tự động phát hiện (Auto Detect)</option>
-                <option value="vi">Tiếng Việt (Vietnamese)</option>
-                <option value="en">Tiếng Anh (English)</option>
-                <option value="zh">Tiếng Trung (Chinese)</option>
-                <option value="ja">Tiếng Nhật (Japanese)</option>
-                <option value="ko">Tiếng Hàn (Korean)</option>
-                <option value="fr">Tiếng Pháp (French)</option>
-                <option value="es">Tiếng Tây Ban Nha (Spanish)</option>
-                <option value="de">Tiếng Đức (German)</option>
-                <option value="ru">Tiếng Nga (Russian)</option>
-                <option value="th">Tiếng Thái (Thai)</option>
-              </select>
-            </div>
-
-            <div class="option-field">
-              <label for="select-timestamp-mode"><i class="fa-solid fa-bars-staggered"></i> Định dạng hiển thị:</label>
-              <select id="select-timestamp-mode">
-                <option value="paragraph" selected>Đoạn văn liền mạch (Paragraph)</option>
-                <option value="subtitles">Phụ đề mốc thời gian [00:00]</option>
-                <option value="srt">Chuẩn tệp phụ đề SRT</option>
-              </select>
-            </div>
-          </div>
-
-          <!-- Start Action Button -->
-          <button id="btn-start-transcribe" class="btn-primary-glow w-100" disabled>
-            <i class="fa-solid fa-wand-magic-sparkles"></i>
-            <span>BẮT ĐẦU CHUYỂN ĐỔI NGAY</span>
-          </button>
-
-        </div>
-
+    <!-- ============ CHỮ → GIỌNG ============ -->
+    <section class="view" id="view-tts">
+      <div class="hero">
+        <h1>Văn bản thành giọng nói,<br><span class="grad">nhiều kho giọng tự nhiên</span></h1>
+        <p>Giọng Edge Neural, CapCut / TikTok, Piper, Meta MMS và giọng của trình duyệt đều miễn phí, không cần key. Nhập Gemini API key để dùng thêm Google Gemini TTS mới nhất. Giọng Piper / MMS chạy ngay trên máy bạn, không cần server.</p>
       </div>
 
-      <!-- Right Column: Results & Export Workspace -->
-      <div class="right-card glass-card">
-        
-        <div class="result-header">
-          <div class="result-title-group">
-            <h2><i class="fa-solid fa-file-lines"></i> Kết Quả Văn Bản</h2>
-            <div class="stats-pills" id="stats-pills" style="display: none;">
-              <span id="stat-words">0 từ</span>
-              <span id="stat-chars">0 ký tự</span>
-              <span id="stat-time">0.0s</span>
-            </div>
-          </div>
-
-          <!-- Action buttons for export -->
-          <div class="export-actions">
-            <button id="btn-copy-text" class="btn-action-small" title="Sao chép toàn bộ văn bản">
-              <i class="fa-regular fa-copy"></i> Sao chép
-            </button>
-            <div class="dropdown-wrapper">
-              <button id="btn-download-menu" class="btn-action-small">
-                <i class="fa-solid fa-download"></i> Tải về <i class="fa-solid fa-chevron-down ml-1"></i>
-              </button>
-              <div class="dropdown-menu" id="download-dropdown">
-                <button id="dl-txt"><i class="fa-regular fa-file-lines"></i> Tệp Văn Bản (.TXT)</button>
-                <button id="dl-srt"><i class="fa-solid fa-closed-captioning"></i> Phụ đề CapCut/Premiere (.SRT)</button>
-                <button id="dl-vtt"><i class="fa-regular fa-file-video"></i> Phụ đề Web Video (.VTT)</button>
-                <button id="dl-json"><i class="fa-solid fa-code"></i> Dữ liệu JSON (.JSON)</button>
-              </div>
-            </div>
+      <div class="grid-2 tts-grid">
+        <div class="card">
+          <label class="field">
+            <span>Nội dung cần đọc <em class="muted" id="tts-count">0 ký tự</em></span>
+            <textarea id="tts-text" rows="10" placeholder="Nhập hoặc dán văn bản vào đây…" maxlength="20000"></textarea>
+          </label>
+          <div class="row-btns">
+            <button class="chip" id="tts-sample">Chèn văn bản mẫu</button>
+            <button class="chip" id="tts-clear">Xóa</button>
           </div>
         </div>
 
-        <!-- AI Enhancement Bar (Translate, Summarize, Clean) -->
-        <div class="ai-tools-bar" id="ai-tools-bar" style="display: none;">
-          <span class="ai-tools-label"><i class="fa-solid fa-sparkles"></i> AI Tiện Ích:</span>
-          <button id="btn-ai-summarize" class="btn-chip" title="Tóm tắt ý chính nội dung">
-            <i class="fa-solid fa-list-check"></i> Tóm tắt ý chính
-          </button>
-          <button id="btn-ai-clean" class="btn-chip" title="Chỉnh sửa ngữ pháp & xóa từ thừa (ờ, à)">
-            <i class="fa-solid fa-broom"></i> Lọc từ đệm & Chuẩn hóa
-          </button>
-          <button id="btn-ai-translate" class="btn-chip" title="Dịch văn bản sang tiếng Việt / tiếng Anh">
-            <i class="fa-solid fa-language"></i> Dịch ngôn ngữ
-          </button>
-          <button id="btn-capcut-tts" class="btn-chip" style="background: rgba(6, 182, 212, 0.15); color: #22d3ee; border-color: rgba(6, 182, 212, 0.4);" title="Đọc văn bản thành giọng nói CapCut AI (TTS)">
-            <i class="fa-solid fa-volume-high"></i> Đọc Giọng CapCut AI (TTS)
-          </button>
+        <div class="card">
+          <label class="field">
+            <span>Kho giọng</span>
+            <select id="tts-lib">
+              <option value="edge">Microsoft Edge Neural — miễn phí, không cần key</option>
+              <option value="capcut">CapCut / TikTok — miễn phí, không cần key</option>
+            </select>
+          </label>
+          <div class="lib-badge" id="lib-badge"></div>
+
+          <label class="field" id="row-model" hidden>
+            <span>Model Gemini TTS <em class="muted">lấy từ key của bạn</em></span>
+            <select id="tts-model"></select>
+          </label>
+
+          <div class="field-group">
+            <label class="field" id="row-locale">
+              <span>Ngôn ngữ</span>
+              <select id="tts-locale"></select>
+            </label>
+            <label class="field">
+              <span>Giọng đọc</span>
+              <select id="tts-voice"></select>
+            </label>
+          </div>
+
+          <label class="field" id="row-style" hidden>
+            <span>Phong cách đọc <em class="muted">tùy chọn</em></span>
+            <input type="text" id="tts-style" placeholder="vd: Đọc chậm rãi, ấm áp như kể chuyện">
+          </label>
+
+          <label class="field range" id="row-rate">
+            <span>Tốc độ <b id="rate-val">1.0×</b></span>
+            <input type="range" id="tts-rate" min="0.5" max="2" step="0.05" value="1">
+          </label>
+          <label class="field range" id="row-pitch">
+            <span>Cao độ <b id="pitch-val">0 Hz</b></span>
+            <input type="range" id="tts-pitch" min="-50" max="50" step="5" value="0">
+          </label>
+
+          <button class="btn primary big" id="btn-tts-run"><svg><use href="#i-play"/></svg><span>Tạo giọng đọc</span></button>
+
+          <div class="tts-result" id="tts-result" hidden>
+            <audio id="tts-player" controls></audio>
+            <a class="btn" id="tts-download" download="voice.mp3"><svg><use href="#i-download"/></svg>Tải MP3</a>
+          </div>
+          <p class="muted small" id="tts-note">Giọng đọc được tạo qua server của app (cần chạy <code>start.bat</code>).</p>
         </div>
-
-        <!-- Progress Indicator -->
-        <div class="processing-state" id="processing-state" style="display: none;">
-          <div class="loader-waves">
-            <span></span><span></span><span></span><span></span><span></span>
-          </div>
-          <h3 id="processing-message">Đang chuyển đổi giọng nói thành văn bản...</h3>
-          <p id="processing-sub">Sử dụng công nghệ AI xử lý âm thanh đa luồng</p>
-          <div class="progress-bar-container">
-            <div class="progress-bar-fill" id="progress-bar-fill"></div>
-          </div>
-        </div>
-
-        <!-- Empty State -->
-        <div class="empty-state" id="empty-state">
-          <div class="empty-illustration">
-            <i class="fa-solid fa-headphones-simple"></i>
-          </div>
-          <h3>Chưa có dữ liệu chuyển đổi</h3>
-          <p>Hãy tải lên file âm thanh (dưới 30MB / 10 phút), dán đường link hoặc bật Micro ghi âm để bắt đầu chuyển đổi sang văn bản.</p>
-        </div>
-
-        <!-- AI Summary Card (if generated) -->
-        <div class="summary-box" id="summary-box" style="display: none;">
-          <div class="summary-box-header">
-            <h4><i class="fa-solid fa-lightbulb"></i> Tóm Tắt Ý Chính (AI Summary)</h4>
-            <button id="btn-close-summary" class="close-btn">&times;</button>
-          </div>
-          <div class="summary-content" id="summary-content"></div>
-        </div>
-
-        <!-- Main Transcript Textbox / Segment Container -->
-        <div class="transcript-display-container" id="transcript-display-container" style="display: none;">
-          <!-- Paragraph View -->
-          <div class="transcript-paragraph-view" id="paragraph-view">
-            <p id="transcript-plain-text"></p>
-          </div>
-
-          <!-- Segments Timeline View -->
-          <div class="transcript-timeline-view" id="timeline-view" style="display: none;">
-            <!-- Rendered dynamically -->
-          </div>
-
-          <!-- Raw SRT View -->
-          <div class="transcript-srt-view" id="srt-view" style="display: none;">
-            <pre><code id="transcript-srt-text"></code></pre>
-          </div>
-        </div>
-
       </div>
+    </section>
 
-    </div>
-
+    <!-- ============ LỊCH SỬ ============ -->
+    <section class="view" id="view-history">
+      <div class="hero small">
+        <h1>Lịch sử chuyển đổi</h1>
+        <p>Lưu ngay trên trình duyệt của bạn (tối đa 30 mục gần nhất).</p>
+      </div>
+      <div class="card">
+        <div class="history-head">
+          <span class="muted" id="history-count"></span>
+          <button class="btn sm danger" id="history-clear">Xóa tất cả</button>
+        </div>
+        <div id="history-list"></div>
+      </div>
+    </section>
   </main>
 
-  <!-- Public Tunnel & QR Code Modal -->
-  <div class="modal-overlay" id="modal-tunnel" style="display: none;">
-    <div class="modal-box glass-card">
-      <div class="modal-header">
-        <h3><i class="fa-solid fa-globe"></i> Truy Cập Từ Thiết Bị Khác (Mở Port Công Khai)</h3>
-        <button class="modal-close" id="btn-close-tunnel">&times;</button>
-      </div>
-      <div class="modal-body">
-        <p class="modal-intro">
-          Server đã được tự động kết nối qua <strong>Cloudflare Tunnel (Bảo mật HTTPS)</strong>. Bạn có thể mở link này trên bất kỳ điện thoại, máy tính bàn hoặc laptop nào khác mà không cần cài đặt mạng LAN hay mở modem.
-        </p>
+  <footer class="footer">VoiceKit · Whisper (OpenAI) qua Transformers.js · Giọng đọc Microsoft Edge Neural</footer>
 
-        <div class="tunnel-url-box">
-          <label>Đường dẫn công khai (Public HTTPS URL):</label>
-          <div class="copy-input-group">
-            <input type="text" id="public-url-input" readonly value="Đang tải...">
-            <button id="btn-copy-public-url" class="btn-primary" title="Sao chép link">
-              <i class="fa-regular fa-copy"></i>
-            </button>
-            <a id="btn-open-public-url" href="#" target="_blank" class="btn-secondary" title="Mở trong tab mới">
-              <i class="fa-solid fa-arrow-up-right-from-square"></i>
-            </a>
-          </div>
-        </div>
-
-        <div class="qr-section">
-          <h4>Quét mã QR bằng Camera điện thoại để mở ngay:</h4>
-          <div class="qr-image-wrapper">
-            <img id="qr-image" src="" alt="QR Code Link Công Khai" style="display: none;">
-            <div id="qr-loading" class="qr-placeholder">
-              <i class="fa-solid fa-spinner fa-spin"></i>
-              <span>Đang tạo mã QR...</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="local-url-note">
-          <span>Localhost: <code id="local-url-text">http://localhost:3000</code></span>
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button id="btn-restart-tunnel" class="btn-secondary">
-          <i class="fa-solid fa-arrows-rotate"></i> Khởi động lại Tunnel
-        </button>
-        <button class="btn-primary" id="btn-done-tunnel">Xong</button>
-      </div>
+  <!-- Settings modal -->
+  <div class="modal" id="modal-settings" hidden>
+    <div class="modal-box">
+      <div class="modal-head"><h3>Cài đặt nâng cao</h3><button class="icon-btn sm" data-close>✕</button></div>
+      <p class="muted small">Hoàn toàn tùy chọn. Chỉ cần nếu bạn muốn dùng công cụ đám mây (Groq, Gemini) hoặc các nút Tóm tắt / Dịch. Key chỉ lưu trong trình duyệt này.</p>
+      <label class="field"><span>Google Gemini API key <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener">lấy tại AI Studio</a></span>
+        <input type="password" id="key-gemini" placeholder="AIza…" autocomplete="off">
+        <small class="key-status" id="status-gemini"></small></label>
+      <label class="field"><span>Groq API key <a href="https://console.groq.com/keys" target="_blank" rel="noopener">lấy miễn phí</a></span>
+        <input type="password" id="key-groq" placeholder="gsk_…" autocomplete="off">
+        <small class="key-status" id="status-groq"></small></label>
+      <p class="muted small">Nhập xong app tự hỏi Google/Groq xem key của bạn dùng được model nào, rồi mới hiện vào danh sách công cụ nhận diện và kho giọng.</p>
+      <div class="modal-foot"><button class="btn primary" id="btn-save-keys">Lưu &amp; tải model</button></div>
     </div>
   </div>
 
-  <!-- API Key Settings Modal -->
-  <div class="modal-overlay" id="modal-settings" style="display: none;">
-    <div class="modal-box glass-card">
-      <div class="modal-header">
-        <h3><i class="fa-solid fa-key"></i> Cấu Hình API Keys (Lưu Trên Trình Duyệt)</h3>
-        <button class="modal-close" id="btn-close-settings">&times;</button>
-      </div>
-      <div class="modal-body">
-        <p class="modal-intro">
-          Nhập API key của bạn để sử dụng các mô hình AI nhanh nhất. Keys được lưu an toàn trực tiếp trên trình duyệt của bạn (LocalStorage).
-        </p>
-
-        <!-- Groq Whisper Key -->
-        <div class="setting-group">
-          <div class="setting-label">
-            <strong>Groq API Key (Cho Whisper Large v3 Turbo & CapCut - 100% Free)</strong>
-            <a href="https://console.groq.com/keys" target="_blank" class="help-link">
-              <i class="fa-solid fa-arrow-up-right-from-square"></i> Lấy Key Miễn Phí Tại Groq (Khuyên dùng)
-            </a>
-          </div>
-          <div class="password-input">
-            <input type="password" id="key-groq" placeholder="gsk_xxxxxxxxxxxxxxxxxxxxxxxx">
-            <button class="toggle-eye" type="button"><i class="fa-regular fa-eye"></i></button>
-          </div>
-          <small class="setting-hint">Tốc độ ~1-2 giây, miễn phí 100% vĩnh viễn trên Groq Cloud, hỗ trợ Tiếng Việt & 99+ ngôn ngữ.</small>
-        </div>
-
-        <!-- Google Gemini Key -->
-        <div class="setting-group">
-          <div class="setting-label">
-            <strong>Google Gemini API Key (Cho Gemini 2.5 Flash Audio - 100% Free)</strong>
-            <a href="https://aistudio.google.com/app/apikey" target="_blank" class="help-link">
-              <i class="fa-solid fa-arrow-up-right-from-square"></i> Lấy Key Miễn Phí Tại Google AI Studio
-            </a>
-          </div>
-          <div class="password-input">
-            <input type="password" id="key-gemini" placeholder="AIzaSyxxxxxxxxxxxxxxxxxxxxx">
-            <button class="toggle-eye" type="button"><i class="fa-regular fa-eye"></i></button>
-          </div>
-          <small class="setting-hint">Miễn phí 1,500 lượt gọi/ngày trên Google AI Studio. Hỗ trợ ngữ cảnh, tự ngắt dấu câu, phân biệt người nói và tóm tắt AI.</small>
-        </div>
-
-        <!-- OpenAI Key -->
-        <div class="setting-group">
-          <div class="setting-label">
-            <strong>OpenAI API Key (Cho GPT-4o Transcribe & Whisper-1)</strong>
-            <a href="https://platform.openai.com/api-keys" target="_blank" class="help-link">
-              <i class="fa-solid fa-arrow-up-right-from-square"></i> Lấy Key tại OpenAI
-            </a>
-          </div>
-          <div class="password-input">
-            <input type="password" id="key-openai" placeholder="sk-xxxxxxxxxxxxxxxxxxxxxxxxx">
-            <button class="toggle-eye" type="button"><i class="fa-regular fa-eye"></i></button>
-          </div>
-          <small class="setting-hint">Hỗ trợ kiến trúc GPT-4o Audio Transcription mới nhất với tự động fallback Whisper-1.</small>
-        </div>
-
-      </div>
-      <div class="modal-footer">
-        <button class="btn-secondary" id="btn-cancel-settings">Đóng</button>
-        <button class="btn-primary" id="btn-save-settings">
-          <i class="fa-solid fa-floppy-disk"></i> Lưu Cấu Hình
-        </button>
-      </div>
+  <!-- Share modal -->
+  <div class="modal" id="modal-share" hidden>
+    <div class="modal-box">
+      <div class="modal-head"><h3>Dùng trên điện thoại</h3><button class="icon-btn sm" data-close>✕</button></div>
+      <p class="muted small">Quét mã QR hoặc mở link công khai (HTTPS) bằng điện thoại.</p>
+      <div class="qr-wrap"><img id="qr-img" alt="QR" hidden><span class="muted" id="qr-wait">Đang tạo link…</span></div>
+      <div class="url-row"><input type="text" id="share-url" readonly><button class="btn" id="btn-copy-share">Chép</button></div>
     </div>
   </div>
 
-  <!-- CapCut Text to Speech (TTS) Modal -->
-  <div class="modal-overlay" id="modal-tts" style="display: none;">
-    <div class="modal-box glass-card" style="max-width: 620px;">
-      <div class="modal-header">
-        <h3><i class="fa-solid fa-volume-high"></i> CapCut Text-to-Speech Studio (Đọc Giọng AI)</h3>
-        <button class="modal-close" id="btn-close-tts">&times;</button>
-      </div>
-      <div class="modal-body">
-        <p class="modal-intro">
-          Tạo file âm thanh đọc tự nhiên từ kho giọng CapCut / TikTok Việt Nam phổ biến nhất.
-        </p>
-
-        <!-- Voice Selection -->
-        <div class="setting-group">
-          <div class="setting-label">
-            <strong><i class="fa-solid fa-user-gear"></i> Chọn Giọng Đọc CapCut:</strong>
-          </div>
-          <select id="select-tts-voice" style="width: 100%; padding: 10px; background: rgba(0,0,0,0.5); color: #fff; border: 1px solid var(--border-color); border-radius: var(--radius-sm); outline: none;">
-            <option value="BV421_vivn_streaming" selected>Nhỏ Ngọt Ngào (Nữ ngọt ngào TikTok)</option>
-            <option value="BV074_streaming">Cô Gái Hoạt Ngôn (Nữ sôi nổi review)</option>
-            <option value="vi_female_huong">Giọng Nữ Phổ Thông (Truyền cảm)</option>
-            <option value="BV074_streaming_dsp">Giọng Bé (Dễ thương)</option>
-            <option value="BV075_streaming">Thanh Niên Tự Tin (Nam cuốn hút)</option>
-            <option value="multi_male_felipe_uranus_bigtts">Giọng Nam Trầm (Review phim, tin tức)</option>
-            <option value="vi-VN-NamMinhNeural">Nam Minh (Giọng Nam chuẩn phổ thông)</option>
-            <option value="vi-VN-HoaiMyNeural">Hoài My (Giọng Nữ chuẩn phổ thông)</option>
-            <option value="multi_female_richgirl_uranus_bigtts">Review Phim new (Chuyên review TikTok)</option>
-            <option value="multi_female_quanweinv_uranus_bigtts">Bản Tin 1 (MC truyền hình)</option>
-            <option value="BV075_streaming_vibrato_dsp">Việt Méo (Hài hước)</option>
-          </select>
-        </div>
-
-        <!-- Speech Rate -->
-        <div class="setting-group" style="margin-top: 14px;">
-          <div class="setting-label">
-            <strong><i class="fa-solid fa-gauge-high"></i> Tốc Độ Đọc:</strong>
-          </div>
-          <select id="select-tts-rate" style="width: 100%; padding: 10px; background: rgba(0,0,0,0.5); color: #fff; border: 1px solid var(--border-color); border-radius: var(--radius-sm); outline: none;">
-            <option value="0.8">0.8x (Chậm rãi)</option>
-            <option value="1.0" selected>1.0x (Chuẩn bình thường)</option>
-            <option value="1.2">1.2x (Hơi nhanh)</option>
-            <option value="1.4">1.4x (Nhanh ngắn gọn)</option>
-          </select>
-        </div>
-
-        <!-- Text Input for TTS -->
-        <div class="setting-group" style="margin-top: 14px;">
-          <div class="setting-label">
-            <strong><i class="fa-regular fa-file-lines"></i> Nội Dung Cần Đọc:</strong>
-          </div>
-          <textarea id="tts-input-text" rows="5" style="width: 100%; padding: 12px; background: rgba(0,0,0,0.5); color: white; border: 1px solid var(--border-color); border-radius: var(--radius-sm); outline: none; font-family: inherit; font-size: 13px; resize: vertical;" placeholder="Nhập hoặc chỉnh sửa đoạn văn bản cần chuyển thành giọng nói..."></textarea>
-        </div>
-
-        <!-- Result Player -->
-        <div id="tts-result-card" style="display: none; margin-top: 16px; padding: 14px; background: rgba(6, 182, 212, 0.08); border: 1px solid rgba(6, 182, 212, 0.3); border-radius: var(--radius-md);">
-          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
-            <span style="font-size: 13px; font-weight: 600; color: #22d3ee;"><i class="fa-solid fa-circle-check"></i> Đã tạo giọng đọc thành công!</span>
-            <a id="btn-download-tts-audio" href="#" target="_blank" download="capcut_audio.mp3" class="btn-action-small" style="text-decoration: none;">
-              <i class="fa-solid fa-download"></i> Tải MP3
-            </a>
-          </div>
-          <audio id="tts-audio-player" controls style="width: 100%; height: 40px;"></audio>
-        </div>
-
-      </div>
-      <div class="modal-footer">
-        <button class="btn-secondary" id="btn-cancel-tts">Đóng</button>
-        <button class="btn-primary" id="btn-submit-tts">
-          <i class="fa-solid fa-wand-magic-sparkles"></i> Tạo Giọng Đọc Ngay
-        </button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Toast Notification Container -->
-  <div id="toast-container" class="toast-container"></div>
+  <div class="toasts" id="toasts"></div>
 
   <script src="app.js"></script>
 </body>

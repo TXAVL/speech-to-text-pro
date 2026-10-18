@@ -326,7 +326,7 @@ app.post('/api/transcribe', async (req, res) => {
     let result = null;
 
     // 1. GROQ WHISPER LARGE V3 TURBO (Model mới nhất - Siêu tốc 216x & Miễn phí 100%)
-    if (model === 'whisper-groq' || model === 'whisper-large-v3-turbo' || model === 'whisper-large-v3') {
+    if (model === 'whisper-groq' || /^(distil-)?whisper/i.test(model)) {
       const apiKey = groqApiKey || process.env.GROQ_API_KEY;
       if (!apiKey) {
         return res.status(400).json({
@@ -336,7 +336,7 @@ app.post('/api/transcribe', async (req, res) => {
         });
       }
 
-      const groqModel = (model === 'whisper-large-v3') ? 'whisper-large-v3' : 'whisper-large-v3-turbo';
+      const groqModel = model === 'whisper-groq' ? 'whisper-large-v3-turbo' : model;
 
       const form = new FormData();
       form.append('file', fs.createReadStream(targetFilepath));
@@ -790,6 +790,79 @@ app.post('/api/tts/generate', async (req, res) => {
   } catch (err) {
     console.error('[CapCut TTS Error]', err.message);
     res.status(500).json({ success: false, error: 'Lỗi tạo giọng đọc CapCut: ' + err.message });
+  }
+});
+
+// ---- Microsoft Edge Neural TTS (miễn phí, không cần API key) ----
+const { MsEdgeTTS, OUTPUT_FORMAT } = require('msedge-tts');
+let edgeVoicesCache = null;
+
+app.get('/api/edge/voices', async (req, res) => {
+  try {
+    if (!edgeVoicesCache) {
+      edgeVoicesCache = (await new MsEdgeTTS().getVoices()).map(v => ({
+        name: v.ShortName,
+        gender: v.Gender,
+        locale: v.Locale,
+        label: v.FriendlyName
+      }));
+    }
+    res.json({ success: true, voices: edgeVoicesCache });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'Không lấy được danh sách giọng: ' + err.message });
+  }
+});
+
+app.post('/api/edge/tts', async (req, res) => {
+  const { text, voice = 'vi-VN-HoaiMyNeural', rate = 1, pitch = 0, volume = 100 } = req.body;
+  if (!text || !text.trim()) return res.status(400).json({ error: 'Văn bản trống.' });
+  if (text.length > 20000) return res.status(400).json({ error: 'Văn bản quá dài (tối đa 20.000 ký tự).' });
+
+  try {
+    const tts = new MsEdgeTTS();
+    await tts.setMetadata(voice, OUTPUT_FORMAT.AUDIO_24KHZ_96KBITRATE_MONO_MP3);
+    const safeText = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const { audioStream } = tts.toStream(safeText, {
+      rate: Number(rate) || 1,
+      pitch: `${Number(pitch) >= 0 ? '+' : ''}${Math.round(Number(pitch) || 0)}Hz`,
+      volume: Number(volume) || 100
+    });
+    const chunks = [];
+    audioStream.on('data', c => chunks.push(c));
+    audioStream.on('error', err => {
+      if (!res.headersSent) res.status(500).json({ error: 'Lỗi Edge TTS: ' + err.message });
+    });
+    audioStream.on('close', () => {
+      if (res.headersSent) return;
+      const buf = Buffer.concat(chunks);
+      if (!buf.length) return res.status(500).json({ error: 'Edge TTS không trả về âm thanh.' });
+      res.set({ 'Content-Type': 'audio/mpeg', 'Content-Length': buf.length });
+      res.send(buf);
+      try { tts.close(); } catch (e) {}
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Lỗi Edge TTS: ' + err.message });
+  }
+});
+
+// ---- CapCut / TikTok voices (miễn phí, proxy audio để phát & tải được) ----
+app.get('/api/capcut/voices', (req, res) => {
+  const voices = getVoiceCatalog()
+    .filter(v => (v.lan || '').toLowerCase() === 'vi' || (v.lang || '').toLowerCase().startsWith('vi'))
+    .map(v => ({ name: v.voice_type, label: v.display_name }));
+  res.json({ success: true, voices });
+});
+
+app.post('/api/capcut/tts', async (req, res) => {
+  const { text, voice = 'BV421_vivn_streaming', rate = 1 } = req.body;
+  if (!text || !text.trim()) return res.status(400).json({ error: 'Văn bản trống.' });
+  try {
+    const r = await generateCapCutSpeech(text, voice, String(rate));
+    const audio = await axios.get(r.audioUrl, { responseType: 'arraybuffer', timeout: 30000 });
+    res.set({ 'Content-Type': audio.headers['content-type'] || 'audio/mpeg' });
+    res.send(Buffer.from(audio.data));
+  } catch (err) {
+    res.status(500).json({ error: 'Lỗi CapCut TTS: ' + err.message });
   }
 });
 
