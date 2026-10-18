@@ -42,11 +42,17 @@
         <button class="main-tab active" data-view="stt" role="tab">Giọng → Chữ</button>
         <button class="main-tab" data-view="tts" role="tab">Chữ → Giọng</button>
         <button class="main-tab" data-view="history" role="tab">Lịch sử</button>
+        <button class="main-tab" data-view="plans" role="tab" data-acc hidden>Gói</button>
+        <button class="main-tab" data-view="admin" role="tab" id="tab-admin" hidden>Quản trị</button>
       </nav>
 
       <div class="topbar-actions">
         <button class="icon-btn" id="btn-share" title="Link công khai / QR cho điện thoại" hidden><svg><use href="#i-qr"/></svg></button>
         <button class="icon-btn" id="btn-settings" title="Cài đặt nâng cao"><svg><use href="#i-gear"/></svg></button>
+        <button class="account-btn" id="btn-account" data-acc hidden>
+          <span class="avatar" id="acc-avatar">?</span>
+          <span class="acc-text"><b id="acc-name">Đăng nhập</b><small id="acc-plan">Khách</small></span>
+        </button>
       </div>
     </div>
   </header>
@@ -224,6 +230,7 @@
         </div>
 
         <div class="card">
+          <div class="quota-chip" id="quota-chip" hidden></div>
           <label class="field">
             <span>Kho giọng</span>
             <select id="tts-lib">
@@ -288,6 +295,36 @@
         <div id="history-list"></div>
       </div>
     </section>
+
+    <!-- ============ GÓI ============ -->
+    <section class="view" id="view-plans">
+      <div class="hero small">
+        <h1>Chọn gói phù hợp</h1>
+        <p>Tính năng chạy trên máy bạn (Whisper, Piper, MMS) luôn miễn phí, không giới hạn. Gói chỉ áp dụng cho giọng Edge Neural / CapCut chạy qua máy chủ.</p>
+      </div>
+      <div class="plans-grid" id="plans-grid"></div>
+      <p class="muted small center" id="plans-note">Lượt dùng được làm mới lúc 0h mỗi ngày (giờ Việt Nam).</p>
+    </section>
+
+    <!-- ============ QUẢN TRỊ ============ -->
+    <section class="view" id="view-admin">
+      <div class="hero small">
+        <h1>Quản trị</h1>
+        <p id="admin-stats">Đang tải…</p>
+      </div>
+      <div class="card">
+        <div class="url-row admin-search">
+          <input type="text" id="admin-q" placeholder="Tìm theo email hoặc tên…">
+          <button class="btn" id="admin-search">Tìm</button>
+        </div>
+        <div class="table-wrap">
+          <table class="admin-table">
+            <thead><tr><th>Người dùng</th><th>Trạng thái</th><th>Gói</th><th>Đổi gói</th></tr></thead>
+            <tbody id="admin-rows"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
   </main>
 
   <footer class="footer">VoiceKit · Whisper (OpenAI) qua Transformers.js · Giọng đọc Microsoft Edge Neural</footer>
@@ -308,6 +345,74 @@
     </div>
   </div>
 
+  <!-- Account modal -->
+  <div class="modal" id="modal-account" hidden>
+    <div class="modal-box">
+      <div class="modal-head"><h3 id="acc-title">Tài khoản</h3><button class="icon-btn sm" data-close>✕</button></div>
+
+      <!-- Chưa đăng nhập -->
+      <div id="acc-guest">
+        <div class="seg" id="auth-seg">
+          <button class="seg-btn active" data-auth="login">Đăng nhập</button>
+          <button class="seg-btn" data-auth="register">Đăng ký</button>
+        </div>
+        <form class="auth-form" id="form-login" data-form="login">
+          <label class="field"><span>Email</span><input type="email" name="email" autocomplete="email" required></label>
+          <label class="field"><span>Mật khẩu</span><input type="password" name="password" autocomplete="current-password" required></label>
+          <button class="btn primary big" type="submit">Đăng nhập</button>
+          <button class="link-btn" type="button" data-auth="forgot">Quên mật khẩu?</button>
+        </form>
+        <form class="auth-form" id="form-register" data-form="register" hidden>
+          <label class="field"><span>Tên hiển thị</span><input type="text" name="name" autocomplete="name" maxlength="60"></label>
+          <label class="field"><span>Email</span><input type="email" name="email" autocomplete="email" required></label>
+          <label class="field"><span>Mật khẩu <em class="muted">ít nhất 8 ký tự</em></span><input type="password" name="password" autocomplete="new-password" minlength="8" required></label>
+          <button class="btn primary big" type="submit">Tạo tài khoản miễn phí</button>
+          <p class="muted small">Sau khi đăng ký, mở email xác minh để mở gói Miễn phí (50 lượt Edge/CapCut mỗi ngày).</p>
+        </form>
+        <form class="auth-form" id="form-forgot" data-form="forgot" hidden>
+          <p class="muted small">Nhập email đã đăng ký, chúng tôi sẽ gửi liên kết đặt lại mật khẩu (hiệu lực 1 giờ).</p>
+          <label class="field"><span>Email</span><input type="email" name="email" autocomplete="email" required></label>
+          <button class="btn primary big" type="submit">Gửi liên kết</button>
+          <button class="link-btn" type="button" data-auth="login">← Quay lại đăng nhập</button>
+        </form>
+        <form class="auth-form" id="form-reset" data-form="reset" hidden>
+          <p class="muted small">Tạo mật khẩu mới cho tài khoản của bạn.</p>
+          <label class="field"><span>Mật khẩu mới</span><input type="password" name="password" autocomplete="new-password" minlength="8" required></label>
+          <button class="btn primary big" type="submit">Lưu mật khẩu mới</button>
+        </form>
+      </div>
+
+      <!-- Đã đăng nhập -->
+      <div id="acc-user" hidden>
+        <div class="profile">
+          <span class="avatar lg" id="prof-avatar">?</span>
+          <div><strong id="prof-name"></strong><span class="muted small" id="prof-email"></span></div>
+        </div>
+        <div class="verify-banner" id="verify-banner" hidden>
+          <span>Email chưa xác minh, tài khoản đang dùng giới hạn của gói Khách.</span>
+          <button class="btn sm" id="btn-resend">Gửi lại email xác minh</button>
+        </div>
+        <div class="usage-box">
+          <div class="usage-top"><span>Gói <b id="prof-plan"></b></span><span class="muted small" id="prof-expire"></span></div>
+          <div class="bar"><div class="bar-fill" id="prof-bar"></div></div>
+          <span class="muted small" id="prof-usage"></span>
+        </div>
+        <details class="pw-change">
+          <summary>Đổi mật khẩu</summary>
+          <form class="auth-form" id="form-password" data-form="password">
+            <label class="field"><span>Mật khẩu hiện tại</span><input type="password" name="current" autocomplete="current-password" required></label>
+            <label class="field"><span>Mật khẩu mới</span><input type="password" name="next" autocomplete="new-password" minlength="8" required></label>
+            <button class="btn" type="submit">Đổi mật khẩu</button>
+          </form>
+        </details>
+        <div class="modal-foot spread">
+          <button class="btn sm" id="btn-see-plans">Xem các gói</button>
+          <button class="btn sm danger" id="btn-logout">Đăng xuất</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Share modal -->
   <div class="modal" id="modal-share" hidden>
     <div class="modal-box">
@@ -321,5 +426,6 @@
   <div class="toasts" id="toasts"></div>
 
   <script src="app.js"></script>
+  <script src="account.js"></script>
 </body>
 </html>

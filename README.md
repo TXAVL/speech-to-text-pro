@@ -1,34 +1,68 @@
-# VoiceKit — Giọng nói ⇄ Văn bản (miễn phí, không cần API key)
+# VoiceKit — Giọng nói ⇄ Văn bản
+
+Website chuyển giọng nói thành văn bản và đọc văn bản thành giọng nói. Có tài khoản, các gói Khách / Miễn phí / Premium, email xác minh và quên mật khẩu qua SMTP. Toàn bộ chạy trên Cloudflare (gói free), không cần server riêng.
+
+## Deploy lên Cloudflare
+
+Mở **Command Prompt** trong thư mục dự án. Nếu báo `'node' is not recognized`, chạy dòng này trước (mỗi lần mở cửa sổ mới):
+
+```bat
+set PATH=C:\Program Files\nodejs;%PATH%
+```
+
+1. Đăng nhập Cloudflare: `npx wrangler login`
+2. Tạo cơ sở dữ liệu: `npx wrangler d1 create voicekit`. Dán `database_id` in ra vào `wrangler.toml` (mục `[[d1_databases]]`).
+3. Tạo bảng: `npx wrangler d1 migrations apply voicekit --remote`
+4. Trong `wrangler.toml`, điền `ADMIN_EMAILS` bằng email của bạn (đăng ký bằng email này là có trang Quản trị).
+5. Cấu hình SMTP (mỗi lệnh hỏi giá trị rồi lưu dạng bí mật, không nằm trong code):
+   ```bat
+   npx wrangler secret put SMTP_HOST
+   npx wrangler secret put SMTP_PORT
+   npx wrangler secret put SMTP_USER
+   npx wrangler secret put SMTP_PASS
+   npx wrangler secret put SMTP_FROM
+   ```
+6. Đưa lên web: `npm run deploy`. Lệnh in ra địa chỉ `https://speech-to-text-pro.<ten-ban>.workers.dev`.
+
+### Gợi ý SMTP
+| Nhà cung cấp | SMTP_HOST | SMTP_PORT | Ghi chú |
+|---|---|---|---|
+| Gmail | smtp.gmail.com | 587 | Bật xác minh 2 bước, tạo **App Password** làm SMTP_PASS; ~500 mail/ngày |
+| Brevo | smtp-relay.brevo.com | 587 | Free 300 mail/ngày, gửi từ tên miền riêng |
+| Zoho Mail | smtp.zoho.com | 465 | Dùng tên miền riêng |
+
+`SMTP_FROM` dạng `VoiceKit <no-reply@ten-mien.com>` (với Gmail để đúng địa chỉ Gmail của bạn). Cloudflare chặn cổng 25, chỉ dùng 587 hoặc 465.
+
+## Gói và giới hạn
+Sửa số trong `worker/plans.js`.
+
+| Gói | Ai | Edge / CapCut mỗi ngày | Ký tự mỗi lượt |
+|---|---|---|---|
+| Khách | Chưa đăng nhập (đếm theo IP) hoặc chưa xác minh email | 5 | 500 |
+| Miễn phí | Đã đăng ký và xác minh email | 50 | 3.000 |
+| Premium | Quản trị viên cấp trong trang Quản trị (có thể đặt số ngày) | 500 | 20.000 |
+
+- Có giới hạn tổng toàn hệ thống (`GLOBAL_DAILY_TTS`, mặc định 60.000 lượt/ngày) để không chạm giới hạn 100.000 request/ngày của Cloudflare free. Các gói không phải Premium dừng ở 85% mức đó.
+- Lượt làm mới lúc 0h giờ Việt Nam. Lượt bị lỗi được hoàn lại.
+- Tính năng chạy trong trình duyệt (Whisper, Piper, MMS, Gemini/Groq bằng key riêng) không tốn tài nguyên máy chủ nên không giới hạn.
+- Chưa có thanh toán tự động: người dùng liên hệ, quản trị viên bật Premium trong trang Quản trị (tùy chọn gửi email báo).
+
+## Tài khoản
+Đăng ký, xác minh email (link 24 giờ), đăng nhập (phiên 30 ngày, cookie HttpOnly), quên mật khẩu (link 1 giờ, dùng một lần, đăng xuất mọi thiết bị), đổi mật khẩu. Mật khẩu băm PBKDF2-SHA256 100.000 vòng. Chống spam: tối đa 60 thao tác đăng nhập/đăng ký/gửi mail mỗi IP mỗi ngày, gửi lại mail cách nhau 60 giây.
 
 ## Chạy thử trên máy
-Nhấp đúp `start.bat` rồi mở http://localhost:3000 (server Node), hoặc `npm run dev:worker` để chạy đúng như khi deploy Cloudflare.
+- `npm run dev:worker`: chạy giống hệt bản deploy (cần `npx wrangler d1 migrations apply voicekit --local` lần đầu). SMTP khi chạy local đặt trong file `.dev.vars` (đã gitignore).
+- `start.bat`: bản dùng cá nhân bằng Node, không có tài khoản và giới hạn.
 
-## Deploy lên website (Cloudflare)
-```bash
-npx wrangler login
-npm run deploy
-```
-Worker (`worker.js`) phục vụ giao diện trong `public/` và hai proxy nhỏ cho TTS (`/api/edge/*`, `/api/capcut/*`). Mọi thứ còn lại chạy ngay trong trình duyệt người dùng, không cần server Node.
+## Tính năng
+**Giọng → Chữ:** Whisper chạy trong trình duyệt (Small mặc định ~250 MB, Large v3 Turbo ~600 MB cần WebGPU, Base ~80 MB chỉ hợp tiếng Anh). Tùy chọn Gemini / Groq bằng key riêng, app tự dò model theo key.
 
-## Giọng → Chữ (STT)
-Whisper chạy trong trình duyệt (Transformers.js, WebGPU/CPU): không key, không giới hạn thời lượng, âm thanh không rời máy. Mô hình tải một lần rồi lưu cache.
-
-| Mô hình | Dung lượng | Ghi chú |
+**Chữ → Giọng:**
+| Kho giọng | Chạy ở đâu | Giọng Việt |
 |---|---|---|
-| Whisper Small (mặc định) | ~250 MB | Tiếng Việt tốt, cân bằng |
-| Whisper Large v3 Turbo | ~600 MB | Chính xác nhất, cần WebGPU (Chrome/Edge mới) |
-| Whisper Base | ~80 MB | Chỉ nên dùng cho tiếng Anh |
-
-Tùy chọn có key: Gemini / Groq. App hỏi thẳng Google/Groq xem key đó dùng được model nào rồi mới hiện vào danh sách (không gõ cứng tên model).
-
-## Chữ → Giọng (TTS) — kho giọng ghi rõ trong giao diện
-| Kho giọng | Key? | Chạy ở đâu | Giọng Việt |
-|---|---|---|---|
-| Microsoft Edge Neural | Không | Cloudflare Worker / server | 2 (HoaiMy, NamMinh) + 300 giọng đa ngôn ngữ |
-| CapCut / TikTok | Không | Cloudflare Worker / server | 24 |
-| Piper | Không | Trong trình duyệt (offline sau lần đầu, ~63 MB) | 1 |
-| Meta MMS | Không | Trong trình duyệt (~114 MB, giọng hơi máy) | 1 |
-| Giọng của trình duyệt / hệ điều hành | Không | Trình duyệt (chỉ nghe, không tải file) | Tùy máy (Edge có giọng Natural) |
-| Google Gemini TTS | Có (Gemini key) | Gọi thẳng Google từ trình duyệt | 30 giọng đa ngôn ngữ |
-
-Edge và CapCut cần proxy vì trình duyệt không tự gọi được (Microsoft/CapCut chặn Origin lạ). Nếu host tĩnh thuần không có Worker thì hai kho này tự ẩn.
+| Microsoft Edge Neural | Worker (có giới hạn theo gói) | 2 + 300 giọng đa ngôn ngữ |
+| CapCut / TikTok | Worker (có giới hạn theo gói) | 24 |
+| Piper | Trong trình duyệt | 1 |
+| Meta MMS | Trong trình duyệt | 1 |
+| Giọng trình duyệt / hệ điều hành | Trình duyệt (chỉ nghe) | Tùy máy |
+| Google Gemini TTS | Gọi thẳng Google bằng key riêng | 30 giọng đa ngôn ngữ |
