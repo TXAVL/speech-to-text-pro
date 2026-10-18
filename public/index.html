@@ -48,7 +48,7 @@
 
       <div class="topbar-actions">
         <button class="icon-btn" id="btn-share" title="Link công khai / QR cho điện thoại" hidden><svg><use href="#i-qr"/></svg></button>
-        <button class="icon-btn" id="btn-settings" title="Cài đặt nâng cao"><svg><use href="#i-gear"/></svg></button>
+        <button class="icon-btn" id="btn-settings" title="Cài đặt nâng cao" hidden><svg><use href="#i-gear"/></svg></button>
         <button class="account-btn" id="btn-account" data-acc hidden>
           <span class="avatar" id="acc-avatar">?</span>
           <span class="acc-text"><b id="acc-name">Đăng nhập</b><small id="acc-plan">Khách</small></span>
@@ -122,7 +122,7 @@
                   <option value="local:onnx-community/whisper-large-v3-turbo">Whisper Large v3 Turbo — chính xác nhất (~600 MB, cần WebGPU)</option>
                 </optgroup>
               </select>
-              <small class="muted" id="engine-extra">Muốn dùng Gemini / Groq? Nhập API key ở ⚙ Cài đặt, danh sách model mới nhất sẽ tự hiện ở đây.</small>
+              <small class="muted" id="engine-extra"></small>
             </label>
             <label class="field">
               <span>Ngôn ngữ</span>
@@ -214,7 +214,7 @@
     <section class="view" id="view-tts">
       <div class="hero">
         <h1>Văn bản thành giọng nói,<br><span class="grad">nhiều kho giọng tự nhiên</span></h1>
-        <p>Giọng Edge Neural, CapCut / TikTok, Piper, Meta MMS và giọng của trình duyệt đều miễn phí, không cần key. Nhập Gemini API key để dùng thêm Google Gemini TTS mới nhất. Giọng Piper / MMS chạy ngay trên máy bạn, không cần server.</p>
+        <p>Giọng Edge Neural, CapCut / TikTok, Piper, Meta MMS và giọng của trình duyệt đều miễn phí, không cần key.<span data-key-help hidden> Nhập Gemini API key ở ⚙ Cài đặt để dùng thêm Google Gemini TTS mới nhất.</span> Giọng Piper / MMS chạy ngay trên máy bạn, không cần server.</p>
       </div>
 
       <div class="grid-2 tts-grid">

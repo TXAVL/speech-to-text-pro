@@ -8,23 +8,32 @@ const vkAccount = (() => {
   const fmt = (n) => Number(n).toLocaleString('vi-VN');
 
   async function load() {
-    try {
-      const me = await api('/api/me');
-      if (!me.accounts) return disable();
-      Object.assign(acc, { enabled: true, smtp: me.smtp, user: me.user, plan: me.plan, usage: me.usage, plans: me.plans });
-      $$('[data-acc]').forEach(el => el.hidden = false);
-      render();
-    } catch { disable(); }
+    let res;
+    try { res = await fetch('/api/me', { cache: 'no-store' }); } catch { res = null; }
+    // Máy chủ không có tài khoản (start.bat / host tĩnh): 404 hoặc accounts:false -> mở khóa như bản cá nhân
+    if (res && res.status === 404) return disable();
+    const me = res && res.ok ? await res.json().catch(() => null) : null;
+    if (me && me.accounts === false) return disable();
+    if (!me) {
+      // Lỗi tạm thời: giữ khóa các tính năng cần đăng nhập, không coi là "không có tài khoản"
+      applyKeyGate(false, null);
+      return;
+    }
+    Object.assign(acc, { enabled: true, smtp: me.smtp, user: me.user, plan: me.plan, usage: me.usage, plans: me.plans });
+    $$('[data-acc]').forEach(el => el.hidden = false);
+    render();
   }
   function disable() {
     acc.enabled = false;
     $$('[data-acc]').forEach(el => el.hidden = true);
     $('#tab-admin').hidden = true;
     renderQuota();
+    applyKeyGate(true, null); // website không bật tài khoản (vd: start.bat) -> ai cũng dùng key được
   }
 
   function render() {
     const u = acc.user;
+    applyKeyGate(!!u, u ? u.id : null);
     $('#acc-avatar').textContent = u ? initials(u) : '?';
     $('#acc-name').textContent = u ? (u.name || u.email.split('@')[0]) : 'Đăng nhập';
     $('#acc-plan').textContent = acc.plan?.name || 'Khách';

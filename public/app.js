@@ -8,6 +8,22 @@ const store = {
   set(k, v) { try { localStorage.setItem(k, v); } catch {} }
 };
 
+/* API key chỉ dành cho người đã đăng nhập (khi website bật tài khoản) và lưu riêng theo từng tài khoản */
+const keyGate = { allowed: false, userId: null };
+const keyName = (k) => keyGate.userId ? `key-${k}:u${keyGate.userId}` : `key-${k}`;
+const keyGet = (k) => keyGate.allowed ? store.get(keyName(k)) : '';
+const keySet = (k, v) => { if (keyGate.allowed) store.set(keyName(k), v); };
+
+/** Gọi từ account.js: allowed = đã đăng nhập, hoặc website không bật tài khoản (chạy local bằng start.bat). */
+function applyKeyGate(allowed, userId = null) {
+  const changed = keyGate.allowed !== allowed || keyGate.userId !== userId;
+  keyGate.allowed = allowed; keyGate.userId = userId;
+  $('#btn-settings').hidden = !allowed;
+  $$('[data-key-help]').forEach(el => el.hidden = !allowed);
+  if (!allowed) $('#modal-settings').hidden = true;
+  if (changed || !keyGate.loaded) { keyGate.loaded = true; refreshModels(false); }
+}
+
 const state = {
   media: null,          // { blob, name, size, duration }
   raw: [],              // segments gốc từ mô hình
@@ -309,7 +325,7 @@ const cloudApi = {
     return this.pcmToWav(bin, Number((a.mime.match(/rate=(\d+)/) || [])[1]) || 24000);
   },
   async chat(prompt) {
-    const gKey = store.get('key-gemini'), grKey = store.get('key-groq');
+    const gKey = keyGet('gemini'), grKey = keyGet('groq');
     if (gKey) {
       const model = (cloud.gemini.stt.find(m => !/transcribe/i.test(m.id)) || { id: 'gemini-3.8-flash' }).id;
       const d = await this.gjson(gKey, `/models/${model}:generateContent`, { contents: [{ parts: [{ text: prompt }] }] });
@@ -381,7 +397,7 @@ async function runCloud(kind, model, language) {
   setProgress(kind === 'gemini' ? 'Gemini đang nhận diện…' : 'Groq đang nhận diện…', 'Âm thanh được gửi thẳng tới ' + (kind === 'gemini' ? 'Google' : 'Groq') + ' bằng key của bạn.');
   const t0 = performance.now();
   const iso = { vietnamese: 'vi', english: 'en', chinese: 'zh', japanese: 'ja', korean: 'ko', french: 'fr', spanish: 'es', german: 'de', russian: 'ru', thai: 'th' }[language] || 'auto';
-  const d = await cloudApi.transcribe(kind, store.get('key-' + kind), model, state.media.blob, state.media.name, iso, state.media.duration);
+  const d = await cloudApi.transcribe(kind, keyGet(kind), model, state.media.blob, state.media.name, iso, state.media.duration);
   return {
     text: d.text, segments: d.segments, duration: d.duration || state.media.duration,
     model: (kind === 'gemini' ? 'Gemini · ' : 'Groq · ') + model, elapsed: (performance.now() - t0) / 1000
@@ -446,7 +462,7 @@ function renderResult() {
   });
   $('#plain').value = state.text;
   applyViewMode();
-  $('#ai-row').hidden = !(store.get('key-gemini') || store.get('key-groq') || state.server.hasGemini || state.server.hasGroq);
+  $('#ai-row').hidden = !(keyGet('gemini') || keyGet('groq'));
 }
 function syncRaw() {
   state.raw = state.view.map(s => ({ ...s }));
@@ -755,7 +771,7 @@ $('#btn-tts-run').addEventListener('click', async () => {
     else if (lib === 'capcut') blob = await post('/api/capcut/tts', { text, voice, rate });
     else if (lib === 'piper') blob = await synthPiper(text, status);
     else if (lib === 'mms') blob = await synthMms(text, status);
-    else if (lib === 'gemini') blob = await cloudApi.tts(store.get('key-gemini'), $('#tts-model').value, text, voice, $('#tts-style').value);
+    else if (lib === 'gemini') blob = await cloudApi.tts(keyGet('gemini'), $('#tts-model').value, text, voice, $('#tts-style').value);
     else if (lib === 'browser') { speakBrowser(text, voice, rate); $('#tts-result').hidden = true; btn.disabled = false; return; }
 
     const url = URL.createObjectURL(blob);
@@ -769,18 +785,19 @@ $('#btn-tts-run').addEventListener('click', async () => {
 
 /* ---------------- Cài đặt / chia sẻ ---------------- */
 $('#btn-settings').addEventListener('click', () => {
-  $('#key-groq').value = store.get('key-groq'); $('#key-gemini').value = store.get('key-gemini');
+  if (!keyGate.allowed) return;
+  $('#key-groq').value = keyGet('groq'); $('#key-gemini').value = keyGet('gemini');
   openModal('#modal-settings');
 });
 $('#btn-save-keys').addEventListener('click', async () => {
-  store.set('key-groq', $('#key-groq').value.trim()); store.set('key-gemini', $('#key-gemini').value.trim());
+  keySet('groq', $('#key-groq').value.trim()); keySet('gemini', $('#key-gemini').value.trim());
   const btn = $('#btn-save-keys'); btn.disabled = true;
   await refreshModels(true);
   btn.disabled = false;
   if (state.raw.length) renderResult();
 });
 ['gemini', 'groq'].forEach(k => $('#key-' + k).addEventListener('change', () => {
-  store.set('key-' + k, $('#key-' + k).value.trim()); refreshModels(true, k);
+  keySet(k, $('#key-' + k).value.trim()); refreshModels(true, k);
 }));
 
 /* Dò model theo API key: chỉ hiện lên danh sách khi key hợp lệ */
@@ -789,7 +806,7 @@ async function refreshModels(announce = false, only) {
   const jobs = [];
   for (const k of ['gemini', 'groq']) {
     if (only && only !== k) continue;
-    const key = store.get('key-' + k), st = $('#status-' + k);
+    const key = keyGet(k), st = $('#status-' + k);
     if (!key) { cloud[k] = { stt: [], tts: [] }; st.textContent = ''; st.className = 'key-status'; continue; }
     st.className = 'key-status'; st.textContent = 'Đang dò model của key này…';
     jobs.push(cloudApi.models(k, key)
@@ -819,7 +836,8 @@ function renderEngineOptions() {
   add('Groq · key của bạn', 'groq', cloud.groq.stt);
   if ([...sel.options].some(o => o.value === cur)) sel.value = cur;
   const n = cloud.gemini.stt.length + cloud.groq.stt.length;
-  $('#engine-extra').textContent = n ? `Đã thêm ${n} model đám mây từ API key của bạn.` : 'Muốn dùng Gemini / Groq? Nhập API key ở ⚙ Cài đặt, danh sách model mới nhất sẽ tự hiện ở đây.';
+  $('#engine-extra').textContent = !keyGate.allowed ? ''
+    : n ? `Đã thêm ${n} model đám mây từ API key của bạn.` : 'Muốn dùng Gemini / Groq? Nhập API key ở ⚙ Cài đặt, danh sách model mới nhất sẽ tự hiện ở đây.';
 }
 
 $('#btn-share').addEventListener('click', async () => {
@@ -838,9 +856,7 @@ $('#btn-copy-share').addEventListener('click', () => { navigator.clipboard.write
 const HINTS = {
   'onnx-community/whisper-small': 'Lần đầu mô hình tải về một lần (~250 MB) rồi lưu cache, các lần sau chạy ngay, kể cả offline.',
   'onnx-community/whisper-base': 'Rất nhẹ (~80 MB) nhưng tiếng Việt thường sai hoặc lặp từ. Chỉ nên dùng cho tiếng Anh; tiếng Việt hãy chọn Small trở lên.',
-  'onnx-community/whisper-large-v3-turbo': 'Chính xác nhất, cần trình duyệt có WebGPU (Chrome/Edge mới) và ~600 MB tải lần đầu.',
-  'whisper-large-v3-turbo': 'Groq chạy trên đám mây, cực nhanh. Cần Groq key miễn phí trong Cài đặt và server đang chạy.',
-  'gemini-2.5-flash': 'Gemini hiểu ngữ cảnh, có tóm tắt. Cần Gemini key miễn phí trong Cài đặt và server đang chạy.'
+  'onnx-community/whisper-large-v3-turbo': 'Chính xác nhất, cần trình duyệt có WebGPU (Chrome/Edge mới) và ~600 MB tải lần đầu.'
 };
 $('#engine').addEventListener('change', () => {
   const [kind, id] = $('#engine').value.split(/:(.+)/);
@@ -861,5 +877,4 @@ $('#btn-run').addEventListener('click', runTranscribe);
   }
   updateCount();
   renderLibOptions();
-  refreshModels(false);
 })();
