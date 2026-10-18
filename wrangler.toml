@@ -2,11 +2,31 @@ name = "speech-to-text-pro"
 main = "worker.js"
 compatibility_date = "2024-09-23"
 
-# Chế độ Static Assets: Cloudflare Workers tự động host toàn bộ giao diện HTML, CSS, JS trong thư mục public
+# Giao diện tĩnh trong public/ (request tới file tĩnh miễn phí, không tính vào giới hạn Worker)
 [assets]
 directory = "./public"
 binding = "ASSETS"
 
+# Cơ sở dữ liệu tài khoản / gói / lượt dùng.
+# Tạo một lần:  npx wrangler d1 create voicekit   -> dán database_id in ra vào dưới đây
+# Tạo bảng:     npx wrangler d1 migrations apply voicekit --remote
+[[d1_databases]]
+binding = "DB"
+database_name = "voicekit"
+database_id = "00000000-0000-0000-0000-000000000000"
+migrations_dir = "migrations"
+
 [vars]
-# Nếu muốn Worker làm Proxy cố định trỏ về máy tính cá nhân khi bật start.bat, điền URL vào đây:
+# Email được quyền quản trị (cách nhau bằng dấu phẩy) - đăng ký bằng email này để vào trang Quản trị
+ADMIN_EMAILS = ""
+# Địa chỉ website dùng trong link email (để trống = tự lấy theo tên miền đang truy cập)
+APP_URL = ""
+# Chế độ proxy về máy cá nhân (start.bat + tunnel):
 # TARGET_BACKEND = "https://your-tunnel.trycloudflare.com"
+
+# SMTP đặt bằng secret (không ghi vào file này):
+#   npx wrangler secret put SMTP_HOST     (vd: smtp.gmail.com, smtp-relay.brevo.com)
+#   npx wrangler secret put SMTP_PORT     (587 hoặc 465 - Cloudflare chặn cổng 25)
+#   npx wrangler secret put SMTP_USER
+#   npx wrangler secret put SMTP_PASS
+#   npx wrangler secret put SMTP_FROM     (vd: VoiceKit <no-reply@ten-mien-cua-ban.com>)

@@ -1,0 +1,295 @@
+// Tài khoản: đăng ký, xác minh email, đăng nhập, quên/đổi mật khẩu, quản trị gói. Lưu trong D1.
+import { PLANS, AUTH_ACTIONS_PER_IP, MAIL_COOLDOWN_MS, publicPlans } from './plans.js';
+import { consume, used, effectivePlan, subjectFor, sha256Hex, clientIp } from './quota.js';
+import { sendMail, smtpConfigured } from './mailer.js';
+import { verifyEmail, resetEmail, welcomeEmail, planEmail } from './emails.js';
+
+const COOKIE = 'vk_sid';
+const SESSION_MS = 30 * 24 * 3600 * 1000;
+const VERIFY_MS = 24 * 3600 * 1000;
+const RESET_MS = 3600 * 1000;
+const PBKDF2_ITER = 100000; // tối đa Workers cho phép
+
+export const json = (data, status = 200, headers = {}) =>
+  new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', ...headers } });
+const fail = (error, status = 400, extra = {}) => json({ error, ...extra }, status);
+
+const hex = (buf) => [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
+const randomHex = (n = 32) => hex(crypto.getRandomValues(new Uint8Array(n)));
+const normEmail = (e) => String(e || '').trim().toLowerCase();
+const validEmail = (e) => /^[^\s@]{1,64}@[^\s@]{1,190}\.[^\s@]{2,}$/.test(e);
+
+async function hashPassword(password, saltHex) {
+  const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveBits']);
+  const salt = Uint8Array.from(saltHex.match(/../g).map(h => parseInt(h, 16)));
+  return hex(await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt, iterations: PBKDF2_ITER }, key, 256));
+}
+function safeEqual(a, b) {
+  if (a.length !== b.length) return false;
+  let r = 0;
+  for (let i = 0; i < a.length; i++) r |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return r === 0;
+}
+
+function adminEmails(env) {
+  return String(env.ADMIN_EMAILS || '').split(',').map(normEmail).filter(Boolean);
+}
+const isAdmin = (env, user) => !!user && (user.role === 'admin' || adminEmails(env).includes(user.email));
+const appUrl = (env, request) => (env.APP_URL || new URL(request.url).origin).replace(/\/$/, '');
+
+function cookieHeader(request, value, maxAgeSec) {
+  const secure = new URL(request.url).protocol === 'https:' ? ' Secure;' : '';
+  return `${COOKIE}=${value}; Path=/; HttpOnly;${secure} SameSite=Lax; Max-Age=${maxAgeSec}`;
+}
+function readCookie(request) {
+  const m = (request.headers.get('Cookie') || '').match(new RegExp(`(?:^|;\\s*)${COOKIE}=([a-f0-9]{64})`));
+  return m ? m[1] : null;
+}
+
+export async function getUser(request, env) {
+  if (!env.DB) return null;
+  const token = readCookie(request);
+  if (!token) return null;
+  return await env.DB.prepare(
+    `SELECT u.* FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ? AND s.expires_at > ?`
+  ).bind(await sha256Hex(token), Date.now()).first();
+}
+
+async function createSession(env, request, userId) {
+  const token = randomHex(32);
+  const now = Date.now();
+  await env.DB.batch([
+    env.DB.prepare('INSERT INTO sessions (token_hash, user_id, created_at, expires_at, user_agent) VALUES (?, ?, ?, ?, ?)')
+      .bind(await sha256Hex(token), userId, now, now + SESSION_MS, (request.headers.get('User-Agent') || '').slice(0, 200)),
+    env.DB.prepare('UPDATE users SET last_login = ? WHERE id = ?').bind(now, userId),
+    env.DB.prepare('DELETE FROM sessions WHERE expires_at < ?').bind(now)
+  ]);
+  return cookieHeader(request, token, SESSION_MS / 1000);
+}
+
+function publicUser(env, user) {
+  if (!user) return null;
+  const plan = effectivePlan(user);
+  return {
+    id: user.id, email: user.email, name: user.name, verified: !!user.verified,
+    plan: user.plan, planExpires: user.plan_expires, effectivePlan: plan.id,
+    admin: isAdmin(env, user), createdAt: user.created_at
+  };
+}
+
+async function issueToken(env, userId, kind, ttl) {
+  const last = await env.DB.prepare('SELECT created_at FROM email_tokens WHERE user_id = ? AND kind = ? ORDER BY created_at DESC LIMIT 1')
+    .bind(userId, kind).first();
+  if (last && Date.now() - last.created_at < MAIL_COOLDOWN_MS) {
+    const wait = Math.ceil((MAIL_COOLDOWN_MS - (Date.now() - last.created_at)) / 1000);
+    const e = new Error(`Vui lòng đợi ${wait} giây rồi gửi lại.`); e.status = 429; throw e;
+  }
+  const token = randomHex(32);
+  const now = Date.now();
+  await env.DB.batch([
+    env.DB.prepare('UPDATE email_tokens SET used = 1 WHERE user_id = ? AND kind = ? AND used = 0').bind(userId, kind),
+    env.DB.prepare('INSERT INTO email_tokens (token_hash, user_id, kind, created_at, expires_at) VALUES (?, ?, ?, ?, ?)')
+      .bind(await sha256Hex(token), userId, kind, now, now + ttl)
+  ]);
+  return token;
+}
+
+async function useToken(env, token, kind) {
+  if (!/^[a-f0-9]{64}$/.test(String(token || ''))) return null;
+  const row = await env.DB.prepare(
+    `UPDATE email_tokens SET used = 1 WHERE token_hash = ? AND kind = ? AND used = 0 AND expires_at > ? RETURNING user_id`
+  ).bind(await sha256Hex(token), kind, Date.now()).first();
+  return row ? row.user_id : null;
+}
+
+/** Tạo token rồi gửi mail; gửi lỗi thì xóa token để không bị tính thời gian chờ. */
+async function mailWithToken(env, user, kind, ttl, build) {
+  if (!smtpConfigured(env)) throw Object.assign(new Error('Website chưa cấu hình máy chủ email (SMTP).'), { status: 503 });
+  const token = await issueToken(env, user.id, kind, ttl);
+  try {
+    await sendMail(env, { to: user.email, ...build(token) });
+  } catch (e) {
+    await env.DB.prepare('DELETE FROM email_tokens WHERE token_hash = ?').bind(await sha256Hex(token)).run();
+    throw Object.assign(new Error('Không gửi được email: ' + e.message), { status: 502 });
+  }
+}
+
+const sendVerify = (env, request, user) =>
+  mailWithToken(env, user, 'verify', VERIFY_MS, token => verifyEmail({ name: user.name, url: `${appUrl(env, request)}/?verify=${token}` }));
+
+async function guardIp(env, request) {
+  const n = await consume(env.DB, 'auth:' + (await sha256Hex('vk-auth:' + clientIp(request))).slice(0, 32), AUTH_ACTIONS_PER_IP);
+  if (n === null) throw Object.assign(new Error('Quá nhiều thao tác từ mạng của bạn hôm nay. Hãy thử lại vào ngày mai.'), { status: 429 });
+}
+
+async function readBody(request) {
+  if (!(request.headers.get('Content-Type') || '').includes('application/json')) {
+    throw Object.assign(new Error('Yêu cầu không hợp lệ.'), { status: 415 });
+  }
+  try { return await request.json(); } catch { throw Object.assign(new Error('Dữ liệu không hợp lệ.'), { status: 400 }); }
+}
+
+/** Trạng thái tài khoản + gói + lượt dùng hôm nay (cho giao diện). */
+export async function meResponse(request, env) {
+  if (!env.DB) return json({ accounts: false });
+  const user = await getUser(request, env);
+  const plan = effectivePlan(user);
+  const u = await used(env.DB, await subjectFor(request, user));
+  return json({
+    accounts: true, smtp: smtpConfigured(env),
+    user: publicUser(env, user),
+    plan: { id: plan.id, name: plan.name, ttsCalls: plan.ttsCalls, maxChars: plan.maxChars },
+    usage: { calls: u.calls, remaining: Math.max(0, plan.ttsCalls - u.calls) },
+    plans: publicPlans()
+  });
+}
+
+export async function handleAuth(request, env, path) {
+  if (!env.DB) return fail('Website chưa bật tài khoản (thiếu cơ sở dữ liệu D1).', 503);
+  try {
+    if (path === '/api/me' && request.method === 'GET') return meResponse(request, env);
+    if (request.method !== 'POST' && !path.startsWith('/api/admin/')) return fail('Phương thức không hỗ trợ.', 405);
+
+    switch (path) {
+      case '/api/auth/register': {
+        const b = await readBody(request);
+        await guardIp(env, request);
+        const email = normEmail(b.email), name = String(b.name || '').trim().slice(0, 60), password = String(b.password || '');
+        if (!validEmail(email)) return fail('Email không hợp lệ.');
+        if (password.length < 8) return fail('Mật khẩu cần ít nhất 8 ký tự.');
+        if (password.length > 200) return fail('Mật khẩu quá dài.');
+        if (await env.DB.prepare('SELECT 1 FROM users WHERE email = ?').bind(email).first()) {
+          return fail('Email này đã có tài khoản. Hãy đăng nhập hoặc dùng "Quên mật khẩu".', 409);
+        }
+        const salt = randomHex(16);
+        const role = adminEmails(env).includes(email) ? 'admin' : 'user';
+        const user = await env.DB.prepare(
+          'INSERT INTO users (email, name, pass_hash, pass_salt, role, created_at) VALUES (?, ?, ?, ?, ?, ?) RETURNING *'
+        ).bind(email, name, await hashPassword(password, salt), salt, role, Date.now()).first();
+        let mailError = null;
+        try { await sendVerify(env, request, user); } catch (e) { mailError = e.message; }
+        const cookie = await createSession(env, request, user.id);
+        return json({ ok: true, user: publicUser(env, user), mailSent: !mailError, mailError }, 201, { 'Set-Cookie': cookie });
+      }
+
+      case '/api/auth/login': {
+        const b = await readBody(request);
+        await guardIp(env, request);
+        const email = normEmail(b.email);
+        const user = await env.DB.prepare('SELECT * FROM users WHERE email = ?').bind(email).first();
+        const ok = user && safeEqual(await hashPassword(String(b.password || ''), user.pass_salt), user.pass_hash);
+        if (!ok) return fail('Email hoặc mật khẩu không đúng.', 401);
+        if (user.role !== 'admin' && adminEmails(env).includes(email)) {
+          await env.DB.prepare("UPDATE users SET role = 'admin' WHERE id = ?").bind(user.id).run();
+          user.role = 'admin';
+        }
+        return json({ ok: true, user: publicUser(env, user) }, 200, { 'Set-Cookie': await createSession(env, request, user.id) });
+      }
+
+      case '/api/auth/logout': {
+        const token = readCookie(request);
+        if (token) await env.DB.prepare('DELETE FROM sessions WHERE token_hash = ?').bind(await sha256Hex(token)).run();
+        return json({ ok: true }, 200, { 'Set-Cookie': cookieHeader(request, '', 0) });
+      }
+
+      case '/api/auth/verify': {
+        const b = await readBody(request);
+        const userId = await useToken(env, b.token, 'verify');
+        if (!userId) return fail('Liên kết xác minh không hợp lệ hoặc đã hết hạn. Hãy đăng nhập và gửi lại email xác minh.', 400);
+        const user = await env.DB.prepare('UPDATE users SET verified = 1 WHERE id = ? RETURNING *').bind(userId).first();
+        try { await sendMail(env, { to: user.email, ...welcomeEmail({ name: user.name, url: appUrl(env, request) }) }); } catch {}
+        return json({ ok: true, user: publicUser(env, user) }, 200, { 'Set-Cookie': await createSession(env, request, user.id) });
+      }
+
+      case '/api/auth/resend-verify': {
+        await readBody(request);
+        const user = await getUser(request, env);
+        if (!user) return fail('Bạn chưa đăng nhập.', 401);
+        if (user.verified) return json({ ok: true, already: true });
+        await guardIp(env, request);
+        await sendVerify(env, request, user);
+        return json({ ok: true });
+      }
+
+      case '/api/auth/forgot': {
+        const b = await readBody(request);
+        await guardIp(env, request);
+        const email = normEmail(b.email);
+        if (!validEmail(email)) return fail('Email không hợp lệ.');
+        const user = await env.DB.prepare('SELECT * FROM users WHERE email = ?').bind(email).first();
+        if (!smtpConfigured(env)) return fail('Website chưa cấu hình máy chủ email (SMTP).', 503);
+        if (user) {
+          try {
+            await mailWithToken(env, user, 'reset', RESET_MS, token => resetEmail({ name: user.name, url: `${appUrl(env, request)}/?reset=${token}` }));
+          } catch (e) { if (e.status === 429) return fail(e.message, 429); console.log('reset mail failed', e.message); }
+        }
+        // Luôn trả lời giống nhau để không lộ email nào đã đăng ký
+        return json({ ok: true });
+      }
+
+      case '/api/auth/reset': {
+        const b = await readBody(request);
+        const password = String(b.password || '');
+        if (password.length < 8) return fail('Mật khẩu cần ít nhất 8 ký tự.');
+        const userId = await useToken(env, b.token, 'reset');
+        if (!userId) return fail('Liên kết đặt lại mật khẩu không hợp lệ hoặc đã hết hạn.', 400);
+        const salt = randomHex(16);
+        await env.DB.batch([
+          env.DB.prepare('UPDATE users SET pass_hash = ?, pass_salt = ?, verified = 1 WHERE id = ?').bind(await hashPassword(password, salt), salt, userId),
+          env.DB.prepare('DELETE FROM sessions WHERE user_id = ?').bind(userId)
+        ]);
+        const user = await env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(userId).first();
+        return json({ ok: true, user: publicUser(env, user) }, 200, { 'Set-Cookie': await createSession(env, request, userId) });
+      }
+
+      case '/api/auth/password': {
+        const b = await readBody(request);
+        const user = await getUser(request, env);
+        if (!user) return fail('Bạn chưa đăng nhập.', 401);
+        if (!safeEqual(await hashPassword(String(b.current || ''), user.pass_salt), user.pass_hash)) return fail('Mật khẩu hiện tại không đúng.', 401);
+        const next = String(b.next || '');
+        if (next.length < 8) return fail('Mật khẩu mới cần ít nhất 8 ký tự.');
+        const salt = randomHex(16);
+        await env.DB.batch([
+          env.DB.prepare('UPDATE users SET pass_hash = ?, pass_salt = ? WHERE id = ?').bind(await hashPassword(next, salt), salt, user.id),
+          env.DB.prepare('DELETE FROM sessions WHERE user_id = ?').bind(user.id)
+        ]);
+        return json({ ok: true }, 200, { 'Set-Cookie': await createSession(env, request, user.id) });
+      }
+
+      case '/api/admin/users': {
+        const user = await getUser(request, env);
+        if (!isAdmin(env, user)) return fail('Chỉ quản trị viên.', 403);
+        const url = new URL(request.url);
+        const q = `%${(url.searchParams.get('q') || '').trim().toLowerCase()}%`;
+        const page = Math.max(0, Number(url.searchParams.get('page')) || 0);
+        const { results } = await env.DB.prepare(
+          `SELECT id, email, name, plan, plan_expires, role, verified, created_at, last_login FROM users
+           WHERE email LIKE ?1 OR lower(name) LIKE ?1 ORDER BY id DESC LIMIT 50 OFFSET ?2`
+        ).bind(q, page * 50).all();
+        const total = await env.DB.prepare('SELECT COUNT(*) AS n FROM users').first();
+        const day = await env.DB.prepare("SELECT calls FROM usage WHERE subject = 'global' AND day = ?").bind(new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10)).first();
+        return json({ users: results, total: total.n, globalToday: day?.calls || 0 });
+      }
+
+      case '/api/admin/plan': {
+        const admin = await getUser(request, env);
+        if (!isAdmin(env, admin)) return fail('Chỉ quản trị viên.', 403);
+        const b = await readBody(request);
+        if (!PLANS[b.plan] || b.plan === 'guest') return fail('Gói không hợp lệ.');
+        const days = Math.max(0, Math.min(3650, Number(b.days) || 0));
+        const expires = b.plan === 'premium' && days ? Date.now() + days * 86400000 : null;
+        const user = await env.DB.prepare('UPDATE users SET plan = ?, plan_expires = ? WHERE id = ? RETURNING *').bind(b.plan, expires, Number(b.userId)).first();
+        if (!user) return fail('Không tìm thấy người dùng.', 404);
+        let mailSent = false;
+        if (b.notify) {
+          try { await sendMail(env, { to: user.email, ...planEmail({ name: user.name, planName: PLANS[b.plan].name, expires, url: appUrl(env, request) }) }); mailSent = true; } catch {}
+        }
+        return json({ ok: true, user: publicUser(env, user), mailSent });
+      }
+    }
+    return fail('Không tìm thấy.', 404);
+  } catch (e) {
+    return fail(e.message || 'Lỗi máy chủ.', e.status || 500);
+  }
+}

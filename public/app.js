@@ -61,6 +61,10 @@ function showView(name) {
   $$('.view').forEach(v => v.classList.toggle('active', v.id === 'view-' + name));
   if (name === 'history') renderHistory();
   if (name === 'tts') initTts();
+  if (typeof vkAccount !== 'undefined') {
+    if (name === 'plans') vkAccount.renderPlans();
+    if (name === 'admin') vkAccount.loadAdmin();
+  }
   window.scrollTo({ top: 0 });
 }
 $$('.main-tab').forEach(b => b.addEventListener('click', () => showView(b.dataset.view)));
@@ -634,6 +638,7 @@ async function applyLib() {
       $('#tts-voice').value = 'Kore';
     }
   } catch (e) { toast('Không tải được danh sách giọng: ' + e.message, 'err'); }
+  if (typeof vkAccount !== 'undefined') vkAccount.renderQuota();
 }
 function fillEdgeVoices() {
   const loc = $('#tts-locale').value;
@@ -737,7 +742,13 @@ $('#btn-tts-run').addEventListener('click', async () => {
     let blob = null;
     const post = async (url, body) => {
       const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Lỗi tạo giọng đọc');
+      const account = typeof vkAccount !== 'undefined' ? vkAccount : null;
+      account?.onTtsResponse(res);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        if (err.quota) account?.onQuotaError(err);
+        throw new Error(err.error || 'Lỗi tạo giọng đọc');
+      }
       return res.blob();
     };
     if (lib === 'edge') blob = await post('/api/edge/tts', { text, voice, rate, pitch: $('#tts-pitch').value });

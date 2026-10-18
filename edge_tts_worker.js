@@ -30,17 +30,20 @@ const hex = (n) => [...crypto.getRandomValues(new Uint8Array(n))].map(b => b.toS
 const xml = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
 
 async function openSocket() {
-  let offset = 0;
-  for (let attempt = 0; attempt < 2; attempt++) {
+  let offset = 0, lastStatus = 0;
+  for (let attempt = 0; attempt < 5; attempt++) {
     const url = `${WSS_URL}?Ocp-Apim-Subscription-Key=${TOKEN}&Sec-MS-GEC=${await secMsGec(offset)}&Sec-MS-GEC-Version=1-143.0.3650.96&ConnectionId=${hex(16)}`;
     const res = await fetch(url, { headers: { Upgrade: 'websocket', 'User-Agent': UA, Origin: ORIGIN } });
     if (res.webSocket) return res.webSocket;
+    lastStatus = res.status;
     // Lệch đồng hồ -> 403, lấy giờ server để thử lại
     const serverDate = Date.parse(res.headers.get('date') || '');
-    if (res.status === 403 && Number.isFinite(serverDate)) { offset = serverDate - Date.now(); continue; }
-    throw new Error('Edge TTS từ chối kết nối (' + res.status + ')');
+    if (res.status === 403 && Number.isFinite(serverDate) && !offset) { offset = serverDate - Date.now(); continue; }
+    // Microsoft giới hạn tốc độ khi mở kết nối dồn dập -> đợi giãn dần rồi thử lại
+    if (res.status === 429 || res.status >= 500) { await new Promise(r => setTimeout(r, 400 * 2 ** attempt + Math.random() * 300)); continue; }
+    break;
   }
-  throw new Error('Edge TTS từ chối kết nối.');
+  throw new Error(lastStatus === 429 ? 'Edge TTS đang quá tải, hãy thử lại sau ít giây.' : `Edge TTS từ chối kết nối (${lastStatus}).`);
 }
 
 /** Trả về Uint8Array MP3. rate: 0.5-2, pitch: Hz (-50..50). */
