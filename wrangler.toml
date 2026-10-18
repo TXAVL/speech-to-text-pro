@@ -13,12 +13,12 @@ binding = "ASSETS"
 [[d1_databases]]
 binding = "DB"
 database_name = "voicekit"
-database_id = "00000000-0000-0000-0000-000000000000"
+database_id = "5e389c7a-bd70-4c4e-8c9b-e621ed6255e1"
 migrations_dir = "migrations"
 
 [vars]
 # Email được quyền quản trị (cách nhau bằng dấu phẩy) - đăng ký bằng email này để vào trang Quản trị
-ADMIN_EMAILS = ""
+ADMIN_EMAILS = "txasoftdev@gmail.com"
 # Địa chỉ website dùng trong link email (để trống = tự lấy theo tên miền đang truy cập)
 APP_URL = ""
 # Chế độ proxy về máy cá nhân (start.bat + tunnel):
