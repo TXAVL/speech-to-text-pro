@@ -102,7 +102,7 @@ async function api(path, opts) {
 function showView(name) {
   $$('.main-tab').forEach(b => b.classList.toggle('active', b.dataset.view === name));
   $$('.view').forEach(v => v.classList.toggle('active', v.id === 'view-' + name));
-  if (name === 'history') renderHistory();
+  if (name === 'history' && typeof renderHistory === 'function') renderHistory();
   if (name === 'tts') initTts();
   if (typeof vkAccount !== 'undefined') {
     if (name === 'plans') vkAccount.renderPlans();
@@ -566,39 +566,7 @@ $$('#ai-row .chip').forEach(b => b.addEventListener('click', async () => {
 }));
 
 /* ---------------- Lịch sử ---------------- */
-function loadHistory() { try { return JSON.parse(store.get(historyKey(), '[]')); } catch { return []; } }
 function historyKey() { return keyGate.userId ? `vk-history:u${keyGate.userId}` : 'vk-history'; }
-function saveHistory() {
-  if (!keyGate.allowed) return; // khách không lưu lịch sử
-  const list = loadHistory();
-  list.unshift({ id: Date.now(), name: state.meta.name, model: state.meta.model, duration: state.meta.duration, text: state.text, segments: state.raw, at: new Date().toISOString() });
-  while (list.length > 30 || JSON.stringify(list).length > 4e6) list.pop();
-  store.set(historyKey(), JSON.stringify(list));
-}
-function renderHistory() {
-  const list = loadHistory(), box = $('#history-list');
-  $('#history-count').textContent = list.length ? `${list.length} mục` : '';
-  box.textContent = '';
-  if (!list.length) { box.innerHTML = '<div class="empty"><strong>Chưa có lịch sử</strong><span class="muted">Các lần chuyển đổi sẽ hiện ở đây.</span></div>'; return; }
-  list.forEach(h => {
-    const el = document.createElement('div'); el.className = 'h-item';
-    el.innerHTML = '<div class="h-body"><strong></strong><p></p></div>';
-    el.querySelector('strong').textContent = `${h.name || 'Không tên'} · ${new Date(h.at).toLocaleString('vi-VN')}`;
-    el.querySelector('p').textContent = h.text;
-    const open = Object.assign(document.createElement('button'), { className: 'btn sm', textContent: 'Mở' });
-    open.onclick = () => {
-      state.media = state.media || null;
-      state.meta = { model: h.model, duration: h.duration, name: h.name };
-      state.text = h.text; state.raw = h.segments;
-      showView('stt'); $('#empty').hidden = true; $('#progress-box').hidden = true; $('#result').hidden = false; $('#result-tools').hidden = false;
-      renderResult();
-    };
-    const del = Object.assign(document.createElement('button'), { className: 'btn sm danger', textContent: 'Xóa' });
-    del.onclick = () => { store.set(historyKey(), JSON.stringify(loadHistory().filter(x => x.id !== h.id))); renderHistory(); };
-    el.append(open, del); box.appendChild(el);
-  });
-}
-$('#history-clear').addEventListener('click', () => { if (confirm('Xóa toàn bộ lịch sử?')) { store.set(historyKey(), '[]'); renderHistory(); } });
 
 /* ---------------- Chữ -> Giọng: nhiều kho giọng ---------------- */
 const SAMPLE = 'Xin chào! Đây là giọng đọc trí tuệ nhân tạo. Bạn có thể dán bất kỳ đoạn văn bản nào vào đây để nghe thử.';
@@ -718,6 +686,42 @@ function splitSentences(text, max = 160) {
   }
   return out;
 }
+/** Câu ghi nguồn đã phiên âm (lấy từ máy chủ theo tên miền đang truy cập); không có máy chủ thì bỏ qua */
+const suffixCache = {};
+async function ttsSuffix(lang) {
+  if (suffixCache[lang] !== undefined) return suffixCache[lang];
+  try {
+    const r = await fetch('/api/tts-suffix?lang=' + lang, { cache: 'no-store' });
+    const d = r.ok ? await r.json() : null;
+    return (suffixCache[lang] = d?.enabled ? d.text : '');
+  } catch { return ''; }
+}
+function sourceLang(lib, voice, text) {
+  if (lib === 'piper' || lib === 'mms') return 'vi';
+  if (lib === 'browser') { const v = speechSynthesis.getVoices().find(x => (x.voiceURI || x.name) === voice); return /^vi/i.test(v?.lang || '') ? 'vi' : 'en'; }
+  return /[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]/i.test(text) ? 'vi' : 'en';
+}
+
+/** Thời lượng file âm thanh (giây), không chặn nếu lỗi */
+function audioDuration(blob) {
+  return new Promise((ok) => { const a = new Audio(); a.preload = 'metadata'; a.onloadedmetadata = () => ok(isFinite(a.duration) ? a.duration : 0); a.onerror = () => ok(0); a.src = URL.createObjectURL(blob); setTimeout(() => ok(0), 3000); });
+}
+
+/** Tên file theo nội dung đã nhập, bỏ dấu tiếng Việt. Dài hơn 50 ký tự: lấy 50 ký tự đầu + mốc thời gian. */
+function slugVi(str) {
+  return String(str).normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D')
+    .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+}
+function ttsFileName(text, ext) {
+  const plain = String(text).replace(/\s+/g, ' ').trim();
+  const long = plain.length > 50;
+  let base = slugVi(long ? plain.slice(0, 50) : plain) || 'giong-doc';
+  if (long) {
+    const d = new Date(), p = (n) => String(n).padStart(2, '0');
+    base = base.replace(/-+$/, '') + '_' + `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
+  }
+  return base + '.' + ext;
+}
 function f32ToWav(f, rate) {
   const buf = new ArrayBuffer(44 + f.length * 2), v = new DataView(buf);
   const w = (o, s) => [...s].forEach((c, i) => v.setUint8(o + i, c.charCodeAt(0)));
@@ -800,6 +804,12 @@ $('#btn-tts-run').addEventListener('click', async () => {
   const text = $('#tts-text').value.trim();
   if (!text) return toast('Hãy nhập văn bản cần đọc.', 'err');
   const voice = $('#tts-voice').value, rate = $('#tts-rate').value;
+  // Kho chạy trong trình duyệt: tự nối câu ghi nguồn (Edge / CapCut do máy chủ nối)
+  let spoken = text;
+  if (['piper', 'mms', 'gemini', 'browser'].includes(lib)) {
+    const sfx = await ttsSuffix(sourceLang(lib, voice, text));
+    if (sfx) spoken = text.replace(/[\s.!?…]*$/, '') + '. ' + sfx;
+  }
   const status = s => { label.textContent = s; };
   btn.disabled = true; label.textContent = 'Đang tạo giọng…';
   try {
@@ -817,16 +827,23 @@ $('#btn-tts-run').addEventListener('click', async () => {
     };
     if (lib === 'edge') blob = await post('/api/edge/tts', { text, voice, rate, pitch: $('#tts-pitch').value });
     else if (lib === 'capcut') blob = await post('/api/capcut/tts', { text, voice, rate });
-    else if (lib === 'piper') blob = await synthPiper(text, status);
-    else if (lib === 'mms') blob = await synthMms(text, status);
-    else if (lib === 'gemini') blob = await cloudApi.tts(keyGet('gemini'), $('#tts-model').value, text, voice, $('#tts-style').value);
-    else if (lib === 'browser') { speakBrowser(text, voice, rate); $('#tts-result').hidden = true; btn.disabled = false; return; }
+    else if (lib === 'piper') blob = await synthPiper(spoken, status);
+    else if (lib === 'mms') blob = await synthMms(spoken, status);
+    else if (lib === 'gemini') blob = await cloudApi.tts(keyGet('gemini'), $('#tts-model').value, spoken, voice, $('#tts-style').value);
+    else if (lib === 'browser') { speakBrowser(spoken, voice, rate); $('#tts-result').hidden = true; btn.disabled = false; return; }
 
     const url = URL.createObjectURL(blob);
     $('#tts-player').src = url; $('#tts-download').href = url;
-    $('#tts-download').download = 'voice.' + (blob.type.includes('wav') ? 'wav' : 'mp3');
+    $('#tts-download').download = ttsFileName(text, blob.type.includes('wav') ? 'wav' : 'mp3');
     $('#tts-result').hidden = false;
     $('#tts-player').play().catch(() => {});
+    if (typeof saveTtsHistory === 'function') {
+      const voiceOpt = $('#tts-voice').selectedOptions[0];
+      saveTtsHistory(blob, {
+        text, fileName: $('#tts-download').download, lib, libLabel: LIBS[lib]?.badge || lib,
+        voiceLabel: voiceOpt ? voiceOpt.textContent : voice, duration: await audioDuration(blob)
+      });
+    }
   } catch (e) { toast(e.message, 'err'); }
   btn.disabled = false; label.textContent = 'Tạo giọng đọc';
   updateLibLock();

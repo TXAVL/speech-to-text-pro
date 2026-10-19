@@ -21,7 +21,7 @@ const vkAccount = (() => {
     if (me.theme && typeof vkTheme !== 'undefined') vkTheme.apply(me.theme);
     try {
       const p = await api('/api/pay/packages');
-      acc.packages = p.packages || []; acc.payEnabled = !!p.enabled;
+      acc.packages = p.packages || []; acc.payEnabled = !!p.enabled; acc.credits = p.credits || { enabled: false };
       if (!acc.packages.some(x => x.id === acc.selectedPkg)) acc.selectedPkg = (acc.packages[1] || acc.packages[0])?.id || null;
     } catch { acc.packages = []; acc.payEnabled = false; }
     $$('[data-acc]').forEach(el => el.hidden = false);
@@ -54,6 +54,10 @@ const vkAccount = (() => {
       $('#prof-expire').textContent = u.effectivePlan === 'premium' ? (u.planExpires ? 'Hết hạn ' + new Date(u.planExpires).toLocaleDateString('vi-VN') : 'Vĩnh viễn') : '';
       $('#btn-see-plans').textContent = u.effectivePlan === 'premium' ? 'Gia hạn Premium' : 'Nâng cấp Premium';
     }
+    const isPrem = acc.plan.id === 'premium';
+    $('#prof-credits').hidden = !(u && (isPrem || acc.usage.credits > 0) && acc.credits?.enabled);
+    $('#prof-credits-n').textContent = fmt(acc.usage.credits || 0);
+    $('#btn-buy-credits').hidden = !isPrem;
     const used = acc.plan.ttsCalls - acc.usage.remaining;
     $('#prof-bar').style.width = Math.min(100, used / Math.max(1, acc.plan.ttsCalls) * 100) + '%';
     $('#prof-usage').textContent = `Hôm nay đã dùng ${fmt(used)}/${fmt(acc.plan.ttsCalls)} lượt ${acc.plan.id === 'premium' ? 'Edge/CapCut' : 'Edge Neural'} · tối đa ${fmt(acc.plan.maxChars)} ký tự mỗi lượt`;
@@ -76,7 +80,9 @@ const vkAccount = (() => {
     const cta = !acc.user ? `<button data-open="register">Đăng ký để có ${fmt(freeCalls)} lượt/ngày →</button>`
       : !acc.user.verified ? `<button data-open="account">Xác minh email để có ${fmt(freeCalls)} lượt/ngày →</button>`
       : p.id !== 'premium' ? '<button data-open="plans">Nâng cấp Premium →</button>' : '';
-    chip.innerHTML = `<span>Gói <b>${p.name}</b>: còn <b>${fmt(r)}/${fmt(p.ttsCalls)}</b> lượt hôm nay · tối đa ${fmt(p.maxChars)} ký tự/lượt</span>${cta}`;
+    const extra = p.id === 'premium' && acc.usage.credits ? ` · <b>+${fmt(acc.usage.credits)}</b> lượt mua thêm` : '';
+    const buy = p.id === 'premium' && acc.credits?.enabled ? `<button data-open="credits">${r === 0 && !acc.usage.credits ? '⚡ Hết lượt, mua thêm →' : 'Mua thêm lượt →'}</button>` : '';
+    chip.innerHTML = `<span>Gói <b>${p.name}</b>: còn <b>${fmt(r)}/${fmt(p.ttsCalls)}</b> lượt hôm nay${extra} · tối đa ${fmt(p.maxChars)} ký tự/lượt</span>${cta}${buy}`;
     const len = $('#tts-text').value.length;
     $('#tts-count').textContent = `${fmt(len)} / ${fmt(p.maxChars)} ký tự`;
     $('#tts-count').style.color = len > p.maxChars ? 'var(--danger)' : '';
@@ -96,6 +102,14 @@ const vkAccount = (() => {
     $$('#plans-grid [data-open]').forEach(b => b.addEventListener('click', () => openFrom(b.dataset.open)));
     $$('#plans-grid .pkg-opt').forEach(el => el.addEventListener('click', () => { acc.selectedPkg = el.dataset.pkg; renderPlans(); }));
     $('#btn-buy')?.addEventListener('click', () => vkPay.start(acc.selectedPkg));
+    const cc = $('#credits-card');
+    cc.hidden = !(acc.payEnabled && acc.credits?.enabled);
+    if (!cc.hidden) {
+      const prem = acc.plan?.id === 'premium';
+      $('#credits-card-text').textContent = `${fmt(acc.credits.price)}đ / lượt Edge hoặc CapCut · cộng dồn, không hết hạn theo ngày · dùng khi đã hết lượt trong ngày.${prem ? '' : ' Chỉ dành cho gói Premium.'}`;
+      $('#btn-credits-card').disabled = !prem;
+      $('#btn-credits-card').textContent = prem ? 'Mua thêm lượt' : 'Cần gói Premium';
+    }
   }
   function planAction(p) {
     const u = acc.user;
@@ -120,6 +134,7 @@ const vkAccount = (() => {
 
   function openFrom(what) {
     if (what === 'plans') { $('#modal-account').hidden = true; showView('plans'); return; }
+    if (what === 'credits') { $('#modal-account').hidden = true; return buyCredits(); }
     openModal('#modal-account');
     if (what === 'register' && !acc.user) switchForm('register');
     else if (!acc.user) switchForm('login');
@@ -149,7 +164,7 @@ const vkAccount = (() => {
     let score = 0;
     if (v.length >= 8) score++;
     if (/[a-z]/.test(v) && /[A-Z]/.test(v)) score++;
-    if (/d/.test(v)) score++;
+    if (/\d/.test(v)) score++;
     if (/[^A-Za-z0-9]/.test(v) || v.length >= 14) score++;
     if (v.length < 8) score = Math.min(score, 1);
     meter.dataset.score = v ? score : 0;
@@ -192,6 +207,13 @@ const vkAccount = (() => {
   });
   $('#btn-logout').addEventListener('click', async () => { await post('/api/auth/logout').catch(() => {}); await load(); $('#modal-account').hidden = true; toast('Đã đăng xuất.'); });
   $('#btn-see-plans').addEventListener('click', () => openFrom('plans'));
+  function buyCredits() {
+    if (!acc.credits?.enabled) return toast('Tạm ngừng bán lượt.', 'err');
+    if (acc.plan?.id !== 'premium') { toast('Mua thêm lượt chỉ dành cho gói Premium.', 'err'); return showView('plans'); }
+    vkPay.startCredits();
+  }
+  $('#btn-buy-credits').addEventListener('click', () => { $('#modal-account').hidden = true; buyCredits(); });
+  $('#btn-credits-card').addEventListener('click', () => { if (!acc.user) return openFrom('register'); buyCredits(); });
   $('#btn-account').addEventListener('click', () => { if (!acc.user) switchForm('login'); else loadMyOrders(); openModal('#modal-account'); });
 
   /* Đơn hàng gần đây trong hộp tài khoản */
@@ -203,7 +225,7 @@ const vkAccount = (() => {
       const shown = orders.filter(o => o.status === 'PAID' || o.status === 'PENDING').slice(0, 5);
       const label = { PAID: 'Đã thanh toán', PENDING: 'Đang chờ' };
       box.innerHTML = shown.length ? `<div class="orders-mini">${shown.map(o => `
-        <div><span>#${o.orderCode} · Premium ${esc(o.packageName)}</span>
+        <div><span>#${o.orderCode} · ${o.kind === 'credits' ? esc(o.packageName) : 'Premium ' + esc(o.packageName)}</span>
         <span>${money(o.amount)} · <span class="st ${o.status}">${label[o.status]}</span>
         ${o.status === 'PENDING' ? `<button class="copy-mini" data-resume="${o.orderCode}">Tiếp tục</button>` : `<a class="copy-mini" href="/invoice/${o.orderCode}" target="_blank" rel="noopener">Hóa đơn</a>`}</span></div>`).join('')}</div>` : '';
       $$('#prof-orders [data-resume]').forEach(b => b.addEventListener('click', () => { $('#modal-account').hidden = true; vkPay.resume(Number(b.dataset.resume)); }));
@@ -233,10 +255,12 @@ const vkAccount = (() => {
   /* Gọi từ app.js sau mỗi lần tạo giọng qua máy chủ */
   function onTtsResponse(res) {
     const left = res.headers.get('X-Quota-Remaining');
-    if (left !== null && acc.usage) { acc.usage.remaining = Number(left); render(); }
+    const cr = res.headers.get('X-Credits-Remaining');
+    if (left !== null && acc.usage) { acc.usage.remaining = Number(left); if (cr !== null) acc.usage.credits = Number(cr); render(); }
   }
   function onQuotaError(err) {
-    if (acc.usage && err.error?.includes('Đã hết')) { acc.usage.remaining = 0; render(); }
+    if (acc.usage && err.error?.includes('Đã hết')) { acc.usage.remaining = 0; acc.usage.credits = 0; render(); }
+    if (err.buyCredits) setTimeout(() => { if (confirm('Bạn đã hết lượt hôm nay. Mua thêm lượt để dùng tiếp ngay?')) buyCredits(); }, 300);
   }
 
   $('#tts-text').addEventListener('input', () => acc.enabled && renderQuota());
@@ -250,7 +274,7 @@ const vkPay = (() => {
   let order = null, pollTimer = 0, tickTimer = 0, skew = 0, banks = null, qrLib = null;
   const fmt = (n) => Number(n).toLocaleString('vi-VN');
   const show = (id) => ['pay-confirm', 'pay-loading', 'pay-main', 'pay-done', 'pay-failed'].forEach(x => { $('#' + x).hidden = x !== id; });
-  let invType = 'personal', pendingPkg = null;
+  let invType = 'personal', pendingPkg = null, payKind = 'premium';
   const stop = () => { clearInterval(pollTimer); clearInterval(tickTimer); pollTimer = tickTimer = 0; };
 
   // Đóng hộp thì dừng hỏi trạng thái
@@ -276,9 +300,9 @@ const vkPay = (() => {
 
   async function render(o) {
     order = o;
-    $('#pay-title').textContent = `Thanh toán Premium ${o.packageName}`;
+    $('#pay-title').textContent = o.kind === 'credits' ? `Thanh toán ${o.packageName}` : `Thanh toán Premium ${o.packageName}`;
     $('#pay-amount').textContent = fmt(o.amount) + 'đ';
-    $('#pay-pkg').textContent = `Mã đơn #${o.orderCode} · cộng ${fmt(o.days)} ngày Premium`;
+    $('#pay-pkg').textContent = o.kind === 'credits' ? `Mã đơn #${o.orderCode} · cộng ${fmt(o.credits)} lượt Edge / CapCut` : `Mã đơn #${o.orderCode} · cộng ${fmt(o.days)} ngày Premium`;
     $('#pay-acc').textContent = o.accountNumber || '—';
     $('#pay-name').textContent = o.accountName || '—';
     $('#pay-desc').textContent = o.description;
@@ -321,10 +345,10 @@ const vkPay = (() => {
   async function finish(o) {
     stop();
     show('pay-done');
-    $('#pay-done-text').textContent = `Đã nhận ${fmt(o.amount)}đ cho Premium ${o.packageName}. Biên lai đã được gửi về email của bạn.`;
+    $('#pay-done-text').textContent = o.kind === 'credits' ? `Đã nhận ${fmt(o.amount)}đ. Đã cộng ${fmt(o.credits)} lượt vào tài khoản, biên lai đã gửi về email.` : `Đã nhận ${fmt(o.amount)}đ cho Premium ${o.packageName}. Biên lai đã được gửi về email của bạn.`;
     $('#pay-invoice').href = `/invoice/${o.orderCode}`;
     await vkAccount.load();
-    toast('Premium đã được kích hoạt!', 'ok');
+    toast(o.kind === 'credits' ? `Đã cộng ${fmt(o.credits)} lượt!` : 'Premium đã được kích hoạt!', 'ok');
   }
 
   function setInvType(t) {
@@ -342,7 +366,8 @@ const vkPay = (() => {
   function start(packageId) {
     const pkg = vkAccount.state.packages.find(p => p.id === packageId);
     if (!pkg) return toast('Hãy chọn một gói Premium.', 'err');
-    pendingPkg = pkg;
+    pendingPkg = pkg; payKind = 'premium';
+    $('#pc-credits').hidden = true;
     const u = vkAccount.state.user || {};
     $('#pay-title').textContent = 'Xác nhận đơn hàng';
     $('#pc-pkg').textContent = `Premium ${pkg.name} · ${fmt(pkg.days)} ngày`;
@@ -359,8 +384,41 @@ const vkPay = (() => {
     $('#pc-continue').textContent = payMode() === 'redirect' ? `Tiếp tục tới payOS · ${total} →` : `Tạo mã QR · ${total}`;
   }
   $$('input[name=pc-mode]').forEach(r => r.addEventListener('change', payLabel));
+  /* Mua thêm lượt: chọn số lượt rồi dùng chung bước xác nhận / thanh toán */
+  function creditQty() { return Math.floor(Number($('#pc-qty').value)) || 0; }
+  function syncCredits() {
+    const c = vkAccount.state.credits, q = creditQty();
+    $$('#pc-presets .credit-preset').forEach(b => b.classList.toggle('active', Number(b.dataset.q) === q));
+    pendingPkg = { id: 'credits', name: `${fmt(q)} lượt`, days: 0, price: q * c.price };
+    $('#pc-pkg').textContent = `${fmt(q)} lượt Edge / CapCut`;
+    $('#pc-amount').textContent = fmt(pendingPkg.price) + 'đ';
+    payLabel();
+  }
+  function startCredits() {
+    const c = vkAccount.state.credits;
+    payKind = 'credits';
+    const u = vkAccount.state.user || {};
+    $('#pay-title').textContent = 'Mua thêm lượt';
+    $('#pc-unit').textContent = `· ${fmt(c.price)}đ / lượt`;
+    $('#pc-presets').innerHTML = c.presets.map(q => `<button type="button" class="credit-preset" data-q="${q}"><b>${fmt(q)}</b><small>${fmt(q * c.price)}đ</small></button>`).join('');
+    $$('#pc-presets .credit-preset').forEach(b => b.addEventListener('click', () => { $('#pc-qty').value = b.dataset.q; syncCredits(); }));
+    const qty = $('#pc-qty');
+    qty.min = c.min; qty.max = c.max;
+    qty.value = c.presets[1] || c.presets[0] || c.min;
+    $('#pc-credits').hidden = false;
+    if (!$('#pc-name').value) $('#pc-name').value = u.name || '';
+    if (!$('#pc-email').value) $('#pc-email').value = u.email || '';
+    syncCredits();
+    openModal('#modal-pay'); show('pay-confirm');
+  }
+  $('#pc-qty').addEventListener('input', () => { if (payKind === 'credits') syncCredits(); });
+
   $('#pc-continue').addEventListener('click', async () => {
     if (!pendingPkg) return;
+    if (payKind === 'credits') {
+      const c = vkAccount.state.credits, q = creditQty();
+      if (q < c.min || q > c.max) return toast(`Số lượt mua từ ${fmt(c.min)} đến ${fmt(c.max)}.`, 'err');
+    }
     const invoice = $('#pc-invoice').checked ? {
       enabled: true, type: invType, name: $('#pc-name').value.trim(), tax_code: $('#pc-tax').value.trim(),
       address: $('#pc-addr').value.trim(), email: $('#pc-email').value.trim()
@@ -373,7 +431,7 @@ const vkPay = (() => {
     show('pay-loading');
     try {
       const mode = payMode();
-      const r = await api('/api/pay/create', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ packageId: pendingPkg.id, invoice, mode }) });
+      const r = await api('/api/pay/create', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payKind === 'credits' ? { kind: 'credits', quantity: creditQty(), invoice, mode } : { packageId: pendingPkg.id, invoice, mode }) });
       if (mode === 'redirect' && r.order.checkoutUrl) {
         $('#pay-loading span').textContent = 'Đang chuyển sang payOS…';
         location.href = r.order.checkoutUrl;
@@ -403,5 +461,5 @@ const vkPay = (() => {
     navigator.clipboard.writeText($('#' + b.dataset.copy).textContent.trim()).then(() => toast('Đã chép.', 'ok'));
   }));
 
-  return { start, resume };
+  return { start, startCredits, resume };
 })();

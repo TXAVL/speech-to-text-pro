@@ -56,17 +56,36 @@ export async function takeTtsQuota(db, request, user, textLength, cfg) {
     return { ok: false, status: 413, error: `Gói ${plan.name} cho tối đa ${plan.maxChars.toLocaleString('vi-VN')} ký tự mỗi lượt (bạn gửi ${textLength.toLocaleString('vi-VN')}).`, plan };
   }
   const subject = await subjectFor(request, user);
-  const count = await consume(db, subject, plan.ttsCalls, textLength);
+  let count = await consume(db, subject, plan.ttsCalls, textLength);
+  let usedCredit = false, creditsLeft = user?.extra_credits || 0;
   if (count === null) {
-    return { ok: false, status: 429, error: `Đã hết ${plan.ttsCalls} lượt Edge/CapCut hôm nay của gói ${plan.name}. Lượt mới có lúc 0h (giờ Việt Nam).`, plan };
+    // Hết lượt ngày: gói Premium được dùng lượt mua thêm
+    if (plan.id === 'premium' && user && creditsLeft > 0) {
+      const row = await db.prepare('UPDATE users SET extra_credits = extra_credits - 1 WHERE id = ? AND extra_credits > 0 RETURNING extra_credits').bind(user.id).first();
+      if (row) { usedCredit = true; creditsLeft = row.extra_credits; count = plan.ttsCalls; }
+    }
+    if (!usedCredit) {
+      const canBuy = plan.id === 'premium' && cfg.credits?.enabled;
+      return {
+        ok: false, status: 429, plan, buyCredits: canBuy,
+        error: canBuy
+          ? `Đã hết ${plan.ttsCalls} lượt hôm nay của gói Premium. Mua thêm lượt để dùng tiếp ngay, hoặc chờ lượt mới lúc 0h.`
+          : `Đã hết ${plan.ttsCalls} lượt Edge/CapCut hôm nay của gói ${plan.name}. Lượt mới có lúc 0h (giờ Việt Nam).`
+      };
+    }
   }
   const globalLimit = plan.id === 'premium' ? cfg.globalDaily : Math.floor(cfg.globalDaily * GLOBAL_SOFT_RATIO);
   if ((await consume(db, 'global', globalLimit, textLength)) === null) {
-    await refund(db, subject, textLength);
+    if (usedCredit) await db.prepare('UPDATE users SET extra_credits = extra_credits + 1 WHERE id = ?').bind(user.id).run();
+    else await refund(db, subject, textLength);
     return { ok: false, status: 503, error: 'Hệ thống đã dùng hết lượt Edge/CapCut hôm nay. Hãy dùng Piper / MMS (chạy trên máy bạn, không giới hạn) hoặc thử lại sau 0h.', plan };
   }
   return {
-    ok: true, plan, remaining: plan.ttsCalls - count,
-    refund: async () => { await refund(db, subject, textLength); await refund(db, 'global', textLength); }
+    ok: true, plan, remaining: plan.ttsCalls - count, credits: creditsLeft, usedCredit,
+    refund: async () => {
+      if (usedCredit) await db.prepare('UPDATE users SET extra_credits = extra_credits + 1 WHERE id = ?').bind(user.id).run();
+      else await refund(db, subject, textLength);
+      await refund(db, 'global', textLength);
+    }
   };
 }

@@ -47,10 +47,11 @@ export function newOrderCode() {
   return Number(String(Date.now()).slice(-10) + String(r).padStart(3, '0'));
 }
 
-/** Nội dung chuyển khoản: "VK" + đuôi mã đơn, vừa giới hạn ký tự của tài khoản. */
-export function makeDescription(env, orderCode) {
+/** Nội dung chuyển khoản: "VKP" (gói Premium) hoặc "VKL" (mua lượt) + đuôi mã đơn, vừa giới hạn ký tự của tài khoản. */
+export function makeDescription(env, orderCode, kind = 'premium') {
   const max = Number(env.PAYOS_DESC_MAX || 9);
-  return 'VK' + String(orderCode).slice(-(max - 2));
+  const prefix = kind === 'credits' ? 'VKL' : 'VKP';
+  return prefix + String(orderCode).slice(-(max - prefix.length));
 }
 
 export async function createLink(env, { orderCode, amount, description, itemName, buyerName, buyerEmail, returnUrl, cancelUrl, ttlMin = 15 }) {

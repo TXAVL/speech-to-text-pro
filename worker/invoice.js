@@ -71,7 +71,7 @@ export function renderInvoice({ order, user, seller, appName }) {
     <div class="box"><h3>Thanh toán</h3>Hình thức: Chuyển khoản VietQR (payOS)<br>Nội dung CK: <b>${esc(order.description)}</b><br>${paid ? `Thời gian: ${vnDate(order.paid_at, true)}` : 'Trạng thái: chưa thanh toán'}${order.reference ? `<br>Mã GD: ${esc(order.reference)}` : ''}</div>
   </div>
   <table><thead><tr><th>Dịch vụ</th><th class="r">SL</th><th class="r">Đơn giá</th><th class="r">Thành tiền</th></tr></thead>
-    <tbody><tr><td><b>${esc(appName)} Premium ${esc(order.package_name)}</b><br><span style="color:#7b819b;font-size:13px">${order.days} ngày sử dụng gói Premium</span></td><td class="r">1</td><td class="r">${money(order.amount)}</td><td class="r">${money(order.amount)}</td></tr></tbody></table>
+    <tbody><tr><td>${order.kind === 'credits' ? `<b>${esc(appName)} · ${Number(order.credits).toLocaleString('vi-VN')} lượt Edge/CapCut</b><br><span style="color:#7b819b;font-size:13px">Lượt mua thêm, cộng dồn, không hết hạn theo ngày</span>` : `<b>${esc(appName)} Premium ${esc(order.package_name)}</b><br><span style="color:#7b819b;font-size:13px">${order.days} ngày sử dụng gói Premium</span>`}</td><td class="r">1</td><td class="r">${money(order.amount)}</td><td class="r">${money(order.amount)}</td></tr></tbody></table>
   <div class="tot"><div><span>Cộng tiền hàng</span><span>${money(order.amount)}</span></div><div class="big"><span>Tổng thanh toán</span><span>${money(order.amount)}</span></div></div>
   <div class="words">Bằng chữ: ${moneyWords(order.amount)}.</div>
   <div class="foot">${esc(seller.note || 'Hóa đơn bán hàng / biên nhận thanh toán điện tử. Nếu bạn đã yêu cầu xuất hóa đơn GTGT, hóa đơn điện tử sẽ được gửi riêng tới email nhận hóa đơn.')}</div>

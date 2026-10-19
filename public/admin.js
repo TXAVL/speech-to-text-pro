@@ -47,7 +47,7 @@ const vkAdmin = (() => {
       <div class="kpis">
         <div class="kpi money"><span>Doanh thu tháng này</span><b>${money(o.month)}</b><small>Hôm nay ${money(o.today)} · Tổng ${money(o.revenue)}</small></div>
         <div class="kpi"><span>Người dùng</span><b>${fmt(u.total)}</b><small>+${fmt(u.today)} hôm nay · +${fmt(u.week)} trong 7 ngày</small></div>
-        <div class="kpi"><span>Premium đang hoạt động</span><b>${fmt(u.premium)}</b><small>${fmt(u.verified)} đã xác minh · ${fmt(u.banned)} bị khóa</small></div>
+        <div class="kpi"><span>Premium đang hoạt động</span><b>${fmt(u.premium)}</b><small>${fmt(u.verified)} đã xác minh · ${fmt(u.credits)} lượt mua thêm đang tồn</small></div>
         <div class="kpi"><span>Đơn hàng</span><b>${fmt(o.paid)}</b><small>đã thanh toán · ${fmt(o.pending)} đang chờ</small></div>
       </div>
       <div class="adm-grid-2">
@@ -136,12 +136,13 @@ const vkAdmin = (() => {
         <b data-count></b>
         <select id="ub-action">
           <option value="">Chọn thao tác…</option>
-          <option value="plan-premium">Cộng ngày Premium</option><option value="plan-free">Chuyển về Miễn phí</option>
+          <option value="plan-premium">Cộng ngày Premium</option><option value="plan-free">Chuyển về Miễn phí</option><option value="add_credits">Cộng / trừ lượt mua thêm</option>
           <option value="verify">Xác minh email</option><option value="reset_usage">Làm mới lượt hôm nay</option>
           <option value="logout_all">Đăng xuất mọi thiết bị</option><option value="ban">Khóa tài khoản</option><option value="unban">Mở khóa</option>
           <option value="export">Xuất CSV mục đã chọn</option><option value="delete">Xóa vĩnh viễn</option>
         </select>
-        <input type="number" id="ub-days" min="0" max="3650" value="30" title="Số ngày (0 = vĩnh viễn)" hidden>
+        <span id="ub-days-wrap" hidden><input type="number" id="ub-days" min="0" max="3650" value="30" title="Số ngày (0 = vĩnh viễn)"></span>
+        <span id="ub-credits-wrap" hidden><input type="number" id="ub-credits" min="-100000" max="100000" step="10" value="100" title="Số lượt (số âm để trừ)"></span>
         <button class="btn sm primary" id="ub-apply">Áp dụng</button>
         <button class="btn sm" id="ub-clear">Bỏ chọn</button>
       </div>
@@ -153,18 +154,19 @@ const vkAdmin = (() => {
     $('#u-filter').addEventListener('change', go);
     $('#u-q').addEventListener('keydown', e => { if (e.key === 'Enter') go(); });
     $('#u-new').addEventListener('click', createUserModal);
-    $('#ub-action').addEventListener('change', () => { $('#ub-days').hidden = $('#ub-action').value !== 'plan-premium'; });
+    $('#ub-action').addEventListener('change', () => { $('#ub-days-wrap').hidden = $('#ub-action').value !== 'plan-premium'; $('#ub-credits-wrap').hidden = $('#ub-action').value !== 'add_credits'; });
     $('#ub-clear').addEventListener('click', () => { sel.users.clear(); users(); });
     $('#ub-apply').addEventListener('click', (e) => run(e.target, async () => {
       const v = $('#ub-action').value, ids = [...sel.users.keys()].map(Number);
       if (!v) throw new Error('Hãy chọn thao tác.');
       if (v === 'export') {
-        downloadCsv(`voicekit-users-chon-${ids.length}.csv`, [...sel.users.values()], [['id', 'ID'], ['email', 'Email'], ['name', 'Tên'], ['plan', 'Gói'], ['plan_expires_text', 'Hết hạn'], ['verified', 'Xác minh'], ['banned', 'Khóa'], ['role', 'Quyền'], ['spent', 'Đã chi']]);
+        downloadCsv(`voicekit-users-chon-${ids.length}.csv`, [...sel.users.values()], [['id', 'ID'], ['email', 'Email'], ['name', 'Tên'], ['plan', 'Gói'], ['plan_expires_text', 'Hết hạn'], ['extra_credits', 'Lượt mua thêm'], ['verified', 'Xác minh'], ['banned', 'Khóa'], ['role', 'Quyền'], ['spent', 'Đã chi']]);
         return;
       }
       const payload = { ids };
       if (v.startsWith('plan-')) { payload.action = 'plan'; payload.plan = v.slice(5); payload.days = Number($('#ub-days').value) || 0; }
       else payload.action = v;
+      if (v === 'add_credits') payload.amount = Number($('#ub-credits').value) || 0;
       if (v === 'delete') { const c = prompt(`Xóa vĩnh viễn ${ids.length} tài khoản cùng lượt dùng và đơn hàng. Nhập XOA để xác nhận:`); if (c === null) return; payload.confirm = c.trim(); }
       else if (!confirm(`Áp dụng "${$('#ub-action').selectedOptions[0].textContent}" cho ${ids.length} tài khoản?`)) return;
       const r = await post('/api/admin/users/bulk', payload);
@@ -177,7 +179,7 @@ const vkAdmin = (() => {
         <td class="pick"><input type="checkbox" data-pick="${u.id}" data-row="${rowData({ ...u, plan_expires_text: u.plan_expires ? date(u.plan_expires) : '' })}"></td>
         <td><b>${esc(u.name || '—')}</b><small>${esc(u.email)}</small></td>
         <td>${userTags(u)}<small>Tạo ${date(u.created_at)}</small></td>
-        <td>${isPrem(u) ? '<span class="tag pro">Premium</span>' : '<span class="tag">Miễn phí</span>'}<small>${isPrem(u) ? (u.plan_expires ? 'đến ' + date(u.plan_expires) : 'vĩnh viễn') : ''}</small></td>
+        <td>${isPrem(u) ? '<span class="tag pro">Premium</span>' : '<span class="tag">Miễn phí</span>'}<small>${isPrem(u) ? (u.plan_expires ? 'đến ' + date(u.plan_expires) : 'vĩnh viễn') : ''}</small>${u.extra_credits ? `<small>⚡ ${fmt(u.extra_credits)} lượt mua thêm</small>` : ''}</td>
         <td>${money(u.spent)}</td>
         <td><small>${dt(u.last_login)}</small></td></tr>`).join('') || '<tr><td colspan="6" class="muted">Không có kết quả.</td></tr>';
       $$('#u-rows [data-user]').forEach(tr => tr.addEventListener('click', () => userModal(Number(tr.dataset.user))));
@@ -249,7 +251,7 @@ const vkAdmin = (() => {
         <div><strong>${esc(u.name || '—')}</strong><span class="muted small">${esc(u.email)} · ID ${u.id}</span><span>${userTags({ ...u, role: u.role, banned: u.banned })}</span></div></div>
       <div class="info-grid">
         <div><small>Gói hiện tại</small><b>${prem ? 'Premium' : u.verified ? 'Miễn phí' : 'Khách'}</b>${prem ? `<small>${u.planExpires ? 'đến ' + date(u.planExpires) : 'vĩnh viễn'}</small>` : ''}</div>
-        <div><small>Lượt hôm nay</small><b>${fmt(d.usage.calls)}</b><small>${fmt(d.usage.chars)} ký tự</small></div>
+        <div><small>Lượt hôm nay</small><b>${fmt(d.usage.calls)}</b><small>${fmt(d.usage.chars)} ký tự · ⚡ ${fmt(u.credits)} lượt mua thêm</small></div>
         <div><small>Phiên đăng nhập</small><b>${fmt(d.sessions.n)}</b><small>cuối: ${dt(u.lastLogin)}</small></div>
       </div>
       <div class="adm-section"><h5>Sửa thông tin</h5>
@@ -265,6 +267,7 @@ const vkAdmin = (() => {
           </div>
           <div class="field-group" style="margin-top:0">
             <label class="field"><span>Mật khẩu mới <em class="muted">để trống nếu không đổi</em></span><input type="text" name="password" minlength="8" autocomplete="new-password"></label>
+            <label class="field"><span>Lượt mua thêm</span><input type="number" name="credits" min="0" step="10" value="${u.credits}"></label>
             <div class="field"><span>Trạng thái</span><label><input type="checkbox" name="verified" ${u.verified ? 'checked' : ''}> Đã xác minh email</label><label><input type="checkbox" name="banned" ${u.banned ? 'checked' : ''} ${self ? 'disabled' : ''}> Khóa tài khoản</label></div>
           </div>
           <button class="btn sm primary" type="submit">Lưu thay đổi</button>
@@ -298,7 +301,7 @@ const vkAdmin = (() => {
       e.preventDefault();
       run(ef.querySelector('[type=submit]'), async () => {
         const fd = new FormData(ef);
-        const payload = { email: fd.get('email'), name: fd.get('name'), plan: fd.get('plan'), plan_expires: fd.get('plan_expires') || null, verified: fd.has('verified'), password: fd.get('password') };
+        const payload = { email: fd.get('email'), name: fd.get('name'), plan: fd.get('plan'), plan_expires: fd.get('plan_expires') || null, verified: fd.has('verified'), password: fd.get('password'), credits: Number(fd.get('credits')) || 0 };
         if (!self) { payload.role = fd.get('role'); payload.banned = fd.has('banned'); }
         const r = await post(`/api/admin/users/${id}/update`, payload);
         userModal(id); refresh(); return r;
@@ -381,7 +384,7 @@ const vkAdmin = (() => {
       $('#o-sum').textContent = `${fmt(r.total)} đơn · đã thu ${money(r.sum)} · bấm vào một dòng để xem / sửa`;
       $('#o-rows').innerHTML = r.orders.map(o => `<tr data-order="${o.orderCode}">
         <td class="pick"><input type="checkbox" data-pick="${o.orderCode}" data-row="${rowData({ ...o, createdText: dt(o.createdAt), paidText: o.paidAt ? dt(o.paidAt) : '', invoiceName: o.invoice?.name || '', invoiceTax: o.invoice?.tax_code || '' })}"></td>
-        <td><b>#${o.orderCode}</b><small>Premium ${esc(o.packageName)} · ${esc(o.description)}</small><small>${dt(o.createdAt)}</small></td>
+        <td><b>#${o.orderCode}</b>${o.kind === 'credits' ? ' <span class="tag" style="color:var(--accent-2)">⚡ Lượt</span>' : ''}<small>${o.kind === 'credits' ? esc(o.packageName) : 'Premium ' + esc(o.packageName)} · ${esc(o.description)}</small><small>${dt(o.createdAt)}</small></td>
         <td>${esc(o.email)}${o.invoice ? `<small class="inv-info">🧾 ${esc(o.invoice.name)}${o.invoice.tax_code ? ' · MST ' + esc(o.invoice.tax_code) : ''}</small>${o.invoiceIssuedAt ? `<span class="tag ok">Đã xuất HĐ${o.invoiceNo ? ' · ' + esc(o.invoiceNo) : ''}</span>` : o.status === 'PAID' ? '<span class="tag warn">Chưa xuất HĐ</span>' : ''}` : ''}</td>
         <td><b>${money(o.amount)}</b></td>
         <td><span class="st ${o.status}">${ST[o.status]}</span>${o.paidAt ? `<small>${dt(o.paidAt)} · ${esc(o.paidVia || '')}</small>` : ''}${o.note ? `<small>${esc(o.note)}</small>` : ''}</td>
@@ -429,7 +432,11 @@ const vkAdmin = (() => {
     const form = formModal('Tạo đơn thủ công', `
       <p class="muted small" style="margin-bottom:12px">Dùng cho khách chuyển khoản ngoài payOS, tặng gói, hoặc bù đơn lỗi. Đơn "Đã thanh toán" sẽ cộng ngày Premium ngay.</p>
       <label class="field"><span>Email khách hàng</span><input type="email" name="email" required list="adm-user-emails" autocomplete="off" placeholder="Gõ để tìm…"><datalist id="adm-user-emails"></datalist></label>
-      <label class="field"><span>Gói</span><select name="package_id">${pk.map(p => `<option value="${esc(p.id)}">${esc(p.name)} · ${fmt(p.days)} ngày · ${money(p.price)}${p.active ? '' : ' (đã ẩn)'}</option>`).join('')}<option value="custom">Tùy chỉnh…</option></select></label>
+      <label class="field"><span>Gói</span><select name="package_id">${pk.map(p => `<option value="${esc(p.id)}">${esc(p.name)} · ${fmt(p.days)} ngày · ${money(p.price)}${p.active ? '' : ' (đã ẩn)'}</option>`).join('')}<option value="credits">⚡ Mua lượt…</option><option value="custom">Premium tùy chỉnh…</option></select></label>
+      <div class="field-group credits-pkg" style="margin-top:0" hidden>
+        <label class="field"><span>Số lượt</span><input type="number" name="credits" min="1" step="10" value="100"></label>
+        <label class="field"><span>Số tiền <em class="muted">trống = theo giá lượt</em></span><input type="text" name="credits_amount" inputmode="numeric" placeholder="tự tính"></label>
+      </div>
       <div class="field-group custom-pkg" style="margin-top:0" hidden>
         <label class="field"><span>Tên gói</span><input type="text" name="c_name" placeholder="vd: Tặng 7 ngày"></label>
         <label class="field"><span>Số ngày</span><input type="number" name="c_days" min="1" max="3650" value="30"></label>
@@ -441,16 +448,16 @@ const vkAdmin = (() => {
       </div>
       <label class="field"><span>Ghi chú</span><input type="text" name="note" maxlength="200" placeholder="vd: CK Vietcombank 19/10, tặng khách thân thiết…"></label>
       <label><input type="checkbox" name="send_receipt" checked> Gửi email biên lai cho khách</label>`, async (fd) => {
-      const custom = fd.get('package_id') === 'custom';
+      const custom = fd.get('package_id') === 'custom', cr = fd.get('package_id') === 'credits';
       const r = await post('/api/admin/orders', {
-        email: fd.get('email'), package_id: custom ? '' : fd.get('package_id'),
-        custom: custom ? { name: fd.get('c_name'), days: Number(fd.get('c_days')), amount: Number(fd.get('c_amount')) } : null,
+        email: fd.get('email'), package_id: custom ? '' : fd.get('package_id'), credits: cr ? Number(fd.get('credits')) : undefined,
+        custom: custom ? { name: fd.get('c_name'), days: Number(fd.get('c_days')), amount: Number(fd.get('c_amount')) } : cr ? { amount: fd.get('credits_amount') } : null,
         status: fd.get('status'), reference: fd.get('reference'), note: fd.get('note'), send_receipt: fd.has('send_receipt')
       });
       orders();
       return r;
     }, 'Tạo đơn');
-    form.package_id.addEventListener('change', () => { form.querySelector('.custom-pkg').hidden = form.package_id.value !== 'custom'; });
+    form.package_id.addEventListener('change', () => { form.querySelector('.custom-pkg').hidden = form.package_id.value !== 'custom'; form.querySelector('.credits-pkg').hidden = form.package_id.value !== 'credits'; });
     let t = 0;
     form.email.addEventListener('input', () => {
       clearTimeout(t);
@@ -536,6 +543,29 @@ const vkAdmin = (() => {
           <input type="number" id="st-global" min="100" max="95000" value="${s.globalDaily}"> <span class="muted small">lượt (Cloudflare free: 100.000 request/ngày, nên để ≤ 60.000)</span></div>
       </div>
       <div class="card" style="margin-bottom:16px">
+        <h4>🔖 Câu ghi nguồn cuối file giọng đọc</h4>
+        <p class="muted small" style="margin-bottom:10px">Tự thêm vào cuối mỗi file giọng đọc. <code>{domain}</code> = tên miền đang truy cập (<b>${esc(s.host)}</b>), được phiên âm để giọng đọc đọc đúng. Edge / CapCut do máy chủ thêm nên người dùng không gỡ được.</p>
+        <div class="adm-actions" style="margin-bottom:10px">
+          <label><input type="checkbox" id="wm-enabled" ${s.watermark.enabled ? 'checked' : ''}> Bật câu ghi nguồn</label>
+          <label><input type="checkbox" id="wm-exempt" ${s.watermark.exemptPremium ? 'checked' : ''}> Không thêm cho gói Premium</label>
+        </div>
+        <label class="field"><span>Câu cho giọng tiếng Việt</span><input type="text" id="wm-vi" value="${esc(s.watermark.vi)}" maxlength="300"></label>
+        <label class="field"><span>Câu cho giọng tiếng Anh / ngôn ngữ khác</span><input type="text" id="wm-en" value="${esc(s.watermark.en)}" maxlength="300"></label>
+        <div class="wm-preview"><span class="muted small">Giọng đọc sẽ nói:</span><p id="wm-spoken">…</p>
+          <button class="btn sm" type="button" id="wm-listen">▶ Nghe thử (Edge · HoaiMy)</button><audio id="wm-audio" hidden></audio></div>
+      </div>
+      <div class="card" style="margin-bottom:16px">
+        <h4>⚡ Bán thêm lượt (chỉ gói Premium)</h4>
+        <label style="margin-bottom:10px;display:inline-flex"><input type="checkbox" id="cr-enabled" ${s.credits.enabled ? 'checked' : ''}> Cho phép tài khoản Premium mua thêm lượt</label>
+        <div class="field-group" style="margin-top:0;grid-template-columns:1fr 1fr 1fr">
+          <label class="field"><span>Giá mỗi lượt (VND)</span><input type="number" id="cr-price" min="1" step="50" value="${s.credits.price}"></label>
+          <label class="field"><span>Mua tối thiểu</span><input type="number" id="cr-min" min="1" step="10" value="${s.credits.min}"></label>
+          <label class="field"><span>Mua tối đa</span><input type="number" id="cr-max" min="1" step="100" value="${s.credits.max}"></label>
+        </div>
+        <label class="field"><span>Gói gợi ý nhanh <em class="muted">số lượt, cách nhau bằng dấu phẩy</em></span><input type="text" id="cr-presets" value="${esc(s.credits.presets.join(', '))}"></label>
+        <p class="muted small" id="cr-preview"></p>
+      </div>
+      <div class="card" style="margin-bottom:16px">
         <h4>Thông tin người bán (in trên hóa đơn)</h4>
         <div class="field-group" style="margin-top:0">
           <label class="field"><span>Tên người bán / công ty</span><input id="sl-name" value="${esc(s.seller.name || '')}" placeholder="VoiceKit"></label>
@@ -549,6 +579,20 @@ const vkAdmin = (() => {
         <label class="field"><span>Ghi chú cuối hóa đơn</span><input id="sl-note" value="${esc(s.seller.note || '')}" placeholder="Hóa đơn bán hàng / biên nhận thanh toán điện tử…"></label>
       </div>
       <button class="btn primary" id="st-save">Lưu cài đặt</button>`;
+    const crPrev = () => { const pr = Number($('#cr-price').value) || 0; $('#cr-preview').textContent = $('#cr-presets').value.split(/[,\s]+/).filter(Boolean).map(q => `${fmt(q)} lượt = ${money(q * pr)}`).join(' · '); };
+    ['#cr-price', '#cr-presets'].forEach(sel => $(sel).addEventListener('input', crPrev)); crPrev();
+    const wmRefresh = async () => {
+      try {
+        const r = await api('/api/tts-suffix?lang=vi');
+        $('#wm-spoken').textContent = $('#wm-vi').value.replace(/\{domain\}/g, r.spoken).replace(/\bfile\b/gi, 'phai');
+      } catch (e) { $('#wm-spoken').textContent = e.message; }
+    };
+    $('#wm-vi').addEventListener('input', wmRefresh); wmRefresh();
+    $('#wm-listen').addEventListener('click', (e) => run(e.target, async () => {
+      const res = await fetch('/api/edge/tts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: 'Xin chào', voice: 'vi-VN-HoaiMyNeural' }) });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Không tạo được giọng thử');
+      const a = $('#wm-audio'); a.src = URL.createObjectURL(await res.blob()); a.play();
+    }));
     $('#pk-add').addEventListener('click', () => {
       $('#pk-rows').insertAdjacentHTML('beforeend', pkgRow({ id: 'p' + ($('#pk-rows').children.length + 1), name: '', days: 30, price: 49000, active: true }));
       bindDel();
@@ -564,7 +608,9 @@ const vkAdmin = (() => {
         ttsCalls: Number(tr.querySelector('[data-k="ttsCalls"]').value), maxChars: Number(tr.querySelector('[data-k="maxChars"]').value)
       }]));
       const seller = { name: $('#sl-name').value, tax_code: $('#sl-tax').value, address: $('#sl-addr').value, email: $('#sl-email').value, phone: $('#sl-phone').value, note: $('#sl-note').value };
-      const r = await post('/api/admin/settings', { packages, limits, globalDaily: Number($('#st-global').value), seller });
+      const credits = { enabled: $('#cr-enabled').checked, price: Number($('#cr-price').value), min: Number($('#cr-min').value), max: Number($('#cr-max').value), presets: $('#cr-presets').value };
+      const watermark = { enabled: $('#wm-enabled').checked, exemptPremium: $('#wm-exempt').checked, vi: $('#wm-vi').value, en: $('#wm-en').value };
+      const r = await post('/api/admin/settings', { packages, limits, globalDaily: Number($('#st-global').value), seller, credits, watermark });
       await vkAccount.load();
       settings();
       return r;
@@ -714,7 +760,7 @@ const vkAdmin = (() => {
       'user.plan': 'Đổi gói', 'user.verify': 'Xác minh email', 'user.resend_verify': 'Gửi lại mail xác minh', 'user.reset_password': 'Gửi mail đặt lại MK',
       'user.ban': 'Khóa tài khoản', 'user.unban': 'Mở khóa', 'user.logout_all': 'Đăng xuất mọi thiết bị', 'user.reset_usage': 'Làm mới lượt', 'user.role': 'Đổi quyền',
       'user.rename': 'Đổi tên', 'user.delete': 'Xóa tài khoản', 'order.sync': 'Đối soát đơn', 'order.mark_paid': 'Kích hoạt tay', 'order.cancel': 'Hủy đơn',
-      'settings.update': 'Sửa cài đặt', 'payos.webhook': 'Đăng ký webhook', 'email.save': 'Sửa mẫu email', 'email.reset': 'Khôi phục mẫu email', 'order.invoice': 'Cập nhật hóa đơn', 'user.create': 'Tạo tài khoản', 'user.update': 'Sửa tài khoản', 'order.create': 'Tạo đơn thủ công', 'order.update': 'Sửa đơn', 'order.delete': 'Xóa đơn'
+      'settings.update': 'Sửa cài đặt', 'payos.webhook': 'Đăng ký webhook', 'email.save': 'Sửa mẫu email', 'email.reset': 'Khôi phục mẫu email', 'order.invoice': 'Cập nhật hóa đơn', 'user.create': 'Tạo tài khoản', 'user.update': 'Sửa tài khoản', 'order.create': 'Tạo đơn thủ công', 'order.update': 'Sửa đơn', 'order.delete': 'Xóa đơn', 'user.bulk.add_credits': 'Hàng loạt: cộng / trừ lượt'
     };
     body().innerHTML = `<div class="card">
       ${r.logs.map(l => `<div class="log-row"><span class="muted">${dt(l.created_at)}</span><span>${esc(l.admin_email)}</span>
