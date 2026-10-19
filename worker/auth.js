@@ -214,13 +214,18 @@ export async function handleAuth(request, env, path) {
         const email = normEmail(b.email);
         const user = await env.DB.prepare('SELECT * FROM users WHERE email = ?').bind(email).first();
         const ok = user && safeEqual(await hashPassword(String(b.password || ''), user.pass_salt), user.pass_hash);
-        if (!ok) return fail('Email hoặc mật khẩu không đúng.', 401);
-        if (user.banned) return fail('Tài khoản đã bị khóa. Liên hệ quản trị viên nếu bạn cho rằng đây là nhầm lẫn.', 403);
+        if (!ok) return fail('Email hoặc mật khẩu không chính xác. Vui lòng kiểm tra lại.', 401);
+        if (user.banned) return fail('Tài khoản đã bị khóa. Vui lòng liên hệ quản trị viên.', 403);
         if (user.role !== 'admin' && adminEmails(env).includes(email)) {
           await env.DB.prepare("UPDATE users SET role = 'admin' WHERE id = ?").bind(user.id).run();
           user.role = 'admin';
         }
-        return json({ ok: true, user: publicUser(env, user, cfg) }, 200, { 'Set-Cookie': await createSession(env, request, user.id) });
+        return json({
+          ok: true,
+          message: user.verified ? 'Đăng nhập thành công!' : 'Đăng nhập thành công! Tài khoản của bạn chưa xác minh email.',
+          verified: !!user.verified,
+          user: publicUser(env, user, cfg)
+        }, 200, { 'Set-Cookie': await createSession(env, request, user.id) });
       }
 
       case '/api/auth/logout': {

@@ -145,8 +145,29 @@ const vkAccount = (() => {
     if (b) openFrom(b.dataset.open);
   });
 
+  function showFormAlert(form, msg, type = 'err') {
+    if (!form) return;
+    let el = form.querySelector('.auth-alert');
+    if (!el) {
+      el = document.createElement('div');
+      el.className = 'auth-alert';
+      form.prepend(el);
+    }
+    el.className = 'auth-alert ' + type;
+    el.textContent = msg;
+    el.hidden = false;
+  }
+  function clearFormAlert(form) {
+    if (!form) return;
+    const el = form.querySelector('.auth-alert');
+    if (el) el.hidden = true;
+  }
+
   function switchForm(name) {
-    $$('.auth-form[data-form]').forEach(f => { if (f.id !== 'form-password') f.hidden = f.dataset.form !== name; });
+    $$('.auth-form[data-form]').forEach(f => {
+      clearFormAlert(f);
+      if (f.id !== 'form-password') f.hidden = f.dataset.form !== name;
+    });
     $$('#auth-seg .seg-btn').forEach(b => b.classList.toggle('active', b.dataset.auth === name));
     $('#auth-seg').hidden = name === 'reset' || name === 'forgot' || name === 'resend';
   }
@@ -175,36 +196,73 @@ const vkAccount = (() => {
     .observe($('#modal-account'), { attributes: true, attributeFilter: ['hidden'] });
 
   async function submit(form, fn) {
+    clearFormAlert(form);
     const btn = form.querySelector('[type=submit]'), label = btn.textContent;
     btn.disabled = true; btn.textContent = 'Đang xử lý…';
-    try { await fn(Object.fromEntries(new FormData(form))); }
-    catch (e) { toast(e.message, 'err'); }
-    btn.disabled = false; btn.textContent = label;
+    try {
+      await fn(Object.fromEntries(new FormData(form)));
+    } catch (e) {
+      showFormAlert(form, e.message || 'Thao tác không thành công. Vui lòng kiểm tra lại.', 'err');
+      toast(e.message || 'Thao tác không thành công.', 'err');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = label;
+    }
   }
 
   $('#form-login').addEventListener('submit', e => { e.preventDefault(); submit(e.target, async d => {
-    await post('/api/auth/login', d); e.target.reset(); await load(); $('#modal-account').hidden = true; toast('Đăng nhập thành công.', 'ok');
+    const r = await post('/api/auth/login', d);
+    e.target.reset();
+    showFormAlert(e.target, '✓ ' + (r.message || 'Đăng nhập thành công! Đang tải thông tin...'), 'ok');
+    await load();
+    setTimeout(() => {
+      $('#modal-account').hidden = true;
+      if (r.user?.verified) {
+        toast(`🎉 Đăng nhập thành công! Chào mừng ${r.user.name || r.user.email}.`, 'ok');
+      } else {
+        toast('⚠️ Đăng nhập thành công! Tài khoản của bạn chưa xác minh email.', 'err');
+      }
+    }, 400);
   }); });
   $('#form-register').addEventListener('submit', e => { e.preventDefault(); submit(e.target, async d => {
-    const r = await post('/api/auth/register', d); e.target.reset(); await load();
-    toast(r.mailSent ? `Đã tạo tài khoản. Hãy mở email ${r.user.email} để xác minh.` : 'Đã tạo tài khoản nhưng chưa gửi được email xác minh: ' + (r.mailError || ''), r.mailSent ? 'ok' : 'err');
+    const r = await post('/api/auth/register', d);
+    e.target.reset();
+    await load();
+    if (r.mailSent) {
+      showFormAlert(e.target, `✓ Tạo tài khoản thành công! Hãy mở email ${r.user.email} để bấm liên kết xác minh.`, 'ok');
+      toast(`Đã tạo tài khoản thành công. Hãy mở email ${r.user.email} để xác minh.`, 'ok');
+    } else {
+      showFormAlert(e.target, `Đã tạo tài khoản nhưng chưa gửi được email: ${r.mailError || ''}`, 'warn');
+      toast('Đã tạo tài khoản nhưng chưa gửi được email: ' + (r.mailError || ''), 'err');
+    }
   }); });
   $('#form-resend')?.addEventListener('submit', e => { e.preventDefault(); submit(e.target, async d => {
     const r = await post('/api/auth/resend-verify', d);
     e.target.reset();
-    toast(r.message || `Đã gửi lại email xác minh tới ${d.email}. Hãy kiểm tra hộp thư.`, 'ok');
-    switchForm('login');
+    showFormAlert(e.target, `✓ ${r.message || 'Đã gửi lại email xác minh thành công!'}`, 'ok');
+    toast(r.message || `Đã gửi lại email xác minh tới ${d.email}.`, 'ok');
+    setTimeout(() => switchForm('login'), 1500);
   }); });
   $('#form-forgot').addEventListener('submit', e => { e.preventDefault(); submit(e.target, async d => {
-    await post('/api/auth/forgot', d); e.target.reset(); switchForm('login');
+    await post('/api/auth/forgot', d);
+    e.target.reset();
+    showFormAlert(e.target, '✓ Nếu email đã đăng ký, liên kết đặt lại mật khẩu đã được gửi đến hộp thư.', 'ok');
     toast('Nếu email đã đăng ký, liên kết đặt lại mật khẩu đã được gửi.', 'ok');
+    setTimeout(() => switchForm('login'), 1500);
   }); });
   $('#form-reset').addEventListener('submit', e => { e.preventDefault(); submit(e.target, async d => {
     await post('/api/auth/reset', { token: acc.resetToken, password: d.password });
-    acc.resetToken = null; e.target.reset(); await load(); $('#modal-account').hidden = true; toast('Đã đổi mật khẩu và đăng nhập.', 'ok');
+    acc.resetToken = null;
+    e.target.reset();
+    await load();
+    $('#modal-account').hidden = true;
+    toast('✓ Đã đổi mật khẩu thành công và tự động đăng nhập.', 'ok');
   }); });
   $('#form-password').addEventListener('submit', e => { e.preventDefault(); submit(e.target, async d => {
-    await post('/api/auth/password', d); e.target.reset(); e.target.closest('details').open = false; toast('Đã đổi mật khẩu. Các thiết bị khác đã bị đăng xuất.', 'ok');
+    await post('/api/auth/password', d);
+    e.target.reset();
+    e.target.closest('details').open = false;
+    toast('✓ Đã đổi mật khẩu thành công. Các thiết bị khác đã được đăng xuất.', 'ok');
   }); });
   $('#btn-resend').addEventListener('click', async (e) => {
     e.target.disabled = true;
