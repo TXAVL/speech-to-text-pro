@@ -8,9 +8,9 @@
 import { edgeVoices, edgeSynthesize } from './edge_tts_worker.js';
 import { capcutVoices, capcutSynthesize } from './capcut_worker.js';
 import { handleAuth, getUser, json } from './worker/auth.js';
-import { takeTtsQuota } from './worker/quota.js';
+import { takeTtsQuota, effectivePlan } from './worker/quota.js';
 
-async function ttsRoute(request, env, synth, label) {
+async function ttsRoute(request, env, synth, label, premiumOnly = false) {
   let body;
   try { body = await request.json(); } catch { return json({ error: 'Dữ liệu không hợp lệ.' }, 400); }
   const text = String(body.text || '').trim();
@@ -20,7 +20,11 @@ async function ttsRoute(request, env, synth, label) {
   // Trừ lượt theo gói (nếu website đã bật D1)
   let quota = null;
   if (env.DB) {
-    quota = await takeTtsQuota(env.DB, request, await getUser(request, env), text.length);
+    const user = await getUser(request, env);
+    if (premiumOnly && effectivePlan(user).id !== 'premium') {
+      return json({ error: `${label} chỉ dành cho gói Premium.`, premium: true }, 403);
+    }
+    quota = await takeTtsQuota(env.DB, request, user, text.length);
     if (!quota.ok) return json({ error: quota.error, quota: true, plan: quota.plan.id }, quota.status);
   }
   try {
@@ -67,7 +71,7 @@ export default {
     if (path === '/api/edge/tts' && request.method === 'POST') return ttsRoute(request, env, edgeSynthesize, 'Edge TTS');
 
     if (path === '/api/capcut/voices') return json({ success: true, voices: capcutVoices() }, 200, { 'Cache-Control': 'public, max-age=86400' });
-    if (path === '/api/capcut/tts' && request.method === 'POST') return ttsRoute(request, env, capcutSynthesize, 'CapCut TTS');
+    if (path === '/api/capcut/tts' && request.method === 'POST') return ttsRoute(request, env, capcutSynthesize, 'Kho giọng CapCut', true);
 
     if (path.startsWith('/api/')) return json({ error: 'Không tìm thấy.' }, 404);
     return env.ASSETS ? env.ASSETS.fetch(request) : new Response('Not Found', { status: 404 });
