@@ -10,13 +10,15 @@ const vkAccount = (() => {
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
   async function load() {
-    let res;
-    try { res = await fetch('/api/me', { cache: 'no-store' }); } catch { res = null; }
-    // Máy chủ không có tài khoản (start.bat / host tĩnh): 404 hoặc accounts:false -> mở khóa như bản cá nhân
-    if (res && res.status === 404) return disable();
-    const me = res && res.ok ? await res.json().catch(() => null) : null;
-    if (me && me.accounts === false) return disable();
-    if (!me) { applyKeyGate(false, null); return; } // lỗi tạm thời: giữ khóa
+    let me;
+    try {
+      me = await api('/api/me');
+    } catch (e) {
+      if (e.status === 404 || e.accounts === false) return disable();
+      applyKeyGate(false, null);
+      return;
+    }
+    if (!me || me.accounts === false) return disable();
     Object.assign(acc, { enabled: true, smtp: me.smtp, user: me.user, plan: me.plan, usage: me.usage, plans: me.plans });
     if (me.theme && typeof vkTheme !== 'undefined') vkTheme.apply(me.theme);
     try {
