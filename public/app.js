@@ -90,10 +90,75 @@ function download(name, data, type) {
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
-async function api(path, opts) {
+const APP_PAYLOAD_SECRET = 'vk_sec_shield_2026';
+
+function toB64(u8) {
+  let bin = '';
+  for (let i = 0; i < u8.length; i++) bin += String.fromCharCode(u8[i]);
+  return btoa(bin);
+}
+function fromB64(b64) {
+  const bin = atob(b64);
+  const u8 = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+  return u8;
+}
+
+async function derivePayloadKey(nonce) {
+  const enc = new TextEncoder();
+  const raw = await crypto.subtle.digest('SHA-256', enc.encode(APP_PAYLOAD_SECRET + ':' + nonce));
+  return crypto.subtle.importKey('raw', raw, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
+}
+
+async function encryptPayload(data, nonce) {
+  const key = await derivePayloadKey(nonce);
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const encoded = new TextEncoder().encode(JSON.stringify(data));
+  const cipher = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, encoded);
+  const buf = new Uint8Array(iv.length + cipher.byteLength);
+  buf.set(iv, 0);
+  buf.set(new Uint8Array(cipher), iv.length);
+  return toB64(buf);
+}
+
+async function decryptPayload(b64, nonce) {
+  const key = await derivePayloadKey(nonce);
+  const raw = fromB64(b64);
+  const iv = raw.slice(0, 12);
+  const cipher = raw.slice(12);
+  const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, cipher);
+  return JSON.parse(new TextDecoder().decode(plain));
+}
+
+async function api(path, opts = {}) {
+  const nonce = Math.random().toString(36).slice(2) + Date.now().toString(36);
+  opts = { ...opts };
+  const headers = new Headers(opts.headers || {});
+  headers.set('X-Client-Nonce', nonce);
+
+  // Nếu body là JSON: mã hóa payload trước khi gửi để giấu hoàn toàn trên tab Network
+  if (opts.body && typeof opts.body === 'string' && (headers.get('Content-Type') || '').includes('json')) {
+    try {
+      const raw = JSON.parse(opts.body);
+      const enc = await encryptPayload(raw, nonce);
+      opts.body = JSON.stringify({ payload: enc });
+    } catch {}
+  }
+  opts.headers = headers;
+
   const res = await fetch(path, opts);
   const ct = res.headers.get('content-type') || '';
-  const body = ct.includes('json') ? await res.json() : null;
+  let body = ct.includes('json') ? await res.json().catch(() => null) : null;
+
+  // Nếu response được máy chủ mã hóa payload: giải mã ngay tại client
+  if (body && body.payload) {
+    try {
+      body = await decryptPayload(body.payload, nonce);
+    } catch (e) {
+      console.warn('Lỗi giải mã payload:', e);
+    }
+  }
+
   if (!res.ok) {
     const err = new Error(body?.error || `Lỗi máy chủ (${res.status})`);
     if (body && typeof body === 'object') Object.assign(err, body);

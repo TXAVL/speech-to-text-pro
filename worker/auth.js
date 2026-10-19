@@ -15,6 +15,68 @@ export const json = (data, status = 200, headers = {}) =>
   new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', ...headers } });
 const fail = (error, status = 400, extra = {}) => json({ error, ...extra }, status);
 
+export const APP_PAYLOAD_SECRET = 'vk_sec_shield_2026';
+
+function toB64(u8) {
+  let bin = '';
+  for (let i = 0; i < u8.length; i++) bin += String.fromCharCode(u8[i]);
+  return btoa(bin);
+}
+function fromB64(b64) {
+  const bin = atob(b64);
+  const u8 = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+  return u8;
+}
+
+async function derivePayloadKey(nonce) {
+  const enc = new TextEncoder();
+  const raw = await crypto.subtle.digest('SHA-256', enc.encode(APP_PAYLOAD_SECRET + ':' + nonce));
+  return crypto.subtle.importKey('raw', raw, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
+}
+
+export async function encryptPayload(data, nonce) {
+  const key = await derivePayloadKey(nonce);
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const encoded = new TextEncoder().encode(JSON.stringify(data));
+  const cipher = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, encoded);
+  const buf = new Uint8Array(iv.length + cipher.byteLength);
+  buf.set(iv, 0);
+  buf.set(new Uint8Array(cipher), iv.length);
+  return toB64(buf);
+}
+
+export async function decryptPayload(b64, nonce) {
+  const key = await derivePayloadKey(nonce);
+  const raw = fromB64(b64);
+  const iv = raw.slice(0, 12);
+  const cipher = raw.slice(12);
+  const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, cipher);
+  return JSON.parse(new TextDecoder().decode(plain));
+}
+
+export async function shieldResponse(data, request, status = 200, headers = {}) {
+  const nonce = request ? (request.headers.get('X-Client-Nonce') || request.headers.get('x-client-nonce')) : null;
+  const secHeaders = {
+    'Content-Type': 'application/json; charset=utf-8',
+    'Cache-Control': 'no-store',
+    'X-Content-Type-Options': 'nosniff',
+    'X-Frame-Options': 'DENY',
+    'Referrer-Policy': 'strict-origin-when-cross-origin',
+    ...headers
+  };
+  if (nonce) {
+    try {
+      const encrypted = await encryptPayload(data, nonce);
+      secHeaders['X-Payload-Shielded'] = '1';
+      return new Response(JSON.stringify({ payload: encrypted }), { status, headers: secHeaders });
+    } catch (e) {
+      console.error('Shield encryption error:', e);
+    }
+  }
+  return new Response(JSON.stringify(data), { status, headers: secHeaders });
+}
+
 const hex = (buf) => [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
 const randomHex = (n = 32) => hex(crypto.getRandomValues(new Uint8Array(n)));
 const normEmail = (e) => String(e || '').trim().toLowerCase();
@@ -160,26 +222,41 @@ async function readBody(request) {
   if (!(request.headers.get('Content-Type') || '').includes('application/json')) {
     throw Object.assign(new Error('Yêu cầu không hợp lệ.'), { status: 415 });
   }
-  try { return await request.json(); } catch { throw Object.assign(new Error('Dữ liệu không hợp lệ.'), { status: 400 }); }
+  let b;
+  try { b = await request.json(); } catch { throw Object.assign(new Error('Dữ liệu không hợp lệ.'), { status: 400 }); }
+  if (b && typeof b === 'object' && b.payload) {
+    const nonce = request.headers.get('X-Client-Nonce') || request.headers.get('x-client-nonce');
+    if (nonce) {
+      try {
+        b = await decryptPayload(b.payload, nonce);
+      } catch (err) {
+        throw Object.assign(new Error('Mã hóa yêu cầu không hợp lệ.'), { status: 400 });
+      }
+    }
+  }
+  return b;
 }
 
 /** Trạng thái tài khoản + gói + lượt dùng hôm nay (cho giao diện). */
 export async function meResponse(request, env, cfg) {
-  if (!env.DB) return json({ accounts: false });
+  if (!env.DB) return shieldResponse({ accounts: false }, request);
   const user = await getUser(request, env);
   const plan = effectivePlan(user, cfg);
   const u = await used(env.DB, await subjectFor(request, user));
-  return json({
+  return shieldResponse({
     accounts: true, smtp: smtpConfigured(env),
     user: publicUser(env, user, cfg),
     plan: { id: plan.id, name: plan.name, ttsCalls: plan.ttsCalls, maxChars: plan.maxChars },
     usage: { calls: u.calls, remaining: Math.max(0, plan.ttsCalls - u.calls), credits: user?.extra_credits || 0 },
     plans: publicPlans(cfg),
     theme: cfg.saved.theme || 'auto'
-  });
+  }, request, 200);
 }
 
 export async function handleAuth(request, env, path) {
+  const ok = (data, status = 200, headers = {}) => shieldResponse(data, request, status, headers);
+  const fail = (error, status = 400, extra = {}) => shieldResponse({ error, ...extra }, request, status);
+
   if (!env.DB) return fail('Website chưa bật tài khoản (thiếu cơ sở dữ liệu D1).', 503);
   try {
     const cfg = await getConfig(env.DB);
@@ -205,7 +282,7 @@ export async function handleAuth(request, env, path) {
         let mailError = null;
         try { await sendVerify(env, request, user); } catch (e) { mailError = e.message; }
         const cookie = await createSession(env, request, user.id);
-        return json({ ok: true, user: publicUser(env, user, cfg), mailSent: !mailError, mailError }, 201, { 'Set-Cookie': cookie });
+        return ok({ ok: true, user: publicUser(env, user, cfg), mailSent: !mailError, mailError }, 201, { 'Set-Cookie': cookie });
       }
 
       case '/api/auth/login': {
@@ -213,14 +290,14 @@ export async function handleAuth(request, env, path) {
         await guardIp(env, request);
         const email = normEmail(b.email);
         const user = await env.DB.prepare('SELECT * FROM users WHERE email = ?').bind(email).first();
-        const ok = user && safeEqual(await hashPassword(String(b.password || ''), user.pass_salt), user.pass_hash);
-        if (!ok) return fail('Email hoặc mật khẩu không chính xác. Vui lòng kiểm tra lại.', 401);
+        const okPass = user && safeEqual(await hashPassword(String(b.password || ''), user.pass_salt), user.pass_hash);
+        if (!okPass) return fail('Email hoặc mật khẩu không chính xác. Vui lòng kiểm tra lại.', 401);
         if (user.banned) return fail('Tài khoản đã bị khóa. Vui lòng liên hệ quản trị viên.', 403);
         if (user.role !== 'admin' && adminEmails(env).includes(email)) {
           await env.DB.prepare("UPDATE users SET role = 'admin' WHERE id = ?").bind(user.id).run();
           user.role = 'admin';
         }
-        return json({
+        return ok({
           ok: true,
           message: user.verified ? 'Đăng nhập thành công!' : 'Đăng nhập thành công! Tài khoản của bạn chưa xác minh email.',
           verified: !!user.verified,
@@ -231,22 +308,21 @@ export async function handleAuth(request, env, path) {
       case '/api/auth/logout': {
         const token = readCookie(request);
         if (token) await env.DB.prepare('DELETE FROM sessions WHERE token_hash = ?').bind(await sha256Hex(token)).run();
-        return json({ ok: true }, 200, { 'Set-Cookie': cookieHeader(request, '', 0) });
+        return ok({ ok: true }, 200, { 'Set-Cookie': cookieHeader(request, '', 0) });
       }
 
       case '/api/auth/verify': {
         const b = await readBody(request);
         const result = await inspectAndConsumeToken(env, b.token, 'verify');
         if (!result.ok) {
-          return json({
-            error: result.error,
+          return fail(result.error, result.expired ? 410 : 400, {
             expired: !!result.expired,
             email: result.email || null,
             reason: result.reason
-          }, result.expired ? 410 : 400);
+          });
         }
         if (result.already) {
-          return json({ ok: true, already: true, message: result.message, user: publicUser(env, result.user, cfg) }, 200);
+          return ok({ ok: true, already: true, message: result.message, user: publicUser(env, result.user, cfg) }, 200);
         }
         const user = await env.DB.prepare('UPDATE users SET verified = 1 WHERE id = ? RETURNING *').bind(result.user.id).first();
         try {
@@ -257,7 +333,7 @@ export async function handleAuth(request, env, path) {
             }))
           });
         } catch {}
-        return json({ ok: true, user: publicUser(env, user, cfg) }, 200, { 'Set-Cookie': await createSession(env, request, user.id) });
+        return ok({ ok: true, user: publicUser(env, user, cfg) }, 200, { 'Set-Cookie': await createSession(env, request, user.id) });
       }
 
       case '/api/auth/resend-verify': {
@@ -269,11 +345,11 @@ export async function handleAuth(request, env, path) {
           user = await env.DB.prepare('SELECT * FROM users WHERE email = ?').bind(email).first();
         }
         if (!user) return fail('Vui lòng đăng nhập hoặc nhập đúng email đã đăng ký.', 401);
-        if (user.verified) return json({ ok: true, already: true, message: 'Tài khoản này đã được xác minh rồi, không cần gửi lại.' });
+        if (user.verified) return ok({ ok: true, already: true, message: 'Tài khoản này đã được xác minh rồi, không cần gửi lại.' });
         if (user.banned) return fail('Tài khoản đã bị khóa.', 403);
         await guardIp(env, request);
         await sendVerify(env, request, user);
-        return json({ ok: true, email: user.email, message: `Đã gửi lại email xác minh tới ${user.email}. Vui lòng kiểm tra hộp thư.` });
+        return ok({ ok: true, email: user.email, message: `Đã gửi lại email xác minh tới ${user.email}. Vui lòng kiểm tra hộp thư.` });
       }
 
       case '/api/auth/forgot': {
@@ -289,7 +365,7 @@ export async function handleAuth(request, env, path) {
           } catch (e) { if (e.status === 429) return fail(e.message, 429); console.log('reset mail failed', e.message); }
         }
         // Luôn trả lời giống nhau để không lộ email nào đã đăng ký
-        return json({ ok: true });
+        return ok({ ok: true });
       }
 
       case '/api/auth/reset': {
@@ -298,11 +374,10 @@ export async function handleAuth(request, env, path) {
         if (password.length < 8) return fail('Mật khẩu cần ít nhất 8 ký tự.');
         const result = await inspectAndConsumeToken(env, b.token, 'reset');
         if (!result.ok) {
-          return json({
-            error: result.error,
+          return fail(result.error, result.expired ? 410 : 400, {
             expired: !!result.expired,
             reason: result.reason
-          }, result.expired ? 410 : 400);
+          });
         }
         const userId = result.user.id;
         const salt = randomHex(16);
@@ -311,7 +386,7 @@ export async function handleAuth(request, env, path) {
           env.DB.prepare('DELETE FROM sessions WHERE user_id = ?').bind(userId)
         ]);
         const user = await env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(userId).first();
-        return json({ ok: true, user: publicUser(env, user, cfg) }, 200, { 'Set-Cookie': await createSession(env, request, userId) });
+        return ok({ ok: true, user: publicUser(env, user, cfg) }, 200, { 'Set-Cookie': await createSession(env, request, userId) });
       }
 
       case '/api/auth/password': {
@@ -326,7 +401,7 @@ export async function handleAuth(request, env, path) {
           env.DB.prepare('UPDATE users SET pass_hash = ?, pass_salt = ? WHERE id = ?').bind(await hashPassword(next, salt), salt, user.id),
           env.DB.prepare('DELETE FROM sessions WHERE user_id = ?').bind(user.id)
         ]);
-        return json({ ok: true }, 200, { 'Set-Cookie': await createSession(env, request, user.id) });
+        return ok({ ok: true }, 200, { 'Set-Cookie': await createSession(env, request, user.id) });
       }
 
     }
