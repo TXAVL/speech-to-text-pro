@@ -9,6 +9,10 @@ import { edgeVoices, edgeSynthesize } from './edge_tts_worker.js';
 import { capcutVoices, capcutSynthesize } from './capcut_worker.js';
 import { handleAuth, getUser, json } from './worker/auth.js';
 import { takeTtsQuota, effectivePlan } from './worker/quota.js';
+import { getConfig } from './worker/config.js';
+import { handleAdmin } from './worker/admin.js';
+import { handleBilling, handleInvoice } from './worker/billing.js';
+import { handleHf } from './worker/hfproxy.js';
 
 async function ttsRoute(request, env, synth, label, premiumOnly = false) {
   let body;
@@ -21,10 +25,11 @@ async function ttsRoute(request, env, synth, label, premiumOnly = false) {
   let quota = null;
   if (env.DB) {
     const user = await getUser(request, env);
-    if (premiumOnly && effectivePlan(user).id !== 'premium') {
+    const cfg = await getConfig(env.DB);
+    if (premiumOnly && effectivePlan(user, cfg).id !== 'premium') {
       return json({ error: `${label} chỉ dành cho gói Premium.`, premium: true }, 403);
     }
-    quota = await takeTtsQuota(env.DB, request, user, text.length);
+    quota = await takeTtsQuota(env.DB, request, user, text.length, cfg);
     if (!quota.ok) return json({ error: quota.error, quota: true, plan: quota.plan.id }, quota.status);
   }
   try {
@@ -39,7 +44,7 @@ async function ttsRoute(request, env, synth, label, premiumOnly = false) {
 }
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const url = new URL(request.url);
     const path = url.pathname;
 
@@ -60,9 +65,11 @@ export default {
       return json({ status: 'ok', provider: 'Cloudflare Worker', accounts: !!env.DB });
     }
 
-    if (path === '/api/me' || path.startsWith('/api/auth/') || path.startsWith('/api/admin/')) {
-      return handleAuth(request, env, path);
-    }
+    if (path.startsWith('/hf/')) return handleHf(request, ctx, path);
+    if (path.startsWith('/invoice/')) return handleInvoice(request, env, path);
+    if (path === '/api/me' || path.startsWith('/api/auth/')) return handleAuth(request, env, path);
+    if (path.startsWith('/api/admin/')) return handleAdmin(request, env, path);
+    if (path.startsWith('/api/pay/') || path === '/api/payos/webhook') return handleBilling(request, env, path);
 
     if (path === '/api/edge/voices') {
       try { return json({ success: true, voices: await edgeVoices() }, 200, { 'Cache-Control': 'public, max-age=86400' }); }

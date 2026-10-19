@@ -1,5 +1,5 @@
 // Đếm lượt dùng theo ngày (giờ Việt Nam) trong D1. Tăng có điều kiện nên không vượt giới hạn kể cả khi nhiều request cùng lúc.
-import { PLANS, GLOBAL_DAILY_TTS, GLOBAL_SOFT_RATIO } from './plans.js';
+import { GLOBAL_SOFT_RATIO } from './plans.js';
 
 export function vnDay(t = Date.now()) {
   return new Date(t + 7 * 3600 * 1000).toISOString().slice(0, 10);
@@ -35,11 +35,11 @@ export async function used(db, subject, day = vnDay()) {
 }
 
 /** Gói đang có hiệu lực của người dùng (premium hết hạn -> free, chưa xác minh email -> guest). */
-export function effectivePlan(user) {
-  if (!user) return PLANS.guest;
-  if (!user.verified) return PLANS.guest;
-  if (user.plan === 'premium' && (!user.plan_expires || user.plan_expires > Date.now())) return PLANS.premium;
-  return PLANS.free;
+export function effectivePlan(user, cfg) {
+  const P = cfg.plans;
+  if (!user || !user.verified || user.banned) return P.guest;
+  if (user.plan === 'premium' && (!user.plan_expires || user.plan_expires > Date.now())) return P.premium;
+  return P.free;
 }
 
 export async function subjectFor(request, user) {
@@ -50,8 +50,8 @@ export async function subjectFor(request, user) {
  * Trừ 1 lượt TTS (gói của người dùng + giới hạn tổng hệ thống).
  * Trả về { ok, plan, remaining, refund } hoặc { ok:false, status, error }.
  */
-export async function takeTtsQuota(db, request, user, textLength) {
-  const plan = effectivePlan(user);
+export async function takeTtsQuota(db, request, user, textLength, cfg) {
+  const plan = effectivePlan(user, cfg);
   if (textLength > plan.maxChars) {
     return { ok: false, status: 413, error: `Gói ${plan.name} cho tối đa ${plan.maxChars.toLocaleString('vi-VN')} ký tự mỗi lượt (bạn gửi ${textLength.toLocaleString('vi-VN')}).`, plan };
   }
@@ -60,7 +60,7 @@ export async function takeTtsQuota(db, request, user, textLength) {
   if (count === null) {
     return { ok: false, status: 429, error: `Đã hết ${plan.ttsCalls} lượt Edge/CapCut hôm nay của gói ${plan.name}. Lượt mới có lúc 0h (giờ Việt Nam).`, plan };
   }
-  const globalLimit = plan.id === 'premium' ? GLOBAL_DAILY_TTS : Math.floor(GLOBAL_DAILY_TTS * GLOBAL_SOFT_RATIO);
+  const globalLimit = plan.id === 'premium' ? cfg.globalDaily : Math.floor(cfg.globalDaily * GLOBAL_SOFT_RATIO);
   if ((await consume(db, 'global', globalLimit, textLength)) === null) {
     await refund(db, subject, textLength);
     return { ok: false, status: 503, error: 'Hệ thống đã dùng hết lượt Edge/CapCut hôm nay. Hãy dùng Piper / MMS (chạy trên máy bạn, không giới hạn) hoặc thử lại sau 0h.', plan };

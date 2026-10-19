@@ -1,11 +1,13 @@
 'use strict';
-/* VoiceKit - tài khoản, gói, lượt dùng, quản trị. Dùng chung tiện ích ($, api, toast, showView...) từ app.js. */
+/* VoiceKit - tài khoản, gói, lượt dùng, thanh toán payOS. Dùng chung tiện ích ($, api, toast, showView...) từ app.js. */
 
 const vkAccount = (() => {
-  const acc = { enabled: false, smtp: false, user: null, plan: null, usage: null, plans: [], resetToken: null };
+  const acc = { enabled: false, smtp: false, user: null, plan: null, usage: null, plans: [], packages: [], payEnabled: false, selectedPkg: null, resetToken: null };
   const post = (url, body = {}) => api(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   const initials = (u) => ((u?.name || u?.email || '?').trim()[0] || '?').toUpperCase();
   const fmt = (n) => Number(n).toLocaleString('vi-VN');
+  const money = (n) => fmt(n) + 'đ';
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
   async function load() {
     let res;
@@ -14,12 +16,14 @@ const vkAccount = (() => {
     if (res && res.status === 404) return disable();
     const me = res && res.ok ? await res.json().catch(() => null) : null;
     if (me && me.accounts === false) return disable();
-    if (!me) {
-      // Lỗi tạm thời: giữ khóa các tính năng cần đăng nhập, không coi là "không có tài khoản"
-      applyKeyGate(false, null);
-      return;
-    }
+    if (!me) { applyKeyGate(false, null); return; } // lỗi tạm thời: giữ khóa
     Object.assign(acc, { enabled: true, smtp: me.smtp, user: me.user, plan: me.plan, usage: me.usage, plans: me.plans });
+    if (me.theme && typeof vkTheme !== 'undefined') vkTheme.apply(me.theme);
+    try {
+      const p = await api('/api/pay/packages');
+      acc.packages = p.packages || []; acc.payEnabled = !!p.enabled;
+      if (!acc.packages.some(x => x.id === acc.selectedPkg)) acc.selectedPkg = (acc.packages[1] || acc.packages[0])?.id || null;
+    } catch { acc.packages = []; acc.payEnabled = false; }
     $$('[data-acc]').forEach(el => el.hidden = false);
     render();
   }
@@ -47,10 +51,11 @@ const vkAccount = (() => {
       $('#prof-email').textContent = u.email;
       $('#verify-banner').hidden = u.verified;
       $('#prof-plan').textContent = acc.plan.name;
-      $('#prof-expire').textContent = u.effectivePlan === 'premium' && u.planExpires ? 'Hết hạn ' + new Date(u.planExpires).toLocaleDateString('vi-VN') : '';
+      $('#prof-expire').textContent = u.effectivePlan === 'premium' ? (u.planExpires ? 'Hết hạn ' + new Date(u.planExpires).toLocaleDateString('vi-VN') : 'Vĩnh viễn') : '';
+      $('#btn-see-plans').textContent = u.effectivePlan === 'premium' ? 'Gia hạn Premium' : 'Nâng cấp Premium';
     }
     const used = acc.plan.ttsCalls - acc.usage.remaining;
-    $('#prof-bar').style.width = Math.min(100, used / acc.plan.ttsCalls * 100) + '%';
+    $('#prof-bar').style.width = Math.min(100, used / Math.max(1, acc.plan.ttsCalls) * 100) + '%';
     $('#prof-usage').textContent = `Hôm nay đã dùng ${fmt(used)}/${fmt(acc.plan.ttsCalls)} lượt ${acc.plan.id === 'premium' ? 'Edge/CapCut' : 'Edge Neural'} · tối đa ${fmt(acc.plan.maxChars)} ký tự mỗi lượt`;
     renderQuota();
     // Gói đổi -> cập nhật khóa Premium (kho CapCut, nút AI)
@@ -67,37 +72,50 @@ const vkAccount = (() => {
     if (!acc.enabled || !serverLib) { chip.hidden = true; $('#tts-count').style.color = ''; return; }
     chip.hidden = false;
     const p = acc.plan, r = acc.usage.remaining;
-    const cta = !acc.user ? '<button data-open="register">Đăng ký để có 50 lượt/ngày →</button>'
-      : !acc.user.verified ? '<button data-open="account">Xác minh email để có 50 lượt/ngày →</button>'
-      : p.id !== 'premium' ? '<button data-open="plans">Xem gói Premium →</button>' : '';
+    const freeCalls = acc.plans.find(x => x.id === 'free')?.ttsCalls ?? 50;
+    const cta = !acc.user ? `<button data-open="register">Đăng ký để có ${fmt(freeCalls)} lượt/ngày →</button>`
+      : !acc.user.verified ? `<button data-open="account">Xác minh email để có ${fmt(freeCalls)} lượt/ngày →</button>`
+      : p.id !== 'premium' ? '<button data-open="plans">Nâng cấp Premium →</button>' : '';
     chip.innerHTML = `<span>Gói <b>${p.name}</b>: còn <b>${fmt(r)}/${fmt(p.ttsCalls)}</b> lượt hôm nay · tối đa ${fmt(p.maxChars)} ký tự/lượt</span>${cta}`;
     const len = $('#tts-text').value.length;
     $('#tts-count').textContent = `${fmt(len)} / ${fmt(p.maxChars)} ký tự`;
     $('#tts-count').style.color = len > p.maxChars ? 'var(--danger)' : '';
   }
 
+  /* ---------- Bảng giá ---------- */
   function renderPlans() {
     const cur = acc.plan?.id;
     $('#plans-grid').innerHTML = acc.plans.map(p => `
-      <div class="plan-card ${p.id === 'free' ? 'featured' : ''} ${p.id === cur ? 'current' : ''}">
+      <div class="plan-card ${p.id === 'free' ? 'featured' : ''} ${p.id === 'premium' ? 'premium-card' : ''} ${p.id === cur ? 'current' : ''}">
         <h3>${p.name}</h3>
-        <div class="plan-price">${p.price}</div>
+        <div class="plan-price">${p.id === 'premium' && acc.payEnabled && acc.packages.length ? 'từ ' + p.price : p.price || '—'}</div>
         <div class="plan-limit"><b>${fmt(p.ttsCalls)}</b> lượt ${p.id === 'premium' ? 'Edge/CapCut' : 'Edge Neural'}/ngày · <b>${fmt(p.maxChars)}</b> ký tự/lượt</div>
-        <ul>${p.perks.map(x => `<li>${x}</li>`).join('')}</ul>
-        ${planAction(p)}
+        <ul>${p.perks.map(x => `<li>${esc(x)}</li>`).join('')}</ul>
+        ${p.id === 'premium' ? premiumBox() : planAction(p)}
       </div>`).join('');
     $$('#plans-grid [data-open]').forEach(b => b.addEventListener('click', () => openFrom(b.dataset.open)));
+    $$('#plans-grid .pkg-opt').forEach(el => el.addEventListener('click', () => { acc.selectedPkg = el.dataset.pkg; renderPlans(); }));
+    $('#btn-buy')?.addEventListener('click', () => vkPay.start(acc.selectedPkg));
   }
   function planAction(p) {
     const u = acc.user;
     if (p.id === 'guest') return u ? '' : '<button class="btn" disabled>Đang dùng</button>';
-    if (p.id === 'free') {
-      if (!u) return '<button class="btn primary" data-open="register">Đăng ký miễn phí</button>';
-      if (!u.verified) return '<button class="btn primary" data-open="account">Xác minh email</button>';
-      return '';
-    }
-    return u ? '<button class="btn accent" disabled>Liên hệ quản trị viên để nâng cấp</button>'
-      : '<button class="btn" data-open="register">Đăng ký trước</button>';
+    if (!u) return '<button class="btn primary" data-open="register">Đăng ký miễn phí</button>';
+    if (!u.verified) return '<button class="btn primary" data-open="account">Xác minh email</button>';
+    return '';
+  }
+  function premiumBox() {
+    if (!acc.payEnabled || !acc.packages.length) return '<button class="btn" disabled>Tạm ngừng bán</button>';
+    const list = acc.packages.map(k => `
+      <label class="pkg-opt ${k.id === acc.selectedPkg ? 'selected' : ''}" data-pkg="${esc(k.id)}">
+        <span><b>${esc(k.name)}</b>${k.save ? `<span class="pkg-save">-${k.save}%</span>` : ''}</span>
+        <span class="pkg-price">${money(k.price)}</span>
+      </label>`).join('');
+    const u = acc.user;
+    const btn = !u ? '<button class="btn primary" data-open="register">Đăng ký để mua Premium</button>'
+      : !u.verified ? '<button class="btn primary" data-open="account">Xác minh email để mua</button>'
+      : `<button class="btn primary" id="btn-buy">${u.effectivePlan === 'premium' ? 'Gia hạn' : 'Mua'} Premium</button>`;
+    return `<div class="pkg-list">${list}</div>${btn}`;
   }
 
   function openFrom(what) {
@@ -105,6 +123,7 @@ const vkAccount = (() => {
     openModal('#modal-account');
     if (what === 'register' && !acc.user) switchForm('register');
     else if (!acc.user) switchForm('login');
+    else loadMyOrders();
   }
   document.addEventListener('click', (e) => {
     const b = e.target.closest('#quota-chip [data-open]');
@@ -117,6 +136,28 @@ const vkAccount = (() => {
     $('#auth-seg').hidden = name === 'reset' || name === 'forgot';
   }
   $$('[data-auth]').forEach(b => b.addEventListener('click', () => switchForm(b.dataset.auth)));
+
+  // Hiện / ẩn mật khẩu và thanh độ mạnh mật khẩu
+  $$('#modal-account [data-eye]').forEach(b => b.addEventListener('click', () => {
+    const i = b.previousElementSibling, show = i.type === 'password';
+    i.type = show ? 'text' : 'password';
+    show ? i.setAttribute('data-shown', '') : i.removeAttribute('data-shown');
+    b.textContent = show ? '🙈' : '👁';
+  }));
+  $('[data-strength]').addEventListener('input', (e) => {
+    const v = e.target.value, meter = $('#pw-meter');
+    let score = 0;
+    if (v.length >= 8) score++;
+    if (/[a-z]/.test(v) && /[A-Z]/.test(v)) score++;
+    if (/d/.test(v)) score++;
+    if (/[^A-Za-z0-9]/.test(v) || v.length >= 14) score++;
+    if (v.length < 8) score = Math.min(score, 1);
+    meter.dataset.score = v ? score : 0;
+    meter.querySelector('span').textContent = v ? ['Rất yếu', 'Yếu', 'Tạm được', 'Khá mạnh', 'Rất mạnh'][score] : '';
+  });
+  // Mỗi lần mở modal: vẽ lại tranh theo mùa (có hạt rơi mới)
+  new MutationObserver(() => { if (!$('#modal-account').hidden && typeof vkTheme !== 'undefined') vkTheme.renderHero(); })
+    .observe($('#modal-account'), { attributes: true, attributeFilter: ['hidden'] });
 
   async function submit(form, fn) {
     const btn = form.querySelector('[type=submit]'), label = btn.textContent;
@@ -151,19 +192,41 @@ const vkAccount = (() => {
   });
   $('#btn-logout').addEventListener('click', async () => { await post('/api/auth/logout').catch(() => {}); await load(); $('#modal-account').hidden = true; toast('Đã đăng xuất.'); });
   $('#btn-see-plans').addEventListener('click', () => openFrom('plans'));
-  $('#btn-account').addEventListener('click', () => { if (!acc.user) switchForm('login'); openModal('#modal-account'); });
+  $('#btn-account').addEventListener('click', () => { if (!acc.user) switchForm('login'); else loadMyOrders(); openModal('#modal-account'); });
 
-  /* Liên kết trong email: ?verify=... hoặc ?reset=... */
+  /* Đơn hàng gần đây trong hộp tài khoản */
+  async function loadMyOrders() {
+    const box = $('#prof-orders');
+    if (!box || !acc.user) return;
+    try {
+      const { orders } = await api('/api/pay/my-orders');
+      const shown = orders.filter(o => o.status === 'PAID' || o.status === 'PENDING').slice(0, 5);
+      const label = { PAID: 'Đã thanh toán', PENDING: 'Đang chờ' };
+      box.innerHTML = shown.length ? `<div class="orders-mini">${shown.map(o => `
+        <div><span>#${o.orderCode} · Premium ${esc(o.packageName)}</span>
+        <span>${money(o.amount)} · <span class="st ${o.status}">${label[o.status]}</span>
+        ${o.status === 'PENDING' ? `<button class="copy-mini" data-resume="${o.orderCode}">Tiếp tục</button>` : `<a class="copy-mini" href="/invoice/${o.orderCode}" target="_blank" rel="noopener">Hóa đơn</a>`}</span></div>`).join('')}</div>` : '';
+      $$('#prof-orders [data-resume]').forEach(b => b.addEventListener('click', () => { $('#modal-account').hidden = true; vkPay.resume(Number(b.dataset.resume)); }));
+    } catch { box.innerHTML = ''; }
+  }
+
+  /* Liên kết trong email: ?verify=... ?reset=... và payOS trả về ?pay=return|cancel&order=... */
   async function handleLinks() {
     const q = new URLSearchParams(location.search);
-    const verify = q.get('verify'), reset = q.get('reset');
-    if (!verify && !reset) return;
+    const verify = q.get('verify'), reset = q.get('reset'), pay = q.get('pay'), order = Number(q.get('order'));
+    if (!verify && !reset && !pay) return;
     history.replaceState(null, '', location.pathname);
     if (verify) {
       try { await post('/api/auth/verify', { token: verify }); await load(); toast('Email đã được xác minh. Gói Miễn phí đã mở!', 'ok'); }
       catch (e) { toast(e.message, 'err'); }
-    } else {
+    } else if (reset) {
       acc.resetToken = reset; render(); switchForm('reset'); openModal('#modal-account');
+    } else if (pay && order) {
+      if (pay === 'cancel') {
+        try { await post(`/api/pay/order/${order}/cancel`); } catch {}
+        toast('Bạn đã hủy thanh toán. Có thể mua lại bất cứ lúc nào.');
+        showView('plans');
+      } else vkPay.resume(order);
     }
   }
 
@@ -176,45 +239,169 @@ const vkAccount = (() => {
     if (acc.usage && err.error?.includes('Đã hết')) { acc.usage.remaining = 0; render(); }
   }
 
-  /* ---------- Quản trị ---------- */
-  async function loadAdmin() {
-    try {
-      const r = await api('/api/admin/users?q=' + encodeURIComponent($('#admin-q').value.trim()));
-      $('#admin-stats').textContent = `${fmt(r.total)} tài khoản · hôm nay hệ thống đã dùng ${fmt(r.globalToday)} lượt Edge/CapCut`;
-      $('#admin-rows').innerHTML = r.users.map(u => {
-        const prem = u.plan === 'premium' && (!u.plan_expires || u.plan_expires > Date.now());
-        return `<tr data-id="${u.id}">
-          <td><b>${escapeHtml(u.name || '—')}</b><small>${escapeHtml(u.email)}</small></td>
-          <td>${u.verified ? '<span class="tag ok">Đã xác minh</span>' : '<span class="tag warn">Chưa xác minh</span>'} ${u.role === 'admin' ? '<span class="tag pro">Admin</span>' : ''}
-            <small>Tạo ${new Date(u.created_at).toLocaleDateString('vi-VN')}</small></td>
-          <td>${prem ? '<span class="tag pro">Premium</span>' : '<span class="tag">Miễn phí</span>'}<small>${prem && u.plan_expires ? 'đến ' + new Date(u.plan_expires).toLocaleDateString('vi-VN') : ''}</small></td>
-          <td><div class="act">
-            <select data-plan><option value="free">Miễn phí</option><option value="premium" ${prem ? 'selected' : ''}>Premium</option></select>
-            <input type="number" min="0" max="3650" placeholder="ngày" data-days title="Số ngày Premium (0 = vĩnh viễn)">
-            <label class="small"><input type="checkbox" data-notify checked style="width:auto"> Báo email</label>
-            <button class="btn sm" data-save>Lưu</button>
-          </div></td></tr>`;
-      }).join('') || '<tr><td colspan="4" class="muted">Không có tài khoản nào.</td></tr>';
-      $$('#admin-rows [data-save]').forEach(b => b.addEventListener('click', async () => {
-        const row = b.closest('tr');
-        b.disabled = true;
-        try {
-          const res = await post('/api/admin/plan', {
-            userId: Number(row.dataset.id), plan: row.querySelector('[data-plan]').value,
-            days: Number(row.querySelector('[data-days]').value) || 0, notify: row.querySelector('[data-notify]').checked
-          });
-          toast(`Đã chuyển ${res.user.email} sang gói ${res.user.effectivePlan === 'premium' ? 'Premium' : 'Miễn phí'}${res.mailSent ? ' và đã gửi email' : ''}.`, 'ok');
-          loadAdmin();
-        } catch (e) { toast(e.message, 'err'); b.disabled = false; }
-      }));
-    } catch (e) { $('#admin-stats').textContent = e.message; }
-  }
-  const escapeHtml = (s) => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  $('#admin-search').addEventListener('click', loadAdmin);
-  $('#admin-q').addEventListener('keydown', e => { if (e.key === 'Enter') loadAdmin(); });
-
   $('#tts-text').addEventListener('input', () => acc.enabled && renderQuota());
 
   load().then(handleLinks);
-  return { load, renderQuota, renderPlans, loadAdmin, onTtsResponse, onQuotaError, get state() { return acc; } };
+  return { load, renderQuota, renderPlans, onTtsResponse, onQuotaError, loadMyOrders, get state() { return acc; } };
+})();
+
+/* ---------- Thanh toán payOS (VietQR ngay trên trang) ---------- */
+const vkPay = (() => {
+  let order = null, pollTimer = 0, tickTimer = 0, skew = 0, banks = null, qrLib = null;
+  const fmt = (n) => Number(n).toLocaleString('vi-VN');
+  const show = (id) => ['pay-confirm', 'pay-loading', 'pay-main', 'pay-done', 'pay-failed'].forEach(x => { $('#' + x).hidden = x !== id; });
+  let invType = 'personal', pendingPkg = null;
+  const stop = () => { clearInterval(pollTimer); clearInterval(tickTimer); pollTimer = tickTimer = 0; };
+
+  // Đóng hộp thì dừng hỏi trạng thái
+  new MutationObserver(() => { if ($('#modal-pay').hidden) stop(); }).observe($('#modal-pay'), { attributes: true, attributeFilter: ['hidden'] });
+
+  async function loadQrLib() {
+    if (qrLib) return qrLib;
+    await new Promise((ok, fail) => {
+      const s = document.createElement('script');
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js';
+      s.onload = ok; s.onerror = fail; document.head.appendChild(s);
+    });
+    return (qrLib = window.qrcode);
+  }
+  async function bankName(bin) {
+    if (!bin) return '—';
+    try {
+      banks ||= (await (await fetch('https://api.vietqr.io/v2/banks')).json()).data || [];
+      const b = banks.find(x => x.bin === String(bin));
+      return b ? `${b.shortName} (${b.name})` : bin;
+    } catch { return bin; }
+  }
+
+  async function render(o) {
+    order = o;
+    $('#pay-title').textContent = `Thanh toán Premium ${o.packageName}`;
+    $('#pay-amount').textContent = fmt(o.amount) + 'đ';
+    $('#pay-pkg').textContent = `Mã đơn #${o.orderCode} · cộng ${fmt(o.days)} ngày Premium`;
+    $('#pay-acc').textContent = o.accountNumber || '—';
+    $('#pay-name').textContent = o.accountName || '—';
+    $('#pay-desc').textContent = o.description;
+    $('#pay-open').href = o.checkoutUrl || '#';
+    $('#pay-bank').textContent = await bankName(o.bankBin);
+    const box = $('#pay-qr');
+    box.textContent = '';
+    if (o.qrCode) {
+      try {
+        const qr = (await loadQrLib())(0, 'M');
+        qr.addData(o.qrCode); qr.make();
+        box.innerHTML = qr.createSvgTag({ cellSize: 6, margin: 0, scalable: true });
+      } catch { box.innerHTML = '<span class="muted small">Không vẽ được mã QR. Hãy bấm "Mở trang payOS".</span>'; }
+    }
+    show('pay-main');
+    tick();
+    clearInterval(tickTimer); tickTimer = setInterval(tick, 1000);
+    clearInterval(pollTimer); pollTimer = setInterval(poll, 3000);
+  }
+
+  function tick() {
+    if (!order?.expiredAt) return;
+    const left = Math.max(0, Math.floor(order.expiredAt - (Date.now() + skew) / 1000));
+    $('#pay-countdown').textContent = `${String(Math.floor(left / 60)).padStart(2, '0')}:${String(left % 60).padStart(2, '0')}`;
+    if (left === 0) poll();
+  }
+
+  async function poll() {
+    if (!order) return;
+    try {
+      const { order: o } = await api(`/api/pay/order/${order.orderCode}`);
+      if (o.status === 'PAID') return finish(o);
+      if (o.status === 'CANCELLED' || o.status === 'EXPIRED') {
+        stop(); show('pay-failed');
+        $('#pay-failed-title').textContent = o.status === 'EXPIRED' ? 'Đơn đã hết hạn' : 'Đơn đã bị hủy';
+      }
+    } catch { /* mạng chập chờn: thử lại lần sau */ }
+  }
+
+  async function finish(o) {
+    stop();
+    show('pay-done');
+    $('#pay-done-text').textContent = `Đã nhận ${fmt(o.amount)}đ cho Premium ${o.packageName}. Biên lai đã được gửi về email của bạn.`;
+    $('#pay-invoice').href = `/invoice/${o.orderCode}`;
+    await vkAccount.load();
+    toast('Premium đã được kích hoạt!', 'ok');
+  }
+
+  function setInvType(t) {
+    invType = t;
+    $$('#pc-type .seg-btn').forEach(b => b.classList.toggle('active', b.dataset.type === t));
+    $('#pc-name-label').textContent = t === 'company' ? 'Tên công ty' : 'Họ tên người mua';
+    $('#pc-tax-opt').textContent = t === 'company' ? 'bắt buộc' : 'tùy chọn';
+    $('#pc-addr-opt').textContent = t === 'company' ? 'bắt buộc' : 'tùy chọn';
+  }
+  $$('#pc-type .seg-btn').forEach(b => b.addEventListener('click', () => setInvType(b.dataset.type)));
+  $('#pc-invoice').addEventListener('change', (e) => { $('#pc-form').hidden = !e.target.checked; if (e.target.checked) $('#pc-name').focus(); });
+  $('#pc-tax').addEventListener('input', (e) => { e.target.value = e.target.value.replace(/[^\d-]/g, ''); });
+
+  /** Bước 1: xác nhận gói + (tùy chọn) thông tin xuất hóa đơn */
+  function start(packageId) {
+    const pkg = vkAccount.state.packages.find(p => p.id === packageId);
+    if (!pkg) return toast('Hãy chọn một gói Premium.', 'err');
+    pendingPkg = pkg;
+    const u = vkAccount.state.user || {};
+    $('#pay-title').textContent = 'Xác nhận đơn hàng';
+    $('#pc-pkg').textContent = `Premium ${pkg.name} · ${fmt(pkg.days)} ngày`;
+    $('#pc-amount').textContent = fmt(pkg.price) + 'đ';
+    payLabel();
+    if (!$('#pc-name').value) $('#pc-name').value = u.name || '';
+    if (!$('#pc-email').value) $('#pc-email').value = u.email || '';
+    openModal('#modal-pay'); show('pay-confirm');
+  }
+  const payMode = () => document.querySelector('input[name=pc-mode]:checked')?.value || 'api';
+  function payLabel() {
+    if (!pendingPkg) return;
+    const total = fmt(pendingPkg.price) + 'đ';
+    $('#pc-continue').textContent = payMode() === 'redirect' ? `Tiếp tục tới payOS · ${total} →` : `Tạo mã QR · ${total}`;
+  }
+  $$('input[name=pc-mode]').forEach(r => r.addEventListener('change', payLabel));
+  $('#pc-continue').addEventListener('click', async () => {
+    if (!pendingPkg) return;
+    const invoice = $('#pc-invoice').checked ? {
+      enabled: true, type: invType, name: $('#pc-name').value.trim(), tax_code: $('#pc-tax').value.trim(),
+      address: $('#pc-addr').value.trim(), email: $('#pc-email').value.trim()
+    } : null;
+    if (invoice) {
+      if (!invoice.name) return toast(invType === 'company' ? 'Nhập tên công ty.' : 'Nhập họ tên người mua.', 'err');
+      if (invType === 'company' && !/^\d{10}(-\d{3})?$/.test(invoice.tax_code)) return toast('Mã số thuế phải gồm 10 số (hoặc 10 số + "-" + 3 số).', 'err');
+      if (invType === 'company' && !invoice.address) return toast('Nhập địa chỉ công ty.', 'err');
+    }
+    show('pay-loading');
+    try {
+      const mode = payMode();
+      const r = await api('/api/pay/create', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ packageId: pendingPkg.id, invoice, mode }) });
+      if (mode === 'redirect' && r.order.checkoutUrl) {
+        $('#pay-loading span').textContent = 'Đang chuyển sang payOS…';
+        location.href = r.order.checkoutUrl;
+        return;
+      }
+      await render(r.order);
+    } catch (e) { show('pay-confirm'); toast(e.message, 'err'); }
+  });
+
+  async function resume(orderCode) {
+    openModal('#modal-pay'); show('pay-loading');
+    try {
+      const { order: o } = await api(`/api/pay/order/${orderCode}`);
+      if (o.status === 'PAID') return finish(o);
+      if (o.status !== 'PENDING') { show('pay-failed'); $('#pay-failed-title').textContent = o.status === 'EXPIRED' ? 'Đơn đã hết hạn' : 'Đơn đã bị hủy'; return; }
+      await render(o);
+    } catch (e) { $('#modal-pay').hidden = true; toast(e.message, 'err'); }
+  }
+
+  $('#pay-cancel').addEventListener('click', async () => {
+    if (!order || !confirm('Hủy đơn thanh toán này?')) return;
+    stop();
+    try { await api(`/api/pay/order/${order.orderCode}/cancel`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }); } catch {}
+    $('#modal-pay').hidden = true; toast('Đã hủy đơn.');
+  });
+  $$('#modal-pay [data-copy]').forEach(b => b.addEventListener('click', () => {
+    navigator.clipboard.writeText($('#' + b.dataset.copy).textContent.trim()).then(() => toast('Đã chép.', 'ok'));
+  }));
+
+  return { start, resume };
 })();
