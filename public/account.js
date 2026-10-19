@@ -72,7 +72,7 @@ const vkAccount = (() => {
   /* Ô hiển thị lượt còn lại ở trang Chữ -> Giọng (chỉ cho kho chạy qua máy chủ) */
   function renderQuota() {
     const chip = $('#quota-chip');
-    const serverLib = ['edge', 'capcut'].includes(typeof tts !== 'undefined' ? tts.lib : '');
+    const serverLib = ['edge', 'capcut', 'vieneu', 'supertonic'].includes(typeof tts !== 'undefined' ? tts.lib : '');
     if (!acc.enabled || !serverLib) { chip.hidden = true; $('#tts-count').style.color = ''; return; }
     chip.hidden = false;
     const p = acc.plan, r = acc.usage.remaining;
@@ -95,7 +95,7 @@ const vkAccount = (() => {
       <div class="plan-card ${p.id === 'free' ? 'featured' : ''} ${p.id === 'premium' ? 'premium-card' : ''} ${p.id === cur ? 'current' : ''}">
         <h3>${p.name}</h3>
         <div class="plan-price">${p.id === 'premium' && acc.payEnabled && acc.packages.length ? 'từ ' + p.price : p.price || '—'}</div>
-        <div class="plan-limit"><b>${fmt(p.ttsCalls)}</b> lượt ${p.id === 'premium' ? 'Edge/CapCut' : 'Edge Neural'}/ngày · <b>${fmt(p.maxChars)}</b> ký tự/lượt</div>
+        <div class="plan-limit"><b>${fmt(p.ttsCalls)}</b> lượt ${p.id === 'premium' ? 'AI cao cấp (VieNeu, Supertonic, CapCut, Edge)' : 'Edge Neural'}/ngày · <b>${fmt(p.maxChars)}</b> ký tự/lượt</div>
         <ul>${p.perks.map(x => `<li>${esc(x)}</li>`).join('')}</ul>
         ${p.id === 'premium' ? premiumBox() : planAction(p)}
       </div>`).join('');
@@ -106,7 +106,7 @@ const vkAccount = (() => {
     cc.hidden = !(acc.payEnabled && acc.credits?.enabled);
     if (!cc.hidden) {
       const prem = acc.plan?.id === 'premium';
-      $('#credits-card-text').textContent = `${fmt(acc.credits.price)}đ / lượt Edge hoặc CapCut · cộng dồn, không hết hạn theo ngày · dùng khi đã hết lượt trong ngày.${prem ? '' : ' Chỉ dành cho gói Premium.'}`;
+      $('#credits-card-text').textContent = `${fmt(acc.credits.price)}đ / lượt giọng AI · cộng dồn, không hết hạn theo ngày · dùng khi đã hết lượt trong ngày.${prem ? '' : ' Chỉ dành cho gói Premium.'}`;
       $('#btn-credits-card').disabled = !prem;
       $('#btn-credits-card').textContent = prem ? 'Mua thêm lượt' : 'Cần gói Premium';
     }

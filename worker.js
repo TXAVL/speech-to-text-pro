@@ -97,10 +97,10 @@ export default {
       return json({ enabled: cfg.watermark.enabled && !exempt, text: exempt ? '' : sourceLine(cfg, host, lang), host, spoken: spokenDomain(host, lang) });
     }
     if (path === '/api/vieneu/voices') return json({ success: true, voices: VIENEU_VOICES }, 200, { 'Cache-Control': 'public, max-age=86400' });
-    if (path === '/api/vieneu/tts' && request.method === 'POST') return ttsRoute(request, env, vieneuSynthesize, 'VieNeu-TTS');
+    if (path === '/api/vieneu/tts' && request.method === 'POST') return ttsRoute(request, env, vieneuSynthesize, 'VieNeu-TTS', true);
 
     if (path === '/api/supertonic/voices') return json({ success: true, voices: SUPERTONIC_VOICES }, 200, { 'Cache-Control': 'public, max-age=86400' });
-    if (path === '/api/supertonic/tts' && request.method === 'POST') return ttsRoute(request, env, supertonicSynthesize, 'Supertonic 3');
+    if (path === '/api/supertonic/tts' && request.method === 'POST') return ttsRoute(request, env, supertonicSynthesize, 'Supertonic 3', true);
 
     if (path === '/api/edge/voices') {
       try { return json({ success: true, voices: await edgeVoices() }, 200, { 'Cache-Control': 'public, max-age=86400' }); }

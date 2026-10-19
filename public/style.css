@@ -199,7 +199,7 @@ input[type="range"] { accent-color: var(--accent); padding: 0; }
 .h-item { display: flex; gap: 14px; align-items: center; padding: 14px; border: 1px solid var(--line); background: var(--bg-2); border-radius: 12px; margin-bottom: 10px; }
 .h-body { flex: 1; min-width: 0; }
 .h-body strong { display: block; font-size: 14.5px; }
-.h-body p { color: var(--muted); font-size: 13px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.h-body p { color: var(--muted); font-size: 13px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; }
 
 /* ---------- Modal / toast ---------- */
 .modal { position: fixed; inset: 0; z-index: 50; background: rgba(5, 7, 14, .66); backdrop-filter: blur(6px); display: grid; place-items: center; padding: 20px; }
@@ -282,8 +282,8 @@ input[type="range"] { accent-color: var(--accent); padding: 0; }
 
 /* Ô API key: là ô chữ có che ký tự (không phải ô mật khẩu) để trình quản lý mật khẩu không tự điền */
 .secret-row { display: flex; gap: 8px; }
-.secret-input { -webkit-text-security: disc; text-security: disc; font-family: ui-monospace, Consolas, monospace; letter-spacing: .5px; }
-.secret-input.revealed { -webkit-text-security: none; text-security: none; }
+.secret-input { -webkit-text-security: disc; font-family: ui-monospace, Consolas, monospace; letter-spacing: .5px; }
+.secret-input.revealed { -webkit-text-security: none; }
 
 /* ---------- Thanh toán ---------- */
 .pay-box { width: min(720px, 100%); }
@@ -408,7 +408,7 @@ select option, select optgroup { background: var(--card-2); color: var(--text); 
 
 /* ô số: bỏ nút tăng giảm mặc định */
 input[type="number"]::-webkit-outer-spin-button, input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-input[type="number"] { -moz-appearance: textfield; font-variant-numeric: tabular-nums; }
+input[type="number"] { -moz-appearance: textfield; appearance: textfield; font-variant-numeric: tabular-nums; }
 
 /* tự điền của trình duyệt trên nền tối */
 input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:focus {
@@ -684,7 +684,7 @@ input[type="range"] { background: linear-gradient(90deg, var(--accent), var(--ac
 .h-top { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; align-items: baseline; }
 .h-top strong { font-size: 14.5px; }
 .h-meta { font-size: 12px; color: var(--muted); }
-.h-body p { color: var(--muted); font-size: 13.5px; line-height: 1.55; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
+.h-body p { color: var(--muted); font-size: 13.5px; line-height: 1.55; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; line-clamp: 3; -webkit-box-orient: vertical; }
 .h-body audio { width: 100%; height: 36px; }
 .h-actions { display: flex; gap: 6px; flex-wrap: wrap; }
 .btn.ghost { background: transparent; }

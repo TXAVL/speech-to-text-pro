@@ -572,16 +572,16 @@ function historyKey() { return keyGate.userId ? `vk-history:u${keyGate.userId}` 
 const SAMPLE = 'Xin chào! Đây là giọng đọc trí tuệ nhân tạo. Bạn có thể dán bất kỳ đoạn văn bản nào vào đây để nghe thử.';
 const GEMINI_VOICES = [['Zephyr', 'Sáng'], ['Puck', 'Sôi nổi'], ['Charon', 'Thông tin'], ['Kore', 'Chắc chắn'], ['Fenrir', 'Hào hứng'], ['Leda', 'Trẻ trung'], ['Orus', 'Chắc chắn'], ['Aoede', 'Nhẹ nhàng'], ['Callirrhoe', 'Dễ chịu'], ['Autonoe', 'Sáng'], ['Enceladus', 'Thì thầm'], ['Iapetus', 'Rõ ràng'], ['Umbriel', 'Dễ chịu'], ['Algieba', 'Mượt'], ['Despina', 'Mượt'], ['Erinome', 'Rõ ràng'], ['Algenib', 'Khàn'], ['Rasalgethi', 'Thông tin'], ['Laomedeia', 'Sôi nổi'], ['Achernar', 'Êm'], ['Alnilam', 'Chắc chắn'], ['Schedar', 'Đều'], ['Gacrux', 'Trưởng thành'], ['Pulcherrima', 'Mạnh mẽ'], ['Achird', 'Thân thiện'], ['Zubenelgenubi', 'Tự nhiên'], ['Vindemiatrix', 'Dịu dàng'], ['Sadachbia', 'Sống động'], ['Sadaltager', 'Am hiểu'], ['Sulafat', 'Ấm áp']];
 const LIBS = {
-  vieneu:     { title: 'VieNeu-TTS (Việt Nam) — 25 giọng Bắc/Trung/Nam', badge: 'VieNeu-TTS (Việt Nam)', free: true, needs: 'api', desc: '25 giọng chuẩn 3 miền (tin tức, kể chuyện, tự nhiên...), đọc tiếng Anh xen kẽ, hỗ trợ thẻ cảm xúc [cười], [thở dài] và thẻ nghỉ' },
-  supertonic: { title: 'Supertonic 3 — Đa ngôn ngữ (31 thứ tiếng, 10 giọng)', badge: 'Supertonic 3 (Đa ngôn ngữ)', free: true, needs: 'api', desc: 'Đọc 31 ngôn ngữ quốc tế (Anh, Nhật, Hàn, Pháp, Đức...), 10 giọng nam nữ, thẻ cảm xúc <laugh>, <breath>, <sigh>' },
-  edge:       { title: 'Microsoft Edge Neural — miễn phí', badge: 'Microsoft Edge Neural', free: true, needs: 'api', desc: '2 giọng Việt (HoaiMy, NamMinh) và 300+ giọng đa ngôn ngữ · tạo qua Cloudflare Worker / server của app' },
+  edge:       { title: 'Microsoft Edge Neural — miễn phí', badge: 'Microsoft Edge Neural', free: true, needs: 'api', desc: '2 giọng Việt (HoaiMy, NamMinh) và 300+ giọng đa ngôn ngữ · miễn phí cho mọi tài khoản' },
+  vieneu:     { title: 'VieNeu-TTS (Việt Nam) — 25 giọng 3 miền (Premium)', badge: 'VieNeu-TTS (Việt Nam)', free: false, premium: true, needs: 'api', desc: '25 giọng chuẩn Bắc/Trung/Nam (tin tức, kể chuyện, tự nhiên...), đọc tiếng Anh xen kẽ, xuất WAV 48 kHz · dành cho gói Premium' },
+  supertonic: { title: 'Supertonic 3 — Đa ngôn ngữ (31 thứ tiếng) (Premium)', badge: 'Supertonic 3 (Đa ngôn ngữ)', free: false, premium: true, needs: 'api', desc: 'Đọc 31 ngôn ngữ quốc tế (Anh, Nhật, Hàn, Pháp, Đức...), 10 giọng nam nữ, thẻ cảm xúc <laugh>, <breath>, <sigh> · dành cho gói Premium' },
   capcut:     { title: 'CapCut / TikTok — Premium', badge: 'CapCut / TikTok', free: false, premium: true, needs: 'api', desc: '24 giọng Việt kiểu TikTok, review phim · dành cho gói Premium' },
   piper:      { title: 'Piper — chạy trên máy bạn, miễn phí', badge: 'Piper (trong trình duyệt)', free: true, needs: '', desc: '1 giọng Việt (vais1000) · chạy 100% trong trình duyệt, tải ~63 MB lần đầu rồi dùng offline được' },
   mms:        { title: 'Meta MMS — chạy trên máy bạn, miễn phí', badge: 'Meta MMS (trong trình duyệt)', free: true, needs: '', desc: '1 giọng Việt · chạy 100% trong trình duyệt, tải ~114 MB lần đầu · giọng hơi máy' },
   browser:    { title: 'Giọng có sẵn của trình duyệt / hệ điều hành', badge: 'Trình duyệt / Hệ điều hành', free: true, needs: '', desc: 'Tùy máy bạn (Edge có giọng "Natural" rất tự nhiên) · chỉ nghe trực tiếp, không tải file được' },
   gemini:     { title: 'Google Gemini TTS — dùng key của bạn', badge: 'Google Gemini TTS', free: false, needs: '', desc: '30 giọng đa ngôn ngữ (có tiếng Việt), đọc theo phong cách bạn mô tả · gọi thẳng Google bằng key của bạn' }
 };
-const tts = { lib: 'vieneu', format: 'mp3', edgeVoices: null, capcutVoices: null, mms: null, piper: null, speaking: false, previewAudio: null };
+const tts = { lib: 'edge', format: 'mp3', edgeVoices: null, capcutVoices: null, mms: null, piper: null, speaking: false, previewAudio: null };
 
 function updateCount() { $('#tts-count').textContent = $('#tts-text').value.length.toLocaleString('vi-VN') + ' ký tự'; }
 $('#tts-text').addEventListener('input', updateCount);
@@ -993,8 +993,12 @@ function updateLibLock() {
   const locked = !!LIBS[tts.lib]?.premium && !isPremium();
   const label = $('#btn-tts-run span');
   if (!tts.speaking && !$('#btn-tts-run').disabled) label.textContent = locked ? 'Nâng cấp Premium để dùng' : 'Tạo giọng đọc';
-  if (locked) $('#tts-note').textContent = '🔒 Kho giọng CapCut / TikTok chỉ dành cho gói Premium. Bạn vẫn dùng được Edge Neural, Piper, Meta MMS miễn phí.';
-  else if ($('#tts-note').textContent.startsWith('🔒')) $('#tts-note').textContent = '';
+  if (locked) {
+    const libTitle = LIBS[tts.lib]?.badge || 'này';
+    $('#tts-note').textContent = `🔒 Kho giọng ${libTitle} chỉ dành cho gói Premium. Bạn vẫn dùng được Edge Neural, Piper, Meta MMS miễn phí.`;
+  } else if ($('#tts-note').textContent.startsWith('🔒')) {
+    $('#tts-note').textContent = '';
+  }
   return locked;
 }
 
