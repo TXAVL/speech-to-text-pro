@@ -3309,7 +3309,7 @@ input[type="range"] {
 }
 .credit-presets {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(84px, 1fr));
   gap: 8px;
   margin: 8px 0 10px;
 }
@@ -3319,16 +3319,46 @@ input[type="range"] {
   color: var(--text);
   font: inherit;
   border-radius: 12px;
-  padding: 10px 8px;
+  padding: 8px 6px;
   cursor: pointer;
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 2px;
   transition: 0.15s;
+  position: relative;
+  min-height: 64px;
+}
+.preset-tag {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 99px;
+  background: rgba(34, 211, 238, 0.15);
+  color: var(--accent, #22d3ee);
+  margin-bottom: 2px;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+}
+.preset-tag.hot {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.25), rgba(249, 115, 22, 0.25));
+  color: #fb923c;
+  border: 1px solid rgba(249, 115, 22, 0.4);
+}
+.tag-save {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: rgba(16, 185, 129, 0.18);
+  color: #10b981;
+  margin-left: 4px;
 }
 .credit-preset b {
   font-size: 17px;
+  line-height: 1.1;
 }
 .credit-preset small {
   color: var(--muted);

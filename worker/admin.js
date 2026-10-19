@@ -1,5 +1,6 @@
 // Trang Quản trị: tổng quan, người dùng, đơn hàng, cài đặt gói/giá, payOS, nhật ký.
 import { getConfig, saveConfig } from './config.js';
+import { calcCreditsPrice } from './plans.js';
 import { getUser, isAdmin, json, publicUser, hashPassword } from './auth.js';
 import { vnDay, sha256Hex } from './quota.js';
 import { sendMail, smtpConfigured } from './mailer.js';
@@ -389,7 +390,7 @@ export async function handleAdmin(request, env, path) {
       if (body.package_id === 'credits') {
         const qty = Math.floor(Number(body.credits));
         if (!(qty >= 1 && qty <= 1000000)) return fail('Số lượt không hợp lệ.');
-        const amount = body.custom?.amount !== undefined && body.custom.amount !== '' ? Math.max(0, Math.floor(Number(body.custom.amount))) : qty * cfg.credits.price;
+        const amount = body.custom?.amount !== undefined && body.custom.amount !== '' ? Math.max(0, Math.floor(Number(body.custom.amount))) : calcCreditsPrice(qty, cfg.credits.price);
         pkg = { id: 'credits', name: `${qty.toLocaleString('vi-VN')} lượt`, days: 0, price: amount, kind: 'credits', credits: qty };
       } else if (!pkg) {
         const c = body.custom || {};

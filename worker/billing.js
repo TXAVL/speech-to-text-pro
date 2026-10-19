@@ -1,5 +1,6 @@
 // Mua gói Premium qua payOS. Không phụ thuộc webhook: trang chờ / trang quay về tự hỏi payOS và kích hoạt.
 import { getConfig } from './config.js';
+import { calcCreditsPrice } from './plans.js';
 import { effectivePlan } from './quota.js';
 import { payosConfigured, newOrderCode, makeDescription, createLink, getLink, cancelLink, verifyWebhook } from './payos.js';
 import { getUser, json } from './auth.js';
@@ -131,7 +132,7 @@ export async function handleBilling(request, env, path) {
         if (effectivePlan(user, cfg).id !== 'premium') return fail('Chỉ tài khoản Premium mới mua thêm lượt được.', 403);
         const qty = Math.floor(Number(quantity));
         if (!(qty >= cfg.credits.min && qty <= cfg.credits.max)) return fail(`Số lượt mua từ ${cfg.credits.min.toLocaleString('vi-VN')} đến ${cfg.credits.max.toLocaleString('vi-VN')}.`);
-        const amount = qty * cfg.credits.price;
+        const amount = calcCreditsPrice(qty, cfg.credits.price);
         if (amount < 2000) return fail('Tổng tiền tối thiểu 2.000đ, hãy mua nhiều lượt hơn.');
         pkg = { id: 'credits', name: `${qty.toLocaleString('vi-VN')} lượt`, days: 0, price: amount, kind: 'credits', credits: qty };
       } else {

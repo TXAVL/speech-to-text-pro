@@ -512,27 +512,103 @@ const vkPay = (() => {
     $('#pc-continue').textContent = payMode() === 'redirect' ? `Tiếp tục tới payOS · ${total} →` : `Tạo mã QR · ${total}`;
   }
   $$('input[name=pc-mode]').forEach(r => r.addEventListener('change', payLabel));
-  /* Mua thêm lượt: chọn số lượt rồi dùng chung bước xác nhận / thanh toán */
+  /* Mua thêm lượt: có chiết khấu số lượng (bắt đầu từ 10 lượt, làm tròn 20, 30, 50, kịch kim ở 100 lượt) */
+  function calcCreditsPrice(qty, basePrice = 200) {
+    qty = Math.floor(Number(qty)) || 0;
+    if (qty <= 0) return 0;
+    basePrice = Number(basePrice) > 0 ? Number(basePrice) : 200;
+
+    let amount = 0;
+    if (qty < 10) {
+      amount = qty * 200;
+    } else if (qty <= 20) {
+      amount = 2000 + ((qty - 10) / 10) * 1500;
+    } else if (qty <= 30) {
+      amount = 3500 + ((qty - 20) / 10) * 1500;
+    } else if (qty <= 50) {
+      amount = 5000 + ((qty - 30) / 20) * 2500;
+    } else if (qty <= 100) {
+      amount = 7500 + ((qty - 50) / 50) * 4500;
+    } else {
+      amount = 12000 + (qty - 100) * 115;
+    }
+
+    if (basePrice !== 200) {
+      amount = (amount / 200) * basePrice;
+    }
+
+    const unit = amount >= 10000 ? 1000 : 500;
+    return Math.max(2000, Math.round(amount / unit) * unit);
+  }
+
   function creditQty() { return Math.floor(Number($('#pc-qty').value)) || 0; }
   function syncCredits() {
     const c = vkAccount.state.credits, q = creditQty();
     $$('#pc-presets .credit-preset').forEach(b => b.classList.toggle('active', Number(b.dataset.q) === q));
-    pendingPkg = { id: 'credits', name: `${fmt(q)} lượt`, days: 0, price: q * c.price };
+    const price = calcCreditsPrice(q, c.price);
+    const unitPrice = q > 0 ? Math.round(price / q) : c.price;
+    const baseTotal = q * c.price;
+    const discountPercent = baseTotal > 0 ? Math.round((1 - price / baseTotal) * 100) : 0;
+
+    pendingPkg = { id: 'credits', name: `${fmt(q)} lượt`, days: 0, price };
     $('#pc-pkg').textContent = `${fmt(q)} lượt Edge / CapCut`;
-    $('#pc-amount').textContent = fmt(pendingPkg.price) + 'đ';
+    $('#pc-amount').textContent = fmt(price) + 'đ';
+
+    if ($('#pc-unit')) {
+      if (discountPercent > 0) {
+        $('#pc-unit').innerHTML = `· <b style="color:var(--accent)">${fmt(unitPrice)}đ</b> / lượt <span class="tag-save">Giảm ${discountPercent}%</span>`;
+      } else {
+        $('#pc-unit').textContent = `· ${fmt(unitPrice)}đ / lượt`;
+      }
+    }
+
+    const noteEl = $('#pc-credits-note');
+    if (noteEl) {
+      if (q < 100) {
+        noteEl.innerHTML = `💡 Mua mốc <b>100 lượt</b> để nhận ưu đãi kịch kim chỉ <b>120đ/lượt</b> (-40%). Lượt cộng dồn vĩnh viễn không hết hạn.`;
+      } else if (q === 100) {
+        noteEl.innerHTML = `🔥 Bạn đang nhận mức ưu đãi lớn nhất (<b>120đ/lượt · Tiết kiệm 40%</b>). Lượt cộng dồn vĩnh viễn.`;
+      } else {
+        noteEl.innerHTML = `✨ Đã gồm trọn gói ưu đãi 100 lượt kịch kim + các lượt mua thêm không thời hạn.`;
+      }
+    }
+
     payLabel();
   }
+
   function startCredits() {
     const c = vkAccount.state.credits;
     payKind = 'credits';
     const u = vkAccount.state.user || {};
     $('#pay-title').textContent = 'Mua thêm lượt';
-    $('#pc-unit').textContent = `· ${fmt(c.price)}đ / lượt`;
-    $('#pc-presets').innerHTML = c.presets.map(q => `<button type="button" class="credit-preset" data-q="${q}"><b>${fmt(q)}</b><small>${fmt(q * c.price)}đ</small></button>`).join('');
-    $$('#pc-presets .credit-preset').forEach(b => b.addEventListener('click', () => { $('#pc-qty').value = b.dataset.q; syncCredits(); }));
+
+    const presets = Array.isArray(c.presets) && c.presets.length ? c.presets : [10, 20, 30, 50, 100];
+    $('#pc-presets').innerHTML = presets.map(q => {
+      const p = calcCreditsPrice(q, c.price);
+      const discount = Math.round((1 - p / (q * c.price)) * 100);
+      let badge = '';
+      if (q === 100) {
+        badge = `<span class="preset-tag hot">Kịch kim 🔥</span>`;
+      } else if (discount > 0) {
+        badge = `<span class="preset-tag">-${discount}%</span>`;
+      }
+      return `<button type="button" class="credit-preset" data-q="${q}">
+        ${badge}
+        <b>${fmt(q)}</b>
+        <small>${fmt(p)}đ</small>
+      </button>`;
+    }).join('');
+
+    $$('#pc-presets .credit-preset').forEach(b => b.addEventListener('click', () => {
+      $('#pc-qty').value = b.dataset.q;
+      syncCredits();
+    }));
+
     const qty = $('#pc-qty');
-    qty.min = c.min; qty.max = c.max;
-    qty.value = c.presets[1] || c.presets[0] || c.min;
+    qty.min = Math.max(10, c.min || 10);
+    qty.max = c.max || 10000;
+    qty.step = '10';
+    qty.value = presets.includes(30) ? 30 : (presets[1] || 20);
     $('#pc-credits').hidden = false;
     if (!$('#pc-name').value) $('#pc-name').value = u.name || '';
     if (!$('#pc-email').value) $('#pc-email').value = u.email || '';
