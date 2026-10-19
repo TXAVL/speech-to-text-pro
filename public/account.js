@@ -148,7 +148,7 @@ const vkAccount = (() => {
   function switchForm(name) {
     $$('.auth-form[data-form]').forEach(f => { if (f.id !== 'form-password') f.hidden = f.dataset.form !== name; });
     $$('#auth-seg .seg-btn').forEach(b => b.classList.toggle('active', b.dataset.auth === name));
-    $('#auth-seg').hidden = name === 'reset' || name === 'forgot';
+    $('#auth-seg').hidden = name === 'reset' || name === 'forgot' || name === 'resend';
   }
   $$('[data-auth]').forEach(b => b.addEventListener('click', () => switchForm(b.dataset.auth)));
 
@@ -189,6 +189,12 @@ const vkAccount = (() => {
     const r = await post('/api/auth/register', d); e.target.reset(); await load();
     toast(r.mailSent ? `Đã tạo tài khoản. Hãy mở email ${r.user.email} để xác minh.` : 'Đã tạo tài khoản nhưng chưa gửi được email xác minh: ' + (r.mailError || ''), r.mailSent ? 'ok' : 'err');
   }); });
+  $('#form-resend')?.addEventListener('submit', e => { e.preventDefault(); submit(e.target, async d => {
+    const r = await post('/api/auth/resend-verify', d);
+    e.target.reset();
+    toast(r.message || `Đã gửi lại email xác minh tới ${d.email}. Hãy kiểm tra hộp thư.`, 'ok');
+    switchForm('login');
+  }); });
   $('#form-forgot').addEventListener('submit', e => { e.preventDefault(); submit(e.target, async d => {
     await post('/api/auth/forgot', d); e.target.reset(); switchForm('login');
     toast('Nếu email đã đăng ký, liên kết đặt lại mật khẩu đã được gửi.', 'ok');
@@ -202,8 +208,17 @@ const vkAccount = (() => {
   }); });
   $('#btn-resend').addEventListener('click', async (e) => {
     e.target.disabled = true;
-    try { await post('/api/auth/resend-verify'); toast('Đã gửi lại email xác minh.', 'ok'); } catch (err) { toast(err.message, 'err'); }
-    e.target.disabled = false;
+    const oldText = e.target.textContent;
+    e.target.textContent = 'Đang gửi…';
+    try {
+      const r = await post('/api/auth/resend-verify');
+      toast(r.message || 'Đã gửi lại email xác minh mới.', 'ok');
+    } catch (err) {
+      toast(err.message, 'err');
+    } finally {
+      e.target.disabled = false;
+      e.target.textContent = oldText;
+    }
   });
   $('#btn-logout').addEventListener('click', async () => { await post('/api/auth/logout').catch(() => {}); await load(); $('#modal-account').hidden = true; toast('Đã đăng xuất.'); });
   $('#btn-see-plans').addEventListener('click', () => openFrom('plans'));
@@ -239,8 +254,27 @@ const vkAccount = (() => {
     if (!verify && !reset && !pay) return;
     history.replaceState(null, '', location.pathname);
     if (verify) {
-      try { await post('/api/auth/verify', { token: verify }); await load(); toast('Email đã được xác minh. Gói Miễn phí đã mở!', 'ok'); }
-      catch (e) { toast(e.message, 'err'); }
+      try {
+        const r = await post('/api/auth/verify', { token: verify });
+        await load();
+        if (r.already) {
+          toast('Tài khoản này đã được xác minh trước đó rồi.', 'ok');
+        } else {
+          toast('🎉 Email đã được xác minh thành công! Gói Miễn phí đã mở.', 'ok');
+        }
+      } catch (e) {
+        if (e.expired || e.message?.includes('hết hạn')) {
+          toast('⚠️ Liên kết xác minh đã hết hạn. Hãy nhập email để nhận liên kết mới.', 'err');
+          if (e.email) {
+            const inp = $('#resend-email');
+            if (inp) inp.value = e.email;
+          }
+          switchForm('resend');
+          openModal('#modal-account');
+        } else {
+          toast(e.message, 'err');
+        }
+      }
     } else if (reset) {
       acc.resetToken = reset; render(); switchForm('reset'); openModal('#modal-account');
     } else if (pay && order) {
