@@ -290,9 +290,16 @@ export async function handleAuth(request, env, path) {
         await guardIp(env, request);
         const email = normEmail(b.email);
         const user = await env.DB.prepare('SELECT * FROM users WHERE email = ?').bind(email).first();
-        const okPass = user && safeEqual(await hashPassword(String(b.password || ''), user.pass_salt), user.pass_hash);
-        if (!okPass) return fail('Email hoặc mật khẩu không chính xác. Vui lòng kiểm tra lại.', 401);
-        if (user.banned) return fail('Tài khoản đã bị khóa. Vui lòng liên hệ quản trị viên.', 403);
+        if (!user) {
+          return fail('Email này chưa được đăng ký tài khoản. Vui lòng kiểm tra lại hoặc bấm "Tạo miễn phí".', 404, { reason: 'not_found' });
+        }
+        if (user.banned) {
+          return fail('Tài khoản của bạn đã bị khóa. Vui lòng liên hệ quản trị viên để được mở khóa.', 403, { reason: 'banned' });
+        }
+        const okPass = safeEqual(await hashPassword(String(b.password || ''), user.pass_salt), user.pass_hash);
+        if (!okPass) {
+          return fail('Mật khẩu không chính xác. Vui lòng kiểm tra lại hoặc dùng "Quên mật khẩu".', 401, { reason: 'wrong_password' });
+        }
         if (user.role !== 'admin' && adminEmails(env).includes(email)) {
           await env.DB.prepare("UPDATE users SET role = 'admin' WHERE id = ?").bind(user.id).run();
           user.role = 'admin';
