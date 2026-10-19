@@ -334,12 +334,12 @@
       <div class="modal-head"><h3>Cài đặt nâng cao</h3><button class="icon-btn sm" data-close>✕</button></div>
       <p class="muted small">Hoàn toàn tùy chọn. Chỉ cần nếu bạn muốn dùng công cụ đám mây (Groq, Gemini) hoặc các nút Tóm tắt / Dịch. Key chỉ lưu trong trình duyệt này.</p>
       <label class="field"><span>Google Gemini API key <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener">lấy tại AI Studio</a></span>
-        <input type="password" id="key-gemini" placeholder="AIza…" autocomplete="off">
+        <div class="secret-row"><input type="text" id="key-gemini" name="vk_gemini_api_key" class="secret-input" placeholder="AIza…" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" data-1p-ignore data-lpignore="true" data-bwignore="true" data-form-type="other"><button type="button" class="icon-btn sm" data-reveal="key-gemini" title="Hiện / ẩn key">👁</button></div>
         <small class="key-status" id="status-gemini"></small></label>
       <label class="field"><span>Groq API key <a href="https://console.groq.com/keys" target="_blank" rel="noopener">lấy miễn phí</a></span>
-        <input type="password" id="key-groq" placeholder="gsk_…" autocomplete="off">
+        <div class="secret-row"><input type="text" id="key-groq" name="vk_groq_api_key" class="secret-input" placeholder="gsk_…" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" data-1p-ignore data-lpignore="true" data-bwignore="true" data-form-type="other"><button type="button" class="icon-btn sm" data-reveal="key-groq" title="Hiện / ẩn key">👁</button></div>
         <small class="key-status" id="status-groq"></small></label>
-      <p class="muted small">Nhập xong app tự hỏi Google/Groq xem key của bạn dùng được model nào, rồi mới hiện vào danh sách công cụ nhận diện và kho giọng.</p>
+      <p class="muted small">Bấm Lưu để app hỏi Google/Groq xem key dùng được model nào, rồi mới hiện vào danh sách công cụ nhận diện và kho giọng. Đây là API key, không phải mật khẩu tài khoản.</p>
       <div class="modal-foot"><button class="btn primary" id="btn-save-keys">Lưu &amp; tải model</button></div>
     </div>
   </div>
