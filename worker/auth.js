@@ -95,12 +95,43 @@ async function issueToken(env, userId, kind, ttl) {
   return token;
 }
 
-async function useToken(env, token, kind) {
-  if (!/^[a-f0-9]{64}$/.test(String(token || ''))) return null;
+async function inspectAndConsumeToken(env, token, kind) {
+  if (!/^[a-f0-9]{64}$/.test(String(token || ''))) {
+    return { ok: false, error: 'Mã xác minh không đúng định dạng.', reason: 'invalid' };
+  }
+  const hash = await sha256Hex(token);
   const row = await env.DB.prepare(
-    `UPDATE email_tokens SET used = 1 WHERE token_hash = ? AND kind = ? AND used = 0 AND expires_at > ? RETURNING user_id`
-  ).bind(await sha256Hex(token), kind, Date.now()).first();
-  return row ? row.user_id : null;
+    'SELECT user_id, kind, used, expires_at FROM email_tokens WHERE token_hash = ? AND kind = ?'
+  ).bind(hash, kind).first();
+  if (!row) {
+    return { ok: false, error: 'Liên kết không tồn tại hoặc đã bị xóa.', reason: 'not_found' };
+  }
+  const user = await env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(row.user_id).first();
+  if (!user) {
+    return { ok: false, error: 'Tài khoản liên kết không tồn tại.', reason: 'user_not_found' };
+  }
+  if (user.banned) {
+    return { ok: false, error: 'Tài khoản này đã bị khóa.', reason: 'banned' };
+  }
+  if (row.used) {
+    if (kind === 'verify' && user.verified) {
+      return { ok: true, already: true, user, message: 'Tài khoản này đã được xác minh trước đó rồi.' };
+    }
+    return { ok: false, error: 'Liên kết này đã được sử dụng rồi.', reason: 'used', user, email: user.email };
+  }
+  if (Date.now() > row.expires_at) {
+    const hours = kind === 'verify' ? 24 : 1;
+    return {
+      ok: false,
+      error: `Liên kết ${kind === 'verify' ? 'xác minh' : 'đặt lại mật khẩu'} đã hết hạn (chỉ có hiệu lực trong ${hours === 24 ? '24 giờ' : '60 phút'}). Hãy gửi lại email mới.`,
+      expired: true,
+      reason: 'expired',
+      user,
+      email: user.email
+    };
+  }
+  await env.DB.prepare('UPDATE email_tokens SET used = 1 WHERE token_hash = ? AND kind = ?').bind(hash, kind).run();
+  return { ok: true, user };
 }
 
 /** Tạo token rồi gửi mail; gửi lỗi thì xóa token để không bị tính thời gian chờ. */
@@ -200,21 +231,44 @@ export async function handleAuth(request, env, path) {
 
       case '/api/auth/verify': {
         const b = await readBody(request);
-        const userId = await useToken(env, b.token, 'verify');
-        if (!userId) return fail('Liên kết xác minh không hợp lệ hoặc đã hết hạn. Hãy đăng nhập và gửi lại email xác minh.', 400);
-        const user = await env.DB.prepare('UPDATE users SET verified = 1 WHERE id = ? RETURNING *').bind(userId).first();
-        try { await sendMail(env, { to: user.email, ...(await renderEmail(env.DB, 'welcome', { free_calls: cfg.plans.free.ttsCalls }, { appName: 'VoiceKit', appUrl: appUrl(env, request), name: user.name || user.email.split('@')[0], email: user.email })) }); } catch {}
+        const result = await inspectAndConsumeToken(env, b.token, 'verify');
+        if (!result.ok) {
+          return json({
+            error: result.error,
+            expired: !!result.expired,
+            email: result.email || null,
+            reason: result.reason
+          }, result.expired ? 410 : 400);
+        }
+        if (result.already) {
+          return json({ ok: true, already: true, message: result.message, user: publicUser(env, result.user, cfg) }, 200);
+        }
+        const user = await env.DB.prepare('UPDATE users SET verified = 1 WHERE id = ? RETURNING *').bind(result.user.id).first();
+        try {
+          await sendMail(env, {
+            to: user.email,
+            ...(await renderEmail(env.DB, 'welcome', { free_calls: cfg.plans.free.ttsCalls }, {
+              appName: 'VoiceKit', appUrl: appUrl(env, request), name: user.name || user.email.split('@')[0], email: user.email
+            }))
+          });
+        } catch {}
         return json({ ok: true, user: publicUser(env, user, cfg) }, 200, { 'Set-Cookie': await createSession(env, request, user.id) });
       }
 
       case '/api/auth/resend-verify': {
-        await readBody(request);
-        const user = await getUser(request, env);
-        if (!user) return fail('Bạn chưa đăng nhập.', 401);
-        if (user.verified) return json({ ok: true, already: true });
+        let b = {};
+        try { b = await readBody(request); } catch {}
+        let user = await getUser(request, env);
+        if (!user && b.email) {
+          const email = normEmail(b.email);
+          user = await env.DB.prepare('SELECT * FROM users WHERE email = ?').bind(email).first();
+        }
+        if (!user) return fail('Vui lòng đăng nhập hoặc nhập đúng email đã đăng ký.', 401);
+        if (user.verified) return json({ ok: true, already: true, message: 'Tài khoản này đã được xác minh rồi, không cần gửi lại.' });
+        if (user.banned) return fail('Tài khoản đã bị khóa.', 403);
         await guardIp(env, request);
         await sendVerify(env, request, user);
-        return json({ ok: true });
+        return json({ ok: true, email: user.email, message: `Đã gửi lại email xác minh tới ${user.email}. Vui lòng kiểm tra hộp thư.` });
       }
 
       case '/api/auth/forgot': {
@@ -237,8 +291,15 @@ export async function handleAuth(request, env, path) {
         const b = await readBody(request);
         const password = String(b.password || '');
         if (password.length < 8) return fail('Mật khẩu cần ít nhất 8 ký tự.');
-        const userId = await useToken(env, b.token, 'reset');
-        if (!userId) return fail('Liên kết đặt lại mật khẩu không hợp lệ hoặc đã hết hạn.', 400);
+        const result = await inspectAndConsumeToken(env, b.token, 'reset');
+        if (!result.ok) {
+          return json({
+            error: result.error,
+            expired: !!result.expired,
+            reason: result.reason
+          }, result.expired ? 410 : 400);
+        }
+        const userId = result.user.id;
         const salt = randomHex(16);
         await env.DB.batch([
           env.DB.prepare('UPDATE users SET pass_hash = ?, pass_salt = ?, verified = 1 WHERE id = ?').bind(await hashPassword(password, salt), salt, userId),

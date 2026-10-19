@@ -94,7 +94,12 @@ async function api(path, opts) {
   const res = await fetch(path, opts);
   const ct = res.headers.get('content-type') || '';
   const body = ct.includes('json') ? await res.json() : null;
-  if (!res.ok) throw new Error(body?.error || `Lỗi máy chủ (${res.status})`);
+  if (!res.ok) {
+    const err = new Error(body?.error || `Lỗi máy chủ (${res.status})`);
+    if (body && typeof body === 'object') Object.assign(err, body);
+    err.status = res.status;
+    throw err;
+  }
   return body ?? res;
 }
 
