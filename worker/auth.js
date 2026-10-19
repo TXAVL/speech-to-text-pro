@@ -246,7 +246,7 @@ async function guardIp(env, request) {
   if (n === null) throw Object.assign(new Error('Quá nhiều thao tác từ mạng của bạn hôm nay. Hãy thử lại vào ngày mai.'), { status: 429 });
 }
 
-async function readBody(request) {
+export async function readBody(request) {
   if (!(request.headers.get('Content-Type') || '').includes('application/json')) {
     throw Object.assign(new Error('Yêu cầu không hợp lệ.'), { status: 415 });
   }

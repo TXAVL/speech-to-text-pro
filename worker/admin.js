@@ -1,7 +1,7 @@
 // Trang Quản trị: tổng quan, người dùng, đơn hàng, cài đặt gói/giá, payOS, nhật ký.
 import { getConfig, saveConfig } from './config.js';
 import { calcCreditsPrice } from './plans.js';
-import { getUser, isAdmin, json, publicUser, hashPassword } from './auth.js';
+import { getUser, isAdmin, json, publicUser, hashPassword, readBody } from './auth.js';
 import { vnDay, sha256Hex } from './quota.js';
 import { sendMail, smtpConfigured } from './mailer.js';
 import { renderEmail, getTemplate, sampleVars, cleanBody } from './emails.js';
@@ -39,7 +39,7 @@ export async function handleAdmin(request, env, path) {
   if (!isAdmin(env, admin)) return fail('Chỉ quản trị viên.', 403);
   const url = new URL(request.url);
   const q = (k, d = '') => (url.searchParams.get(k) ?? d).trim();
-  const body = request.method === 'POST' ? await request.json().catch(() => ({})) : {};
+  const body = request.method === 'POST' ? await readBody(request).catch(() => ({})) : {};
   const cfg = await getConfig(env.DB);
   const db = env.DB;
 

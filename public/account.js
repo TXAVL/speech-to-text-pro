@@ -496,6 +496,7 @@ const vkPay = (() => {
     if (!pkg) return toast('Hãy chọn một gói Premium.', 'err');
     pendingPkg = pkg; payKind = 'premium';
     $('#pc-credits').hidden = true;
+    if ($('#pc-alert')) $('#pc-alert').hidden = true;
     const u = vkAccount.state.user || {};
     $('#pay-title').textContent = 'Xác nhận đơn hàng';
     $('#pc-pkg').textContent = `Premium ${pkg.name} · ${fmt(pkg.days)} ngày`;
@@ -581,6 +582,7 @@ const vkPay = (() => {
     payKind = 'credits';
     const u = vkAccount.state.user || {};
     $('#pay-title').textContent = 'Mua thêm lượt';
+    if ($('#pc-alert')) $('#pc-alert').hidden = true;
 
     const presets = Array.isArray(c.presets) && c.presets.length ? c.presets : [10, 20, 30, 50, 100];
     $('#pc-presets').innerHTML = presets.map(q => {
@@ -619,30 +621,75 @@ const vkPay = (() => {
 
   $('#pc-continue').addEventListener('click', async () => {
     if (!pendingPkg) return;
+    const alertBox = $('#pc-alert');
+    const alertMsg = $('#pc-alert-msg');
+    if (alertBox) alertBox.hidden = true;
+
     if (payKind === 'credits') {
       const c = vkAccount.state.credits, q = creditQty();
-      if (q < c.min || q > c.max) return toast(`Số lượt mua từ ${fmt(c.min)} đến ${fmt(c.max)}.`, 'err');
+      if (q < c.min || q > c.max) {
+        const msg = `Số lượt mua từ ${fmt(c.min)} đến ${fmt(c.max)}.`;
+        if (alertBox && alertMsg) { alertMsg.textContent = msg; alertBox.hidden = false; }
+        return toast(msg, 'err');
+      }
     }
     const invoice = $('#pc-invoice').checked ? {
       enabled: true, type: invType, name: $('#pc-name').value.trim(), tax_code: $('#pc-tax').value.trim(),
       address: $('#pc-addr').value.trim(), email: $('#pc-email').value.trim()
     } : null;
     if (invoice) {
-      if (!invoice.name) return toast(invType === 'company' ? 'Nhập tên công ty.' : 'Nhập họ tên người mua.', 'err');
-      if (invType === 'company' && !/^\d{10}(-\d{3})?$/.test(invoice.tax_code)) return toast('Mã số thuế phải gồm 10 số (hoặc 10 số + "-" + 3 số).', 'err');
-      if (invType === 'company' && !invoice.address) return toast('Nhập địa chỉ công ty.', 'err');
+      if (!invoice.name) {
+        const msg = invType === 'company' ? 'Nhập tên công ty để xuất hóa đơn.' : 'Nhập họ tên người mua để xuất hóa đơn.';
+        if (alertBox && alertMsg) { alertMsg.textContent = msg; alertBox.hidden = false; }
+        return toast(msg, 'err');
+      }
+      if (invType === 'company' && !/^\d{10}(-\d{3})?$/.test(invoice.tax_code)) {
+        const msg = 'Mã số thuế phải gồm 10 số (hoặc 10 số + "-" + 3 số).';
+        if (alertBox && alertMsg) { alertMsg.textContent = msg; alertBox.hidden = false; }
+        return toast(msg, 'err');
+      }
+      if (invType === 'company' && !invoice.address) {
+        const msg = 'Nhập địa chỉ công ty để xuất hóa đơn.';
+        if (alertBox && alertMsg) { alertMsg.textContent = msg; alertBox.hidden = false; }
+        return toast(msg, 'err');
+      }
     }
+
+    const btn = $('#pc-continue');
+    const oldBtnText = btn.textContent;
+    btn.disabled = true;
     show('pay-loading');
+
     try {
       const mode = payMode();
-      const r = await api('/api/pay/create', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payKind === 'credits' ? { kind: 'credits', quantity: creditQty(), invoice, mode } : { packageId: pendingPkg.id, invoice, mode }) });
-      if (mode === 'redirect' && r.order.checkoutUrl) {
+      const payload = payKind === 'credits'
+        ? { kind: 'credits', quantity: creditQty(), invoice, mode }
+        : { packageId: pendingPkg.id, invoice, mode };
+
+      const r = await api('/api/pay/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (mode === 'redirect' && r.order?.checkoutUrl) {
         $('#pay-loading span').textContent = 'Đang chuyển sang payOS…';
         location.href = r.order.checkoutUrl;
         return;
       }
       await render(r.order);
-    } catch (e) { show('pay-confirm'); toast(e.message, 'err'); }
+    } catch (e) {
+      show('pay-confirm');
+      btn.disabled = false;
+      btn.textContent = oldBtnText;
+      if (alertBox && alertMsg) {
+        alertMsg.textContent = e.message || 'Lỗi tạo đơn thanh toán.';
+        alertBox.hidden = false;
+      }
+      toast(e.message || 'Lỗi tạo đơn thanh toán.', 'err');
+    } finally {
+      btn.disabled = false;
+    }
   });
 
   async function resume(orderCode) {

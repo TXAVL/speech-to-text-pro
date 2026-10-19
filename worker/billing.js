@@ -3,12 +3,11 @@ import { getConfig } from './config.js';
 import { calcCreditsPrice } from './plans.js';
 import { effectivePlan } from './quota.js';
 import { payosConfigured, newOrderCode, makeDescription, createLink, getLink, cancelLink, verifyWebhook } from './payos.js';
-import { getUser, json } from './auth.js';
+import { getUser, json, readBody, shieldResponse } from './auth.js';
 import { sendMail } from './mailer.js';
 import { renderEmail, orderTable } from './emails.js';
 import { renderInvoice } from './invoice.js';
 
-const fail = (error, status = 400) => json({ error }, status);
 const appUrl = (env, request) => (env.APP_URL || new URL(request.url).origin).replace(/\/$/, '');
 const isAdmin = (env, u) => !!u && (u.role === 'admin' || String(env.ADMIN_EMAILS || '').toLowerCase().split(',').map(s => s.trim()).includes(u.email));
 
@@ -83,6 +82,8 @@ export async function syncOrder(env, request, order) {
 }
 
 export async function handleBilling(request, env, path) {
+  const fail = (error, status = 400) => shieldResponse({ error }, request, status);
+  const ok = (data, status = 200) => shieldResponse(data, request, status);
   if (!env.DB) return fail('Website chưa bật tài khoản.', 503);
   try {
     // Webhook payOS: không cần đăng nhập, xác thực bằng chữ ký
@@ -100,7 +101,7 @@ export async function handleBilling(request, env, path) {
 
     const cfg = await getConfig(env.DB);
     if (path === '/api/pay/packages' && request.method === 'GET') {
-      return json({ enabled: payosConfigured(env), packages: cfg.packages, credits: { ...cfg.credits, enabled: cfg.credits.enabled && payosConfigured(env) } });
+      return ok({ enabled: payosConfigured(env), packages: cfg.packages, credits: { ...cfg.credits, enabled: cfg.credits.enabled && payosConfigured(env) } });
     }
 
     const user = await getUser(request, env);
@@ -109,7 +110,7 @@ export async function handleBilling(request, env, path) {
     if (path === '/api/pay/create' && request.method === 'POST') {
       if (!payosConfigured(env)) return fail('Website chưa cấu hình cổng thanh toán payOS.', 503);
       if (!user.verified) return fail('Hãy xác minh email trước khi mua gói Premium.', 403);
-      const { packageId, invoice, kind, quantity } = await request.json().catch(() => ({}));
+      const { packageId, invoice, kind, quantity } = await readBody(request).catch(() => ({}));
       let invoiceJson = null;
       if (invoice && invoice.enabled) {
         const inv = {
@@ -150,7 +151,7 @@ export async function handleBilling(request, env, path) {
           await env.DB.prepare('UPDATE orders SET invoice = ? WHERE order_code = ?').bind(invoiceJson, pending.order_code).run();
           pending.invoice = invoiceJson;
         }
-        return json({ order: publicOrder(pending), reused: true });
+        return ok({ order: publicOrder(pending), reused: true });
       }
 
       const orderCode = newOrderCode();
@@ -169,12 +170,12 @@ export async function handleBilling(request, env, path) {
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *`
       ).bind(orderCode, user.id, pkg.id, pkg.name, pkg.days, pkg.price, description, link.checkoutUrl, link.qrCode,
         link.bin || null, link.accountNumber || null, link.accountName || null, link.paymentLinkId || null, link.expiredAt, Date.now(), invoiceJson, pkg.kind, pkg.credits).first();
-      return json({ order: publicOrder(order) }, 201);
+      return ok({ order: publicOrder(order) }, 201);
     }
 
     if (path === '/api/pay/my-orders' && request.method === 'GET') {
       const { results } = await env.DB.prepare('SELECT * FROM orders WHERE user_id = ? ORDER BY created_at DESC LIMIT 20').bind(user.id).all();
-      return json({ orders: results.map(publicOrder) });
+      return ok({ orders: results.map(publicOrder) });
     }
 
     const m = path.match(/^\/api\/pay\/order\/(\d+)(\/cancel)?$/);
@@ -187,11 +188,11 @@ export async function handleBilling(request, env, path) {
           await env.DB.prepare("UPDATE orders SET status = 'CANCELLED' WHERE order_code = ? AND status = 'PENDING'").bind(order.order_code).run();
         }
         order = await env.DB.prepare('SELECT * FROM orders WHERE order_code = ?').bind(order.order_code).first();
-        return json({ order: publicOrder(order) });
+        return ok({ order: publicOrder(order) });
       }
       if (request.method === 'GET') {
         order = await syncOrder(env, request, order);
-        return json({ order: publicOrder(order) });
+        return ok({ order: publicOrder(order) });
       }
     }
     return fail('Không tìm thấy.', 404);
