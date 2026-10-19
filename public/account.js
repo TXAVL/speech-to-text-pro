@@ -439,8 +439,42 @@ const vkPay = (() => {
   async function finish(o) {
     stop();
     show('pay-done');
-    $('#pay-done-text').textContent = o.kind === 'credits' ? `Đã nhận ${fmt(o.amount)}đ. Đã cộng ${fmt(o.credits)} lượt vào tài khoản, biên lai đã gửi về email.` : `Đã nhận ${fmt(o.amount)}đ cho Premium ${o.packageName}. Biên lai đã được gửi về email của bạn.`;
-    $('#pay-invoice').href = `/invoice/${o.orderCode}`;
+    $('#pay-done-text').textContent = o.kind === 'credits'
+      ? `Đã nhận ${fmt(o.amount)}đ. Đã cộng ${fmt(o.credits)} lượt vào tài khoản, biên lai đã gửi về email.`
+      : `Đã nhận ${fmt(o.amount)}đ cho Premium ${o.packageName}. Biên lai đã được gửi về email của bạn.`;
+
+    const invUrl = `/invoice/${o.orderCode}`;
+    const invPrintUrl = `/invoice/${o.orderCode}?print=1`;
+    if ($('#pay-invoice')) $('#pay-invoice').href = invUrl;
+    if ($('#pay-invoice-print')) $('#pay-invoice-print').href = invPrintUrl;
+
+    const inv = o.invoice;
+    const invDesc = $('#pay-done-inv-desc');
+    if (invDesc) {
+      if (inv && (inv.name || inv.tax_code)) {
+        const nm = inv.name || 'Quý khách';
+        const mst = inv.tax_code ? ` (MST: ${inv.tax_code})` : '';
+        invDesc.innerHTML = `Hóa đơn GTGT điện tử phát hành cho: <b style="color:#f1f5f9">${esc(nm)}</b>${mst}. Hệ thống đã mở hóa đơn trong tab mới để bạn in/lưu.`;
+      } else {
+        invDesc.innerHTML = `Hóa đơn bán hàng điện tử số <b>#${o.orderCode}</b> đã được tạo. Bạn có thể in ra giấy hoặc lưu bản PDF ngay.`;
+      }
+    }
+
+    // Nếu người mua chọn xuất hóa đơn khi tạo đơn, tự động mở ngay trang hóa đơn để in
+    const wantsInvoice = Boolean(inv || $('#pc-invoice')?.checked);
+    if (wantsInvoice) {
+      try {
+        const win = window.open(invPrintUrl, '_blank');
+        if (win) {
+          toast('Đã mở hóa đơn điện tử trong tab mới để in!', 'ok');
+        } else {
+          toast('Hóa đơn đã sẵn sàng! Bấm "In hóa đơn ngay" để mở bản in.', 'info');
+        }
+      } catch (err) {
+        /* Popup blocker */
+      }
+    }
+
     await vkAccount.load();
     toast(o.kind === 'credits' ? `Đã cộng ${fmt(o.credits)} lượt!` : 'Premium đã được kích hoạt!', 'ok');
   }
