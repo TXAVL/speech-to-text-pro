@@ -8,6 +8,12 @@ const store = {
   set(k, v) { try { localStorage.setItem(k, v); } catch {} }
 };
 
+/** Gói Premium (hoặc website không bật tài khoản như bản start.bat) */
+function isPremium() {
+  if (typeof vkAccount === 'undefined' || !vkAccount.state.enabled) return true;
+  return vkAccount.state.plan?.id === 'premium';
+}
+
 /* API key chỉ dành cho người đã đăng nhập (khi website bật tài khoản) và lưu riêng theo từng tài khoản */
 const keyGate = { allowed: false, userId: null };
 const keyName = (k) => keyGate.userId ? `key-${k}:u${keyGate.userId}` : `key-${k}`;
@@ -20,7 +26,10 @@ function applyKeyGate(allowed, userId = null) {
   keyGate.allowed = allowed; keyGate.userId = userId;
   $('#btn-settings').hidden = !allowed;
   $$('[data-key-help]').forEach(el => el.hidden = !allowed);
-  if (!allowed) $('#modal-settings').hidden = true;
+  if (!allowed) {
+    $('#modal-settings').hidden = true;
+    if ($('#view-history').classList.contains('active')) showView('stt');
+  } else if ($('#view-history').classList.contains('active')) renderHistory();
   if (changed || !keyGate.loaded) { keyGate.loaded = true; refreshModels(false); }
 }
 
@@ -462,7 +471,7 @@ function renderResult() {
   });
   $('#plain').value = state.text;
   applyViewMode();
-  $('#ai-row').hidden = !(keyGet('gemini') || keyGet('groq'));
+  $('#ai-row').hidden = !(isPremium() && (keyGet('gemini') || keyGet('groq')));
 }
 function syncRaw() {
   state.raw = state.view.map(s => ({ ...s }));
@@ -532,12 +541,14 @@ $$('#ai-row .chip').forEach(b => b.addEventListener('click', async () => {
 }));
 
 /* ---------------- Lịch sử ---------------- */
-function loadHistory() { try { return JSON.parse(store.get('vk-history', '[]')); } catch { return []; } }
+function loadHistory() { try { return JSON.parse(store.get(historyKey(), '[]')); } catch { return []; } }
+function historyKey() { return keyGate.userId ? `vk-history:u${keyGate.userId}` : 'vk-history'; }
 function saveHistory() {
+  if (!keyGate.allowed) return; // khách không lưu lịch sử
   const list = loadHistory();
   list.unshift({ id: Date.now(), name: state.meta.name, model: state.meta.model, duration: state.meta.duration, text: state.text, segments: state.raw, at: new Date().toISOString() });
   while (list.length > 30 || JSON.stringify(list).length > 4e6) list.pop();
-  store.set('vk-history', JSON.stringify(list));
+  store.set(historyKey(), JSON.stringify(list));
 }
 function renderHistory() {
   const list = loadHistory(), box = $('#history-list');
@@ -558,18 +569,18 @@ function renderHistory() {
       renderResult();
     };
     const del = Object.assign(document.createElement('button'), { className: 'btn sm danger', textContent: 'Xóa' });
-    del.onclick = () => { store.set('vk-history', JSON.stringify(loadHistory().filter(x => x.id !== h.id))); renderHistory(); };
+    del.onclick = () => { store.set(historyKey(), JSON.stringify(loadHistory().filter(x => x.id !== h.id))); renderHistory(); };
     el.append(open, del); box.appendChild(el);
   });
 }
-$('#history-clear').addEventListener('click', () => { if (confirm('Xóa toàn bộ lịch sử?')) { store.set('vk-history', '[]'); renderHistory(); } });
+$('#history-clear').addEventListener('click', () => { if (confirm('Xóa toàn bộ lịch sử?')) { store.set(historyKey(), '[]'); renderHistory(); } });
 
 /* ---------------- Chữ -> Giọng: nhiều kho giọng ---------------- */
 const SAMPLE = 'Xin chào! Đây là giọng đọc trí tuệ nhân tạo. Bạn có thể dán bất kỳ đoạn văn bản nào vào đây để nghe thử.';
 const GEMINI_VOICES = [['Zephyr', 'Sáng'], ['Puck', 'Sôi nổi'], ['Charon', 'Thông tin'], ['Kore', 'Chắc chắn'], ['Fenrir', 'Hào hứng'], ['Leda', 'Trẻ trung'], ['Orus', 'Chắc chắn'], ['Aoede', 'Nhẹ nhàng'], ['Callirrhoe', 'Dễ chịu'], ['Autonoe', 'Sáng'], ['Enceladus', 'Thì thầm'], ['Iapetus', 'Rõ ràng'], ['Umbriel', 'Dễ chịu'], ['Algieba', 'Mượt'], ['Despina', 'Mượt'], ['Erinome', 'Rõ ràng'], ['Algenib', 'Khàn'], ['Rasalgethi', 'Thông tin'], ['Laomedeia', 'Sôi nổi'], ['Achernar', 'Êm'], ['Alnilam', 'Chắc chắn'], ['Schedar', 'Đều'], ['Gacrux', 'Trưởng thành'], ['Pulcherrima', 'Mạnh mẽ'], ['Achird', 'Thân thiện'], ['Zubenelgenubi', 'Tự nhiên'], ['Vindemiatrix', 'Dịu dàng'], ['Sadachbia', 'Sống động'], ['Sadaltager', 'Am hiểu'], ['Sulafat', 'Ấm áp']];
 const LIBS = {
   edge:    { title: 'Microsoft Edge Neural — miễn phí', badge: 'Microsoft Edge Neural', free: true, needs: 'api', desc: '2 giọng Việt (HoaiMy, NamMinh) và 300+ giọng đa ngôn ngữ · tạo qua Cloudflare Worker / server của app' },
-  capcut:  { title: 'CapCut / TikTok — miễn phí', badge: 'CapCut / TikTok', free: true, needs: 'api', desc: '24 giọng Việt kiểu TikTok, review phim · tạo qua Cloudflare Worker / server của app' },
+  capcut:  { title: 'CapCut / TikTok — Premium', badge: 'CapCut / TikTok', free: false, premium: true, needs: 'api', desc: '24 giọng Việt kiểu TikTok, review phim · dành cho gói Premium' },
   piper:   { title: 'Piper — chạy trên máy bạn, miễn phí', badge: 'Piper (trong trình duyệt)', free: true, needs: '', desc: '1 giọng Việt (vais1000) · chạy 100% trong trình duyệt, tải ~63 MB lần đầu rồi dùng offline được' },
   mms:     { title: 'Meta MMS — chạy trên máy bạn, miễn phí', badge: 'Meta MMS (trong trình duyệt)', free: true, needs: '', desc: '1 giọng Việt · chạy 100% trong trình duyệt, tải ~114 MB lần đầu · giọng hơi máy' },
   browser: { title: 'Giọng có sẵn của trình duyệt / hệ điều hành', badge: 'Trình duyệt / Hệ điều hành', free: true, needs: '', desc: 'Tùy máy bạn (Edge có giọng "Natural" rất tự nhiên) · chỉ nghe trực tiếp, không tải file được' },
@@ -594,7 +605,7 @@ function availableLibs() {
 }
 function renderLibOptions() {
   const sel = $('#tts-lib'), keep = sel.value || tts.lib, libs = availableLibs();
-  sel.innerHTML = libs.map(k => `<option value="${k}">${LIBS[k].title}</option>`).join('');
+  sel.innerHTML = libs.map(k => `<option value="${k}">${LIBS[k].premium && !isPremium() ? '🔒 ' : ''}${LIBS[k].title}</option>`).join('');
   sel.value = libs.includes(keep) ? keep : libs[0];
   $('#tts-model').innerHTML = cloud.gemini.tts.map(m => `<option value="${m.id}">${m.name && m.name !== m.id ? m.name + ' — ' : ''}${m.id}</option>`).join('');
   if (ttsReady && sel.value !== tts.lib) applyLib();
@@ -655,6 +666,7 @@ async function applyLib() {
     }
   } catch (e) { toast('Không tải được danh sách giọng: ' + e.message, 'err'); }
   if (typeof vkAccount !== 'undefined') vkAccount.renderQuota();
+  updateLibLock();
 }
 function fillEdgeVoices() {
   const loc = $('#tts-locale').value;
@@ -746,7 +758,18 @@ function speakBrowser(text, voiceURI, rate) {
   speechSynthesis.speak(u);
 }
 
+/** Kho giọng chỉ dành cho Premium: đổi nút thành lời mời nâng cấp */
+function updateLibLock() {
+  const locked = !!LIBS[tts.lib]?.premium && !isPremium();
+  const label = $('#btn-tts-run span');
+  if (!tts.speaking && !$('#btn-tts-run').disabled) label.textContent = locked ? 'Nâng cấp Premium để dùng' : 'Tạo giọng đọc';
+  if (locked) $('#tts-note').textContent = '🔒 Kho giọng CapCut / TikTok chỉ dành cho gói Premium. Bạn vẫn dùng được Edge Neural, Piper, Meta MMS miễn phí.';
+  else if ($('#tts-note').textContent.startsWith('🔒')) $('#tts-note').textContent = '';
+  return locked;
+}
+
 $('#btn-tts-run').addEventListener('click', async () => {
+  if (updateLibLock()) { showView('plans'); return; }
   const lib = tts.lib, btn = $('#btn-tts-run'), label = btn.querySelector('span');
   if (lib === 'browser' && tts.speaking) { speechSynthesis.cancel(); tts.speaking = false; label.textContent = 'Tạo giọng đọc'; return; }
   const text = $('#tts-text').value.trim();
@@ -781,6 +804,7 @@ $('#btn-tts-run').addEventListener('click', async () => {
     $('#tts-player').play().catch(() => {});
   } catch (e) { toast(e.message, 'err'); }
   btn.disabled = false; label.textContent = 'Tạo giọng đọc';
+  updateLibLock();
 });
 
 /* ---------------- Cài đặt / chia sẻ ---------------- */

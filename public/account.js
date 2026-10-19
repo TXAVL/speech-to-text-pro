@@ -51,8 +51,12 @@ const vkAccount = (() => {
     }
     const used = acc.plan.ttsCalls - acc.usage.remaining;
     $('#prof-bar').style.width = Math.min(100, used / acc.plan.ttsCalls * 100) + '%';
-    $('#prof-usage').textContent = `Hôm nay đã dùng ${fmt(used)}/${fmt(acc.plan.ttsCalls)} lượt Edge/CapCut · tối đa ${fmt(acc.plan.maxChars)} ký tự mỗi lượt`;
+    $('#prof-usage').textContent = `Hôm nay đã dùng ${fmt(used)}/${fmt(acc.plan.ttsCalls)} lượt ${acc.plan.id === 'premium' ? 'Edge/CapCut' : 'Edge Neural'} · tối đa ${fmt(acc.plan.maxChars)} ký tự mỗi lượt`;
     renderQuota();
+    // Gói đổi -> cập nhật khóa Premium (kho CapCut, nút AI)
+    renderLibOptions();
+    updateLibLock();
+    if (state.raw.length) $('#ai-row').hidden = !(isPremium() && (keyGet('gemini') || keyGet('groq')));
     if ($('#view-plans').classList.contains('active')) renderPlans();
   }
 
@@ -78,7 +82,7 @@ const vkAccount = (() => {
       <div class="plan-card ${p.id === 'free' ? 'featured' : ''} ${p.id === cur ? 'current' : ''}">
         <h3>${p.name}</h3>
         <div class="plan-price">${p.price}</div>
-        <div class="plan-limit"><b>${fmt(p.ttsCalls)}</b> lượt Edge/CapCut/ngày · <b>${fmt(p.maxChars)}</b> ký tự/lượt</div>
+        <div class="plan-limit"><b>${fmt(p.ttsCalls)}</b> lượt ${p.id === 'premium' ? 'Edge/CapCut' : 'Edge Neural'}/ngày · <b>${fmt(p.maxChars)}</b> ký tự/lượt</div>
         <ul>${p.perks.map(x => `<li>${x}</li>`).join('')}</ul>
         ${planAction(p)}
       </div>`).join('');
