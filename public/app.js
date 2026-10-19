@@ -18,7 +18,25 @@ function isPremium() {
 const keyGate = { allowed: false, userId: null };
 const keyName = (k) => keyGate.userId ? `key-${k}:u${keyGate.userId}` : `key-${k}`;
 const keyGet = (k) => keyGate.allowed ? store.get(keyName(k)) : '';
-const keySet = (k, v) => { if (keyGate.allowed) store.set(keyName(k), v); };
+const KEY_RULES = {
+  groq: { test: (v) => /^gsk_[A-Za-z0-9]{20,}$/.test(v), hint: 'Groq key phải bắt đầu bằng "gsk_" (lấy tại console.groq.com/keys).' },
+  gemini: { test: (v) => /^AIza[A-Za-z0-9_\-]{30,}$/.test(v), hint: 'Gemini key phải bắt đầu bằng "AIza" (lấy tại aistudio.google.com/app/apikey).' }
+};
+/** '' nếu hợp lệ (hoặc để trống), ngược lại là câu báo lỗi. */
+const keyProblem = (k, v) => !v || KEY_RULES[k].test(v) ? '' : KEY_RULES[k].hint + ' Đây không phải mật khẩu tài khoản.';
+const keySet = (k, v) => { if (keyGate.allowed && !keyProblem(k, v)) store.set(keyName(k), v); };
+
+/** Xóa giá trị đã lưu không giống API key (vd: trình duyệt từng tự điền mật khẩu vào ô key). */
+function purgeBadKeys() {
+  if (!keyGate.allowed) return;
+  for (const k of ['gemini', 'groq']) {
+    const v = store.get(keyName(k));
+    if (v && keyProblem(k, v)) {
+      store.set(keyName(k), '');
+      toast(`Đã xóa giá trị không hợp lệ trong ô ${k === 'groq' ? 'Groq' : 'Gemini'} key (có thể trình duyệt đã tự điền mật khẩu vào đó). Hãy nhập lại đúng API key.`, 'err');
+    }
+  }
+}
 
 /** Gọi từ account.js: allowed = đã đăng nhập, hoặc website không bật tài khoản (chạy local bằng start.bat). */
 function applyKeyGate(allowed, userId = null) {
@@ -30,7 +48,7 @@ function applyKeyGate(allowed, userId = null) {
     $('#modal-settings').hidden = true;
     if ($('#view-history').classList.contains('active')) showView('stt');
   } else if ($('#view-history').classList.contains('active')) renderHistory();
-  if (changed || !keyGate.loaded) { keyGate.loaded = true; refreshModels(false); }
+  if (changed || !keyGate.loaded) { keyGate.loaded = true; purgeBadKeys(); refreshModels(false); }
 }
 
 const state = {
@@ -225,7 +243,8 @@ function drawMic() {
 const GEMINI_API = 'https://generativelanguage.googleapis.com/v1beta';
 const cloudApi = {
   async gjson(key, path, body) {
-    const res = await fetch(GEMINI_API + path, {
+    if (keyProblem('gemini', key)) throw new Error(KEY_RULES.gemini.hint);
+    const res = await this.net('Google', GEMINI_API + path, {
       method: body ? 'POST' : 'GET',
       headers: { 'x-goog-api-key': key, ...(body ? { 'Content-Type': 'application/json' } : {}) },
       body: body ? JSON.stringify(body) : undefined
@@ -236,9 +255,15 @@ const cloudApi = {
   },
   versionScore(id) { const m = id.match(/gemini-(\d+)(?:\.(\d+))?/); return m ? Number(m[1]) * 100 + Number(m[2] || 0) : 0; },
 
+  /** fetch có câu báo lỗi rõ ràng khi bị chặn mạng / CORS / tiện ích chặn quảng cáo */
+  async net(who, url, opts) {
+    try { return await fetch(url, opts); }
+    catch { throw new Error(`Không kết nối được tới ${who}. Kiểm tra mạng, tắt tiện ích chặn quảng cáo cho trang này rồi thử lại.`); }
+  },
   async models(kind, key) {
+    if (keyProblem(kind, key)) throw new Error(KEY_RULES[kind].hint);
     if (kind === 'groq') {
-      const res = await fetch('https://api.groq.com/openai/v1/models', { headers: { Authorization: 'Bearer ' + key } });
+      const res = await this.net('Groq', 'https://api.groq.com/openai/v1/models', { headers: { Authorization: 'Bearer ' + key } });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.error?.message || `HTTP ${res.status}`);
       return { stt: (data.data || []).filter(m => /whisper/i.test(m.id)).map(m => ({ id: m.id, name: m.id })).sort((a, b) => b.id.localeCompare(a.id)), tts: [] };
@@ -282,7 +307,7 @@ const cloudApi = {
       fd.append('file', blob, name); fd.append('model', model); fd.append('response_format', 'verbose_json');
       fd.append('timestamp_granularities[]', 'segment');
       if (language !== 'auto') fd.append('language', language);
-      const res = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', { method: 'POST', headers: { Authorization: 'Bearer ' + key }, body: fd });
+      const res = await this.net('Groq', 'https://api.groq.com/openai/v1/audio/transcriptions', { method: 'POST', headers: { Authorization: 'Bearer ' + key }, body: fd });
       const d = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(d?.error?.message || `Groq lỗi HTTP ${res.status}`);
       return { text: d.text, segments: (d.segments || []).map((s, i) => ({ id: i + 1, start: s.start, end: s.end, text: s.text.trim() })), duration: d.duration || duration };
@@ -341,7 +366,7 @@ const cloudApi = {
       return this.textOf(d).join('\n');
     }
     if (grKey) {
-      const res = await fetch('https://api.groq.com/openai/v1/chat/completions', { method: 'POST', headers: { Authorization: 'Bearer ' + grKey, 'Content-Type': 'application/json' }, body: JSON.stringify({ model: 'llama-3.3-70b-versatile', messages: [{ role: 'user', content: prompt }] }) });
+      const res = await this.net('Groq', 'https://api.groq.com/openai/v1/chat/completions', { method: 'POST', headers: { Authorization: 'Bearer ' + grKey, 'Content-Type': 'application/json' }, body: JSON.stringify({ model: 'llama-3.3-70b-versatile', messages: [{ role: 'user', content: prompt }] }) });
       const d = await res.json(); if (!res.ok) throw new Error(d?.error?.message || 'Groq lỗi');
       return d.choices[0].message.content;
     }
@@ -811,18 +836,29 @@ $('#btn-tts-run').addEventListener('click', async () => {
 $('#btn-settings').addEventListener('click', () => {
   if (!keyGate.allowed) return;
   $('#key-groq').value = keyGet('groq'); $('#key-gemini').value = keyGet('gemini');
+  $$('.secret-input').forEach(i => i.classList.remove('revealed'));
   openModal('#modal-settings');
 });
 $('#btn-save-keys').addEventListener('click', async () => {
-  keySet('groq', $('#key-groq').value.trim()); keySet('gemini', $('#key-gemini').value.trim());
+  let bad = false;
+  for (const k of ['gemini', 'groq']) {
+    const v = $('#key-' + k).value.trim(), problem = keyProblem(k, v), st = $('#status-' + k);
+    if (problem) { bad = true; st.className = 'key-status err'; st.textContent = '✗ ' + problem; continue; }
+    store.set(keyName(k), v);
+  }
+  if (bad) return;
   const btn = $('#btn-save-keys'); btn.disabled = true;
   await refreshModels(true);
   btn.disabled = false;
   if (state.raw.length) renderResult();
 });
-['gemini', 'groq'].forEach(k => $('#key-' + k).addEventListener('change', () => {
-  keySet(k, $('#key-' + k).value.trim()); refreshModels(true, k);
+// Chỉ báo lỗi định dạng khi gõ, không gửi key đi đâu cho tới khi bấm Lưu
+['gemini', 'groq'].forEach(k => $('#key-' + k).addEventListener('input', () => {
+  const v = $('#key-' + k).value.trim(), problem = keyProblem(k, v), st = $('#status-' + k);
+  st.className = 'key-status' + (problem ? ' err' : '');
+  st.textContent = problem ? '✗ ' + problem : '';
 }));
+$$('[data-reveal]').forEach(b => b.addEventListener('click', () => $('#' + b.dataset.reveal).classList.toggle('revealed')));
 
 /* Dò model theo API key: chỉ hiện lên danh sách khi key hợp lệ */
 const cloud = { gemini: { stt: [], tts: [] }, groq: { stt: [] } };

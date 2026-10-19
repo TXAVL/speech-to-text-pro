@@ -279,3 +279,8 @@ input[type="range"] { accent-color: var(--accent); padding: 0; }
 .admin-table input { width: 72px; }
 .tag { display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); }
 .tag.ok { color: var(--ok); border-color: rgba(52, 211, 153, .4); } .tag.warn { color: #fbbf24; border-color: rgba(251, 191, 36, .4); } .tag.pro { color: #b4abff; border-color: rgba(124, 108, 255, .5); }
+
+/* Ô API key: là ô chữ có che ký tự (không phải ô mật khẩu) để trình quản lý mật khẩu không tự điền */
+.secret-row { display: flex; gap: 8px; }
+.secret-input { -webkit-text-security: disc; text-security: disc; font-family: ui-monospace, Consolas, monospace; letter-spacing: .5px; }
+.secret-input.revealed { -webkit-text-security: none; text-security: none; }
