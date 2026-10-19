@@ -90,7 +90,22 @@ function download(name, data, type) {
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
-const APP_PAYLOAD_SECRET = 'vk_sec_shield_2026';
+// --- BẢO MẬT TRAO ĐỔI KHÓA ĐỘNG ECDH (NIST P-256) ---
+// Client chỉ lưu Server Public Key (không có private key nào trong JS).
+// Mỗi request tự sinh một cặp khóa tạm thời (Ephemeral Keypair) ngẫu nhiên.
+const SERVER_ECDH_PUB = {
+  kty: 'EC', crv: 'P-256',
+  x: 'a-IyUrWjcdxeRENFoFijtNaZaIYBcPEmrGVF8d1WLk8',
+  y: 'Jn19zb4pzTQaMpr80DjJ1sEujee0hhgXujWrVqi1rqI'
+};
+
+let _cachedServerPubKey = null;
+async function getServerPubKey() {
+  if (!_cachedServerPubKey) {
+    _cachedServerPubKey = await crypto.subtle.importKey('jwk', SERVER_ECDH_PUB, { name: 'ECDH', namedCurve: 'P-256' }, false, []);
+  }
+  return _cachedServerPubKey;
+}
 
 function toB64(u8) {
   let bin = '';
@@ -104,44 +119,40 @@ function fromB64(b64) {
   return u8;
 }
 
-async function derivePayloadKey(nonce) {
-  const enc = new TextEncoder();
-  const raw = await crypto.subtle.digest('SHA-256', enc.encode(APP_PAYLOAD_SECRET + ':' + nonce));
-  return crypto.subtle.importKey('raw', raw, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
-}
-
-async function encryptPayload(data, nonce) {
-  const key = await derivePayloadKey(nonce);
-  const iv = crypto.getRandomValues(new Uint8Array(12));
-  const encoded = new TextEncoder().encode(JSON.stringify(data));
-  const cipher = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, encoded);
-  const buf = new Uint8Array(iv.length + cipher.byteLength);
-  buf.set(iv, 0);
-  buf.set(new Uint8Array(cipher), iv.length);
-  return toB64(buf);
-}
-
-async function decryptPayload(b64, nonce) {
-  const key = await derivePayloadKey(nonce);
-  const raw = fromB64(b64);
-  const iv = raw.slice(0, 12);
-  const cipher = raw.slice(12);
-  const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, cipher);
-  return JSON.parse(new TextDecoder().decode(plain));
-}
-
 async function api(path, opts = {}) {
-  const nonce = Math.random().toString(36).slice(2) + Date.now().toString(36);
   opts = { ...opts };
   const headers = new Headers(opts.headers || {});
-  headers.set('X-Client-Nonce', nonce);
 
-  // Nếu body là JSON: mã hóa payload trước khi gửi để giấu hoàn toàn trên tab Network
-  if (opts.body && typeof opts.body === 'string' && (headers.get('Content-Type') || '').includes('json')) {
+  // Sinh cặp khóa ECDH tạm thời cho request này (ngẫu nhiên hoàn toàn)
+  let sharedKey = null;
+  try {
+    const clientPair = await crypto.subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveKey']);
+    const clientPubRaw = await crypto.subtle.exportKey('raw', clientPair.publicKey);
+    headers.set('X-Client-ECDH', toB64(new Uint8Array(clientPubRaw)));
+
+    const serverPubKey = await getServerPubKey();
+    sharedKey = await crypto.subtle.deriveKey(
+      { name: 'ECDH', public: serverPubKey },
+      clientPair.privateKey,
+      { name: 'AES-GCM', length: 256 },
+      false,
+      ['encrypt', 'decrypt']
+    );
+  } catch (err) {
+    console.warn('Lỗi sinh khóa ECDH:', err);
+  }
+
+  // Nếu có sharedKey và body là JSON: mã hóa dữ liệu gửi lên
+  if (sharedKey && opts.body && typeof opts.body === 'string' && (headers.get('Content-Type') || '').includes('json')) {
     try {
       const raw = JSON.parse(opts.body);
-      const enc = await encryptPayload(raw, nonce);
-      opts.body = JSON.stringify({ payload: enc });
+      const iv = crypto.getRandomValues(new Uint8Array(12));
+      const encoded = new TextEncoder().encode(JSON.stringify(raw));
+      const cipher = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, sharedKey, encoded);
+      const buf = new Uint8Array(iv.length + cipher.byteLength);
+      buf.set(iv, 0);
+      buf.set(new Uint8Array(cipher), iv.length);
+      opts.body = JSON.stringify({ payload: toB64(buf) });
     } catch {}
   }
   opts.headers = headers;
@@ -150,12 +161,16 @@ async function api(path, opts = {}) {
   const ct = res.headers.get('content-type') || '';
   let body = ct.includes('json') ? await res.json().catch(() => null) : null;
 
-  // Nếu response được máy chủ mã hóa payload: giải mã ngay tại client
-  if (body && body.payload) {
+  // Nếu response được mã hóa: giải mã ngay tại RAM trình duyệt bằng sharedKey của phiên này
+  if (sharedKey && body && body.payload) {
     try {
-      body = await decryptPayload(body.payload, nonce);
+      const raw = fromB64(body.payload);
+      const iv = raw.slice(0, 12);
+      const cipher = raw.slice(12);
+      const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, sharedKey, cipher);
+      body = JSON.parse(new TextDecoder().decode(plain));
     } catch (e) {
-      console.warn('Lỗi giải mã payload:', e);
+      console.warn('Lỗi giải mã payload ECDH:', e);
     }
   }
 

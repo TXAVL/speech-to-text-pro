@@ -15,7 +15,27 @@ export const json = (data, status = 200, headers = {}) =>
   new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', ...headers } });
 const fail = (error, status = 400, extra = {}) => json({ error, ...extra }, status);
 
-export const APP_PAYLOAD_SECRET = 'vk_sec_shield_2026';
+// --- BẢO MẬT TRAO ĐỔI KHÓA ĐỘNG ECDH (NIST P-256) ---
+// Server giữ Private Key an toàn tại Worker runtime, Client chỉ có Public Key.
+const SERVER_ECDH_KEY = {
+  kty: 'EC', crv: 'P-256',
+  x: 'a-IyUrWjcdxeRENFoFijtNaZaIYBcPEmrGVF8d1WLk8',
+  y: 'Jn19zb4pzTQaMpr80DjJ1sEujee0hhgXujWrVqi1rqI',
+  d: 'rrMSgrwkBIq23V1bd7HrhAPP4dgsJpwO7onXCDJvnqs'
+};
+export const SERVER_ECDH_PUB = {
+  kty: 'EC', crv: 'P-256',
+  x: 'a-IyUrWjcdxeRENFoFijtNaZaIYBcPEmrGVF8d1WLk8',
+  y: 'Jn19zb4pzTQaMpr80DjJ1sEujee0hhgXujWrVqi1rqI'
+};
+
+let _cachedServerPrivKey = null;
+async function getServerPrivKey() {
+  if (!_cachedServerPrivKey) {
+    _cachedServerPrivKey = await crypto.subtle.importKey('jwk', SERVER_ECDH_KEY, { name: 'ECDH', namedCurve: 'P-256' }, false, ['deriveKey']);
+  }
+  return _cachedServerPrivKey;
+}
 
 function toB64(u8) {
   let bin = '';
@@ -29,14 +49,20 @@ function fromB64(b64) {
   return u8;
 }
 
-async function derivePayloadKey(nonce) {
-  const enc = new TextEncoder();
-  const raw = await crypto.subtle.digest('SHA-256', enc.encode(APP_PAYLOAD_SECRET + ':' + nonce));
-  return crypto.subtle.importKey('raw', raw, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
+export async function deriveServerSharedKey(clientPubB64) {
+  if (!clientPubB64) return null;
+  const clientPub = await crypto.subtle.importKey('raw', fromB64(clientPubB64), { name: 'ECDH', namedCurve: 'P-256' }, false, []);
+  const serverPriv = await getServerPrivKey();
+  return crypto.subtle.deriveKey(
+    { name: 'ECDH', public: clientPub },
+    serverPriv,
+    { name: 'AES-GCM', length: 256 },
+    false,
+    ['encrypt', 'decrypt']
+  );
 }
 
-export async function encryptPayload(data, nonce) {
-  const key = await derivePayloadKey(nonce);
+export async function encryptPayloadWithKey(data, key) {
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const encoded = new TextEncoder().encode(JSON.stringify(data));
   const cipher = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, encoded);
@@ -46,8 +72,7 @@ export async function encryptPayload(data, nonce) {
   return toB64(buf);
 }
 
-export async function decryptPayload(b64, nonce) {
-  const key = await derivePayloadKey(nonce);
+export async function decryptPayloadWithKey(b64, key) {
   const raw = fromB64(b64);
   const iv = raw.slice(0, 12);
   const cipher = raw.slice(12);
@@ -56,7 +81,7 @@ export async function decryptPayload(b64, nonce) {
 }
 
 export async function shieldResponse(data, request, status = 200, headers = {}) {
-  const nonce = request ? (request.headers.get('X-Client-Nonce') || request.headers.get('x-client-nonce')) : null;
+  const clientEcdh = request ? (request.headers.get('X-Client-ECDH') || request.headers.get('x-client-ecdh')) : null;
   const secHeaders = {
     'Content-Type': 'application/json; charset=utf-8',
     'Cache-Control': 'no-store',
@@ -65,13 +90,16 @@ export async function shieldResponse(data, request, status = 200, headers = {}) 
     'Referrer-Policy': 'strict-origin-when-cross-origin',
     ...headers
   };
-  if (nonce) {
+  if (clientEcdh) {
     try {
-      const encrypted = await encryptPayload(data, nonce);
-      secHeaders['X-Payload-Shielded'] = '1';
-      return new Response(JSON.stringify({ payload: encrypted }), { status, headers: secHeaders });
+      const sharedKey = await deriveServerSharedKey(clientEcdh);
+      if (sharedKey) {
+        const encrypted = await encryptPayloadWithKey(data, sharedKey);
+        secHeaders['X-Payload-Shielded'] = 'ecdh-p256';
+        return new Response(JSON.stringify({ payload: encrypted }), { status, headers: secHeaders });
+      }
     } catch (e) {
-      console.error('Shield encryption error:', e);
+      console.error('Shield ECDH encryption error:', e);
     }
   }
   return new Response(JSON.stringify(data), { status, headers: secHeaders });
@@ -225,10 +253,13 @@ async function readBody(request) {
   let b;
   try { b = await request.json(); } catch { throw Object.assign(new Error('Dữ liệu không hợp lệ.'), { status: 400 }); }
   if (b && typeof b === 'object' && b.payload) {
-    const nonce = request.headers.get('X-Client-Nonce') || request.headers.get('x-client-nonce');
-    if (nonce) {
+    const clientEcdh = request.headers.get('X-Client-ECDH') || request.headers.get('x-client-ecdh');
+    if (clientEcdh) {
       try {
-        b = await decryptPayload(b.payload, nonce);
+        const sharedKey = await deriveServerSharedKey(clientEcdh);
+        if (sharedKey) {
+          b = await decryptPayloadWithKey(b.payload, sharedKey);
+        }
       } catch (err) {
         throw Object.assign(new Error('Mã hóa yêu cầu không hợp lệ.'), { status: 400 });
       }
