@@ -14,6 +14,7 @@ import { handleAdmin } from './worker/admin.js';
 import { handleBilling, handleInvoice } from './worker/billing.js';
 import { handleHf } from './worker/hfproxy.js';
 import { sourceLine, langOfVoice, spokenDomain } from './worker/spoken.js';
+import { VIENEU_VOICES, SUPERTONIC_VOICES, vieneuSynthesize, supertonicSynthesize } from './worker/vieneu.js';
 
 /** Tên miền website: lấy từ URL đang truy cập (hoặc APP_URL nếu cấu hình) */
 const siteHost = (request, env) => new URL(env.APP_URL || request.url).host;
@@ -95,6 +96,12 @@ export default {
       const host = siteHost(request, env);
       return json({ enabled: cfg.watermark.enabled && !exempt, text: exempt ? '' : sourceLine(cfg, host, lang), host, spoken: spokenDomain(host, lang) });
     }
+    if (path === '/api/vieneu/voices') return json({ success: true, voices: VIENEU_VOICES }, 200, { 'Cache-Control': 'public, max-age=86400' });
+    if (path === '/api/vieneu/tts' && request.method === 'POST') return ttsRoute(request, env, vieneuSynthesize, 'VieNeu-TTS');
+
+    if (path === '/api/supertonic/voices') return json({ success: true, voices: SUPERTONIC_VOICES }, 200, { 'Cache-Control': 'public, max-age=86400' });
+    if (path === '/api/supertonic/tts' && request.method === 'POST') return ttsRoute(request, env, supertonicSynthesize, 'Supertonic 3');
+
     if (path === '/api/edge/voices') {
       try { return json({ success: true, voices: await edgeVoices() }, 200, { 'Cache-Control': 'public, max-age=86400' }); }
       catch (err) { return json({ error: err.message }, 500); }

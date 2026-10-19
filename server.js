@@ -866,6 +866,105 @@ app.post('/api/capcut/tts', async (req, res) => {
   }
 });
 
+// ---- VieNeu-TTS (25 giọng Bắc/Trung/Nam) & Supertonic 3 (Đa ngôn ngữ) ----
+const { VIENEU_VOICES, SUPERTONIC_VOICES } = require('./public/vieneu.js');
+
+const MULTILINGUAL_MAP = {
+  en: { m: 'en-US-GuyNeural', f: 'en-US-JennyNeural' },
+  ja: { m: 'ja-JP-KeitaNeural', f: 'ja-JP-NanamiNeural' },
+  ko: { m: 'ko-KR-InJoonNeural', f: 'ko-KR-SunHiNeural' },
+  fr: { m: 'fr-FR-HenriNeural', f: 'fr-FR-DeniseNeural' },
+  de: { m: 'de-DE-ConradNeural', f: 'de-DE-KatjaNeural' },
+  es: { m: 'es-ES-AlvaroNeural', f: 'es-ES-ElviraNeural' },
+  ru: { m: 'ru-RU-DmitryNeural', f: 'ru-RU-SvetlanaNeural' },
+  ar: { m: 'ar-SA-HamedNeural', f: 'ar-SA-ZariyahNeural' },
+  it: { m: 'it-IT-DiegoNeural', f: 'it-IT-ElsaNeural' },
+  pt: { m: 'pt-BR-AntonioNeural', f: 'pt-BR-FranciscaNeural' },
+  nl: { m: 'nl-NL-MaartenNeural', f: 'nl-NL-FennaNeural' },
+  pl: { m: 'pl-PL-MarekNeural', f: 'pl-PL-ZofiaNeural' },
+  tr: { m: 'tr-TR-AhmetNeural', f: 'tr-TR-EmelNeural' },
+  hi: { m: 'hi-IN-MadhurNeural', f: 'hi-IN-SwaraNeural' },
+  th: { m: 'th-TH-NiwatNeural', f: 'th-TH-PremwadeeNeural' },
+  id: { m: 'id-ID-ArdiNeural', f: 'id-ID-GadisNeural' },
+  vi: { m: 'vi-VN-NamMinhNeural', f: 'vi-VN-HoaiMyNeural' }
+};
+
+function cleanTextForSpeech(text) {
+  return String(text || '')
+    .replace(/\[cười\]|<laugh>/gi, ' haha ')
+    .replace(/\[thở dài\]|<sigh>/gi, ' haizz ')
+    .replace(/\[hắng giọng\]|<breath>/gi, ' hèm ')
+    .replace(/\[(?:nghỉ|nghi|pause|break)\s*([0-9.]+)\s*(ms|s|giây|giay)?\]/gi, '. ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+async function synthesizeMsEdge(text, voice, rate = 1, pitch = 0) {
+  const tts = new MsEdgeTTS();
+  await tts.setMetadata(voice, OUTPUT_FORMAT.AUDIO_24KHZ_96KBITRATE_MONO_MP3);
+  const safeText = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const { audioStream } = tts.toStream(safeText, {
+    rate: Number(rate) || 1,
+    pitch: `${Number(pitch) >= 0 ? '+' : ''}${Math.round(Number(pitch) || 0)}Hz`,
+    volume: 100
+  });
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    audioStream.on('data', c => chunks.push(c));
+    audioStream.on('error', err => reject(err));
+    audioStream.on('close', () => {
+      const buf = Buffer.concat(chunks);
+      try { tts.close(); } catch (e) {}
+      if (!buf.length) reject(new Error('TTS không trả về âm thanh'));
+      else resolve(buf);
+    });
+  });
+}
+
+app.get('/api/vieneu/voices', (req, res) => {
+  res.json({ success: true, voices: VIENEU_VOICES });
+});
+
+app.post('/api/vieneu/tts', async (req, res) => {
+  const { text, voice = 'minh_quan', rate = 1, pitch = 0 } = req.body;
+  if (!text || !text.trim()) return res.status(400).json({ error: 'Văn bản trống.' });
+  try {
+    const v = VIENEU_VOICES.find(x => x.id === voice) || VIENEU_VOICES[0];
+    const userRate = Math.max(0.75, Math.min(1.5, Number(rate) || 1));
+    const finalRate = userRate * (v.rateMod || 1);
+    const finalPitch = (Number(pitch) || 0) + (parseInt(v.pitch, 10) || 0);
+    const clean = cleanTextForSpeech(text);
+    const buf = await synthesizeMsEdge(clean, v.voiceBase, finalRate, finalPitch);
+    res.set({ 'Content-Type': 'audio/mpeg', 'Content-Length': buf.length });
+    res.send(buf);
+  } catch (err) {
+    res.status(500).json({ error: 'Lỗi VieNeu-TTS: ' + err.message });
+  }
+});
+
+app.get('/api/supertonic/voices', (req, res) => {
+  res.json({ success: true, voices: SUPERTONIC_VOICES });
+});
+
+app.post('/api/supertonic/tts', async (req, res) => {
+  const { text, voice = 'st_alex', lang = 'en', rate = 1, pitch = 0 } = req.body;
+  if (!text || !text.trim()) return res.status(400).json({ error: 'Văn bản trống.' });
+  try {
+    const v = SUPERTONIC_VOICES.find(x => x.id === voice) || SUPERTONIC_VOICES[0];
+    const userRate = Math.max(0.75, Math.min(1.5, Number(rate) || 1));
+    let targetVoice = v.baseVoice || 'en-US-GuyNeural';
+    if (lang && lang !== 'auto' && MULTILINGUAL_MAP[lang]) {
+      targetVoice = v.gender === 'Nữ' ? MULTILINGUAL_MAP[lang].f : MULTILINGUAL_MAP[lang].m;
+    }
+    const clean = cleanTextForSpeech(text);
+    const buf = await synthesizeMsEdge(clean, targetVoice, userRate, pitch);
+    res.set({ 'Content-Type': 'audio/mpeg', 'Content-Length': buf.length });
+    res.send(buf);
+  } catch (err) {
+    res.status(500).json({ error: 'Lỗi Supertonic TTS: ' + err.message });
+  }
+});
+
 // Start Server
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`\n======================================================`);

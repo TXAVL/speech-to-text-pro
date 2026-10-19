@@ -219,9 +219,26 @@
 
       <div class="grid-2 tts-grid">
         <div class="card">
+          <div class="tts-ctrl-bar">
+            <div class="ctrl-group">
+              <span class="ctrl-label">🎭 Cảm xúc:</span>
+              <button type="button" class="ctrl-btn" data-tag="[cười]" title="Chèn thẻ biểu cảm cười">[cười]</button>
+              <button type="button" class="ctrl-btn" data-tag="[thở dài]" title="Chèn thẻ biểu cảm thở dài">[thở dài]</button>
+              <button type="button" class="ctrl-btn" data-tag="[hắng giọng]" title="Chèn thẻ biểu cảm hắng giọng">[hắng giọng]</button>
+            </div>
+            <div class="ctrl-group">
+              <span class="ctrl-label">⏱ Nghỉ:</span>
+              <button type="button" class="ctrl-btn" data-tag="[nghỉ 500ms]" title="Chèn khoảng lặng 500 mili-giây">500ms</button>
+              <button type="button" class="ctrl-btn" data-tag="[nghỉ 1s]" title="Chèn khoảng lặng 1 giây">1s</button>
+              <button type="button" class="ctrl-btn" data-tag="[nghỉ 2s]" title="Chèn khoảng lặng 2 giây">2s</button>
+              <button type="button" class="ctrl-btn" id="btn-custom-pause" title="Chèn thời gian nghỉ tùy chọn">+ Thẻ nghỉ</button>
+            </div>
+            <button type="button" class="chip accent" id="btn-open-dict" title="Cài đặt từ điển phát âm riêng">📖 Từ điển phát âm</button>
+          </div>
+
           <label class="field">
             <span>Nội dung cần đọc <em class="muted" id="tts-count">0 ký tự</em></span>
-            <textarea id="tts-text" rows="10" placeholder="Nhập hoặc dán văn bản vào đây…" maxlength="20000"></textarea>
+            <textarea id="tts-text" rows="10" placeholder="Nhập hoặc dán văn bản vào đây… (có thể dùng thẻ [cười], [thở dài], [nghỉ 2s])" maxlength="20000"></textarea>
           </label>
           <div class="row-btns">
             <button class="chip" id="tts-paste">📋 Dán</button>
@@ -237,11 +254,18 @@
           <label class="field">
             <span>Kho giọng</span>
             <select id="tts-lib">
+              <option value="vieneu" selected>VieNeu-TTS (Việt Nam) — 25 giọng Bắc/Trung/Nam, đọc tiếng Anh xen kẽ</option>
+              <option value="supertonic">Supertonic 3 — Đa ngôn ngữ (31 thứ tiếng, 10 giọng nam nữ)</option>
               <option value="edge">Microsoft Edge Neural — miễn phí, không cần key</option>
-              <option value="capcut">CapCut / TikTok — miễn phí, không cần key</option>
+              <option value="capcut">CapCut / TikTok — Premium</option>
             </select>
           </label>
           <div class="lib-badge" id="lib-badge"></div>
+
+          <label class="field" id="row-st-lang" hidden>
+            <span>Ngôn ngữ văn bản <em class="muted">đọc đúng ngữ điệu của ngôn ngữ đó</em></span>
+            <select id="tts-st-lang"></select>
+          </label>
 
           <label class="field" id="row-model" hidden>
             <span>Model Gemini TTS <em class="muted">lấy từ key của bạn</em></span>
@@ -253,10 +277,18 @@
               <span>Ngôn ngữ</span>
               <select id="tts-locale"></select>
             </label>
-            <label class="field">
-              <span>Giọng đọc</span>
+            <label class="field" style="flex: 2">
+              <div class="field-title-row">
+                <span>Giọng đọc</span>
+                <button type="button" class="btn-preview-link" id="btn-voice-preview" title="Bấm để nghe thử giọng này">▶ Nghe thử giọng</button>
+              </div>
               <select id="tts-voice"></select>
             </label>
+          </div>
+
+          <div class="voice-detail-card" id="voice-detail-card">
+            <div class="vd-top"><strong id="vd-name">Minh Quân</strong> <span class="vd-badge" id="vd-tag">Nam · Bắc · Tự nhiên</span></div>
+            <p class="muted small" id="vd-desc">Giọng nam truyền cảm, tự nhiên, đọc lưu loát, phù hợp mọi nội dung (Mặc định)</p>
           </div>
 
           <label class="field" id="row-style" hidden>
@@ -264,11 +296,21 @@
             <input type="text" id="tts-style" placeholder="vd: Đọc chậm rãi, ấm áp như kể chuyện">
           </label>
 
-          <label class="field range" id="row-rate">
-            <span>Tốc độ <b id="rate-val">1.0×</b></span>
-            <input type="range" id="tts-rate" min="0.5" max="2" step="0.05" value="1">
-          </label>
-          <label class="field range" id="row-pitch">
+          <div class="field-group">
+            <label class="field range" id="row-rate">
+              <span>Tốc độ đọc <b id="rate-val">1.00×</b></span>
+              <input type="range" id="tts-rate" min="0.75" max="1.50" step="0.05" value="1">
+            </label>
+            <label class="field" id="row-format">
+              <span>Định dạng xuất</span>
+              <div class="seg tiny" id="tts-format-seg">
+                <button type="button" class="seg-btn active" data-fmt="mp3">MP3</button>
+                <button type="button" class="seg-btn" data-fmt="wav">WAV 48 kHz</button>
+              </div>
+            </label>
+          </div>
+
+          <label class="field range" id="row-pitch" hidden>
             <span>Cao độ <b id="pitch-val">0 Hz</b></span>
             <input type="range" id="tts-pitch" min="-50" max="50" step="5" value="0">
           </label>
@@ -277,9 +319,9 @@
 
           <div class="tts-result" id="tts-result" hidden>
             <audio id="tts-player" controls></audio>
-            <a class="btn" id="tts-download" download="voice.mp3"><svg><use href="#i-download"/></svg>Tải MP3</a>
+            <a class="btn" id="tts-download" download="voice.mp3"><svg><use href="#i-download"/></svg><span>Tải về</span></a>
           </div>
-          <p class="muted small" id="tts-note">Giọng đọc được tạo qua server của app (cần chạy <code>start.bat</code>).</p>
+          <p class="muted small" id="tts-note">Hỗ trợ đọc tiếng Anh xen tiếng Việt mượt mà, thẻ cảm xúc và thẻ nghỉ chuẩn xác.</p>
         </div>
       </div>
     </section>
@@ -543,10 +585,38 @@
       <div class="qr-wrap"><img id="qr-img" alt="QR" hidden><span class="muted" id="qr-wait">Đang tạo link…</span></div>
       <div class="url-row"><input type="text" id="share-url" readonly><button class="btn" id="btn-copy-share">Chép</button></div>
     </div>
+  <!-- Từ điển phát âm modal -->
+  <div class="modal" id="modal-dict" hidden>
+    <div class="modal-box dict-modal-box">
+      <div class="modal-head">
+        <h3>📖 Từ điển phát âm riêng</h3>
+        <button class="icon-btn sm" data-close>✕</button>
+      </div>
+      <p class="muted small" style="margin-bottom:12px">Tự đặt cách đọc cho từ viết tắt, tên riêng hoặc thuật ngữ tiếng Anh mà máy đọc sai. Từ điển được lưu tự động trên trình duyệt này và áp dụng cho mọi lần tạo giọng.</p>
+      <div class="dict-table-wrap">
+        <table class="dict-table">
+          <thead>
+            <tr>
+              <th style="width: 42%">Từ gốc / Viết tắt</th>
+              <th style="width: 44%">Cách đọc thay thế</th>
+              <th style="width: 14%; text-align: center">Xóa</th>
+            </tr>
+          </thead>
+          <tbody id="dict-table-rows"></tbody>
+        </table>
+      </div>
+      <div class="dict-actions-row">
+        <button type="button" class="btn sm" id="btn-dict-add">+ Thêm từ mới</button>
+        <button type="button" class="btn sm ghost" id="btn-dict-reset">Khôi phục mặc định</button>
+        <div style="flex:1"></div>
+        <button type="button" class="btn sm primary" id="btn-dict-save">Lưu từ điển</button>
+      </div>
+    </div>
   </div>
 
   <div class="toasts" id="toasts"></div>
 
+  <script src="vieneu.js"></script>
   <script src="app.js"></script>
   <script src="history.js"></script>
   <script src="themes.js"></script>
