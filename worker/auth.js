@@ -74,7 +74,7 @@ export function publicUser(env, user, cfg) {
   return {
     id: user.id, email: user.email, name: user.name, verified: !!user.verified,
     plan: user.plan, planExpires: user.plan_expires, effectivePlan: plan.id,
-    admin: isAdmin(env, user), createdAt: user.created_at
+    admin: isAdmin(env, user), createdAt: user.created_at, credits: user.extra_credits || 0
   };
 }
 
@@ -142,7 +142,7 @@ export async function meResponse(request, env, cfg) {
     accounts: true, smtp: smtpConfigured(env),
     user: publicUser(env, user, cfg),
     plan: { id: plan.id, name: plan.name, ttsCalls: plan.ttsCalls, maxChars: plan.maxChars },
-    usage: { calls: u.calls, remaining: Math.max(0, plan.ttsCalls - u.calls) },
+    usage: { calls: u.calls, remaining: Math.max(0, plan.ttsCalls - u.calls), credits: user?.extra_credits || 0 },
     plans: publicPlans(cfg),
     theme: cfg.saved.theme || 'auto'
   });

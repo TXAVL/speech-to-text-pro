@@ -47,7 +47,7 @@ export async function handleAdmin(request, env, path) {
     if (path === '/api/admin/overview') {
       const now = Date.now(), today = dayStart(), since = dayStart(now - 13 * 86400000);
       const [u, o, usage, signups, revenue, tts, recentOrders, recentUsers] = await Promise.all([
-        db.prepare(`SELECT COUNT(*) total, SUM(verified) verified, SUM(banned) banned,
+        db.prepare(`SELECT COUNT(*) total, SUM(verified) verified, SUM(banned) banned, COALESCE(SUM(extra_credits), 0) credits,
           SUM(CASE WHEN plan = 'premium' AND (plan_expires IS NULL OR plan_expires > ?1) AND verified = 1 THEN 1 ELSE 0 END) premium,
           SUM(CASE WHEN created_at >= ?2 THEN 1 ELSE 0 END) today, SUM(CASE WHEN created_at >= ?3 THEN 1 ELSE 0 END) week
           FROM users`).bind(now, today, now - 7 * 86400000).first(),
@@ -91,7 +91,7 @@ export async function handleAdmin(request, env, path) {
       const where = `(email LIKE ? OR lower(name) LIKE ?) AND ${cond}`;
       const args = [search, search, ...condArgs];
       const { results } = await db.prepare(
-        `SELECT id, email, name, plan, plan_expires, role, verified, banned, created_at, last_login,
+        `SELECT id, email, name, plan, plan_expires, role, verified, banned, created_at, last_login, extra_credits,
           (SELECT COALESCE(SUM(amount), 0) FROM orders WHERE user_id = users.id AND status = 'PAID') spent
          FROM users WHERE ${where} ORDER BY id DESC LIMIT 25 OFFSET ?`
       ).bind(...args, page * 25).all();
@@ -109,7 +109,7 @@ export async function handleAdmin(request, env, path) {
         db.prepare('SELECT COUNT(*) n, MAX(created_at) last FROM sessions WHERE user_id = ? AND expires_at > ?').bind(user.id, Date.now()).first()
       ]);
       return json({
-        user: { ...publicUser(env, user, cfg), role: user.role, banned: !!user.banned, lastLogin: user.last_login },
+        user: { ...publicUser(env, user, cfg), role: user.role, banned: !!user.banned, lastLogin: user.last_login, credits: user.extra_credits || 0 },
         usage: usage || { calls: 0, chars: 0 }, orders: orders.results.map(publicOrder), sessions
       });
     }
@@ -310,8 +310,9 @@ export async function handleAdmin(request, env, path) {
       const plan = body.plan === 'premium' || body.plan === 'free' ? body.plan : user.plan;
       const expires = plan === 'premium' ? (body.plan_expires !== undefined ? expiryOf(body.plan_expires) : user.plan_expires) : null;
       const verified = body.verified !== undefined ? (body.verified ? 1 : 0) : user.verified;
-      const stmts = [db.prepare('UPDATE users SET email = ?, name = ?, role = ?, banned = ?, plan = ?, plan_expires = ?, verified = ? WHERE id = ?')
-        .bind(email, body.name !== undefined ? String(body.name).trim().slice(0, 60) : user.name, role, banned, plan, expires, verified, id)];
+      const credits = body.credits !== undefined ? Math.max(0, Math.min(10000000, Math.floor(Number(body.credits)) || 0)) : user.extra_credits;
+      const stmts = [db.prepare('UPDATE users SET email = ?, name = ?, role = ?, banned = ?, plan = ?, plan_expires = ?, verified = ?, extra_credits = ? WHERE id = ?')
+        .bind(email, body.name !== undefined ? String(body.name).trim().slice(0, 60) : user.name, role, banned, plan, expires, verified, credits, id)];
       const password = String(body.password || '');
       if (password) {
         if (password.length < 8) return fail('Mật khẩu mới cần ít nhất 8 ký tự.');
@@ -320,7 +321,7 @@ export async function handleAdmin(request, env, path) {
       }
       if (password || (banned && !user.banned) || email !== user.email) stmts.push(db.prepare('DELETE FROM sessions WHERE user_id = ?').bind(id));
       await db.batch(stmts);
-      await log(env, admin, 'user.update', user.email, { email, role, banned, plan, expires, verified, password: password ? 'đã đổi' : undefined });
+      await log(env, admin, 'user.update', user.email, { email, role, banned, plan, expires, verified, credits, password: password ? 'đã đổi' : undefined });
       return json({ ok: true, message: 'Đã lưu thông tin người dùng.' + (password ? ' Mật khẩu đã đổi, người dùng bị đăng xuất.' : '') });
     }
 
@@ -349,6 +350,12 @@ export async function handleAdmin(request, env, path) {
                  WHEN plan = 'premium' AND plan_expires > ?1 THEN plan_expires + ?2 ELSE ?1 + ?2 END
             WHERE id IN (${target.map((_, i) => '?' + (i + 3)).join(',')})`).bind(now, days * 86400000, ...target).run();
           message = `Đã cộng ${days} ngày Premium`; break;
+        }
+        case 'add_credits': {
+          const n = Math.floor(Number(body.amount));
+          if (!n || Math.abs(n) > 1000000) return fail('Số lượt không hợp lệ.');
+          await db.prepare(`UPDATE users SET extra_credits = MAX(0, extra_credits + ?) WHERE id IN (${target.map(() => '?').join(',')})`).bind(n, ...target).run();
+          message = n > 0 ? `Đã cộng ${n} lượt cho` : `Đã trừ ${-n} lượt của`; break;
         }
         case 'delete': {
           if (body.confirm !== 'XOA') return fail('Nhập XOA để xác nhận xóa hàng loạt.');
@@ -379,7 +386,12 @@ export async function handleAdmin(request, env, path) {
       const user = await db.prepare('SELECT * FROM users WHERE email = ?').bind(normEmail(body.email)).first();
       if (!user) return fail('Không tìm thấy tài khoản với email này.', 404);
       let pkg = cfg.allPackages.find(p => p.id === body.package_id);
-      if (!pkg) {
+      if (body.package_id === 'credits') {
+        const qty = Math.floor(Number(body.credits));
+        if (!(qty >= 1 && qty <= 1000000)) return fail('Số lượt không hợp lệ.');
+        const amount = body.custom?.amount !== undefined && body.custom.amount !== '' ? Math.max(0, Math.floor(Number(body.custom.amount))) : qty * cfg.credits.price;
+        pkg = { id: 'credits', name: `${qty.toLocaleString('vi-VN')} lượt`, days: 0, price: amount, kind: 'credits', credits: qty };
+      } else if (!pkg) {
         const c = body.custom || {};
         const amount = Math.floor(Number(c.amount)), days = Math.floor(Number(c.days));
         if (!(amount >= 0 && amount <= 50000000)) return fail('Số tiền không hợp lệ.');
@@ -387,11 +399,11 @@ export async function handleAdmin(request, env, path) {
         pkg = { id: 'custom', name: String(c.name || `${days} ngày`).trim().slice(0, 30), days, price: amount };
       }
       const code = newOrderCode();
-      await db.prepare(`INSERT INTO orders (order_code, user_id, package_id, package_name, days, amount, status, description, created_at, note)
-        VALUES (?, ?, ?, ?, ?, ?, 'PENDING', ?, ?, ?)`).bind(code, user.id, pkg.id, pkg.name, pkg.days, pkg.price, makeDescription(env, code), Date.now(), String(body.note || 'Tạo thủ công').slice(0, 200)).run();
+      await db.prepare(`INSERT INTO orders (order_code, user_id, package_id, package_name, days, amount, status, description, created_at, note, kind, credits)
+        VALUES (?, ?, ?, ?, ?, ?, 'PENDING', ?, ?, ?, ?, ?)`).bind(code, user.id, pkg.id, pkg.name, pkg.days, pkg.price, makeDescription(env, code, pkg.kind || 'premium'), Date.now(), String(body.note || 'Tạo thủ công').slice(0, 200), pkg.kind || 'premium', pkg.credits || 0).run();
       if (body.status === 'PAID') await activateOrder(env, request, code, 'admin', String(body.reference || '').slice(0, 60) || null, { mail: !!body.send_receipt });
       await log(env, admin, 'order.create', code, { email: user.email, pkg: pkg.name, amount: pkg.price, status: body.status === 'PAID' ? 'PAID' : 'PENDING' });
-      return json({ ok: true, message: body.status === 'PAID' ? `Đã tạo đơn #${code} và kích hoạt Premium ${pkg.days} ngày.` : `Đã tạo đơn chờ #${code}.`, orderCode: code }, 201);
+      return json({ ok: true, message: body.status === 'PAID' ? (pkg.kind === 'credits' ? `Đã tạo đơn #${code} và cộng ${pkg.credits} lượt.` : `Đã tạo đơn #${code} và kích hoạt Premium ${pkg.days} ngày.`) : `Đã tạo đơn chờ #${code}.`, orderCode: code }, 201);
     }
 
     m = path.match(/^\/api\/admin\/orders\/(\d+)\/update$/);
@@ -460,7 +472,7 @@ export async function handleAdmin(request, env, path) {
     /* ---------- Cài đặt ---------- */
     if (path === '/api/admin/settings' && request.method === 'GET') {
       return json({
-        packages: cfg.allPackages, globalDaily: cfg.globalDaily, theme: cfg.saved.theme || 'auto', seller: cfg.saved.seller || {},
+        packages: cfg.allPackages, globalDaily: cfg.globalDaily, theme: cfg.saved.theme || 'auto', seller: cfg.saved.seller || {}, credits: cfg.credits, watermark: cfg.watermark, host: new URL(env.APP_URL || request.url).host,
         limits: Object.fromEntries(Object.values(cfg.plans).map(p => [p.id, { ttsCalls: p.ttsCalls, maxChars: p.maxChars }])),
         payos: payosConfigured(env), smtp: smtpConfigured(env),
         webhookUrl: `${appUrl(env, request)}/api/payos/webhook`, adminEmail: admin.email
@@ -488,6 +500,20 @@ export async function handleAdmin(request, env, path) {
       }
       if (body.globalDaily) patch.globalDaily = Math.max(100, Math.min(95000, Math.floor(Number(body.globalDaily))));
       const THEMES = ['auto', 'none', 'halloween', 'teachers', 'xmas', 'newyear', 'tet', 'valentine', 'women', 'reunify', 'children', 'national', 'midautumn'];
+      if (body.watermark && typeof body.watermark === 'object') {
+        const w = body.watermark;
+        const vi = String(w.vi || '').trim().slice(0, 300), en = String(w.en || '').trim().slice(0, 300);
+        if (w.enabled && (!vi.includes('{domain}') || !en.includes('{domain}'))) throw Object.assign(new Error('Câu ghi nguồn cần có {domain}.'), { status: 400 });
+        patch.watermark = { enabled: !!w.enabled, vi, en, exemptPremium: !!w.exemptPremium };
+      }
+      if (body.credits && typeof body.credits === 'object') {
+        const c = body.credits;
+        const price = Math.floor(Number(c.price)), min = Math.floor(Number(c.min)), max = Math.floor(Number(c.max));
+        if (!(price >= 1 && price <= 1000000)) throw Object.assign(new Error('Giá mỗi lượt phải từ 1đ đến 1.000.000đ.'), { status: 400 });
+        if (!(min >= 1 && max >= min && max <= 1000000)) throw Object.assign(new Error('Số lượt tối thiểu / tối đa không hợp lệ.'), { status: 400 });
+        const presets = String(c.presets || '').split(/[,\s]+/).map(Number).filter(n => Number.isInteger(n) && n >= min && n <= max).slice(0, 6);
+        patch.credits = { enabled: !!c.enabled, price, min, max, presets: presets.length ? presets : [min] };
+      }
       if (body.seller && typeof body.seller === 'object') {
         const sv = (k, n) => String(body.seller[k] || '').trim().slice(0, n);
         patch.seller = { name: sv('name', 150), tax_code: sv('tax_code', 20), address: sv('address', 250), email: sv('email', 190), phone: sv('phone', 30), note: sv('note', 500) };

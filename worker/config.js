@@ -1,5 +1,5 @@
 // Cấu hình chạy thật = mặc định trong plans.js + phần admin đã chỉnh (bảng settings, key 'config').
-import { PLANS, PREMIUM_PACKAGES, GLOBAL_DAILY_TTS } from './plans.js';
+import { PLANS, PREMIUM_PACKAGES, GLOBAL_DAILY_TTS, CREDITS, WATERMARK } from './plans.js';
 
 let cache = null;
 const fmt = (n) => Number(n).toLocaleString('vi-VN');
@@ -30,7 +30,22 @@ function build(saved) {
   for (const plan of Object.values(plans)) {
     plan.perks = plan.perks.map(t => t.replace('{calls}', fmt(plan.ttsCalls)).replace('{chars}', fmt(plan.maxChars)));
   }
-  return { plans, packages, allPackages, globalDaily: Number(saved.globalDaily) > 0 ? Math.floor(Number(saved.globalDaily)) : GLOBAL_DAILY_TTS, saved };
+  const sc = saved.credits || {};
+  const credits = {
+    enabled: sc.enabled !== undefined ? !!sc.enabled : CREDITS.enabled,
+    price: Number(sc.price) > 0 ? Math.floor(Number(sc.price)) : CREDITS.price,
+    min: Number(sc.min) > 0 ? Math.floor(Number(sc.min)) : CREDITS.min,
+    max: Number(sc.max) > 0 ? Math.floor(Number(sc.max)) : CREDITS.max,
+    presets: Array.isArray(sc.presets) && sc.presets.length ? sc.presets.map(n => Math.floor(Number(n))).filter(n => n > 0).slice(0, 6) : CREDITS.presets
+  };
+  const sw = saved.watermark || {};
+  const watermark = {
+    enabled: sw.enabled !== undefined ? !!sw.enabled : WATERMARK.enabled,
+    vi: typeof sw.vi === 'string' && sw.vi.trim() ? sw.vi.trim() : WATERMARK.vi,
+    en: typeof sw.en === 'string' && sw.en.trim() ? sw.en.trim() : WATERMARK.en,
+    exemptPremium: sw.exemptPremium !== undefined ? !!sw.exemptPremium : WATERMARK.exemptPremium
+  };
+  return { plans, packages, allPackages, credits, watermark, globalDaily: Number(saved.globalDaily) > 0 ? Math.floor(Number(saved.globalDaily)) : GLOBAL_DAILY_TTS, saved };
 }
 
 export async function getConfig(db) {

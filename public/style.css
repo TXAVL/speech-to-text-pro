@@ -631,3 +631,64 @@ input[type="date"]:disabled { opacity: .45; }
 .pm-ico { width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center; font-size: 18px; font-weight: 800; color: var(--accent-2); background: var(--card-2); flex: none; }
 .pm-body { display: flex; flex-direction: column; gap: 2px; font-size: 14px; }
 .pm-body small { color: var(--muted); font-size: 12.5px; }
+
+/* ================= Ô nhập nâng cao ================= */
+.num-wrap { display: inline-flex; align-items: stretch; width: 100%; border: 1px solid var(--line); border-radius: 12px; background: var(--bg-2); overflow: hidden; transition: border-color .15s, box-shadow .15s; }
+.num-wrap:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); }
+.num-wrap:focus-within { border-color: var(--accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 22%, transparent); }
+.num-wrap input[type="number"] { border: 0 !important; box-shadow: none !important; border-radius: 0 !important; text-align: center; background: transparent !important; min-width: 0; flex: 1; }
+.num-wrap .num-btn { flex: none; width: 34px; border: 0; background: var(--card-2); color: var(--muted); font: inherit; font-size: 17px; font-weight: 700; cursor: pointer; user-select: none; transition: .12s; }
+.num-wrap .num-btn:hover { color: var(--text); background: color-mix(in srgb, var(--accent) 22%, var(--card-2)); }
+.num-wrap .num-btn:active { transform: scale(.94); }
+.num-wrap.disabled { opacity: .5; pointer-events: none; }
+.adm-actions .num-wrap, .bulk-bar .num-wrap, .admin-table .num-wrap, .settings-table .num-wrap { width: auto; min-width: 120px; border-radius: 10px; }
+.adm-actions .num-wrap input, .bulk-bar .num-wrap input, .settings-table .num-wrap input { min-height: 34px !important; padding: 6px 4px !important; width: 70px !important; }
+.settings-table .num-wrap { width: 100%; }
+.settings-table .num-wrap input { width: 100% !important; }
+.clear-wrap { position: relative; display: inline-flex; flex: 1; min-width: 180px; }
+.clear-wrap input { padding-right: 36px !important; }
+.clear-wrap .clear-btn { position: absolute; right: 8px; top: 50%; transform: translateY(-50%) scale(.8); width: 22px; height: 22px; border-radius: 50%; border: 0; background: var(--card-2); color: var(--muted); font-size: 15px; line-height: 1; cursor: pointer; opacity: 0; pointer-events: none; transition: .15s; }
+.clear-wrap.has-value .clear-btn { opacity: 1; pointer-events: auto; transform: translateY(-50%) scale(1); }
+.clear-wrap .clear-btn:hover { color: var(--text); background: color-mix(in srgb, var(--danger) 30%, var(--card-2)); }
+#tts-text { resize: none; min-height: 220px; transition: border-color .15s, box-shadow .15s, background .15s; }
+#tts-text.drop { border-style: dashed; border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, var(--bg-2)); }
+.row-btns { flex-wrap: wrap; align-items: center; }
+.tts-stats { margin-left: auto; }
+input[type="range"] { background: linear-gradient(90deg, var(--accent), var(--accent-2)) 0 / var(--fill, 50%) 100% no-repeat, var(--card-2); }
+
+/* Mua thêm lượt */
+.credits-pick { margin-bottom: 14px; }
+.credit-presets { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; margin: 8px 0 10px; }
+.credit-preset { border: 1px solid var(--line); background: var(--bg-2); color: var(--text); font: inherit; border-radius: 12px; padding: 10px 8px; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 2px; transition: .15s; }
+.credit-preset b { font-size: 17px; } .credit-preset small { color: var(--muted); font-size: 12px; }
+.credit-preset:hover { border-color: color-mix(in srgb, var(--accent) 50%, var(--line)); }
+.credit-preset.active { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--bg-2)); box-shadow: inset 0 0 0 1px var(--accent); }
+.credit-custom { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+.credit-custom .num-wrap { max-width: 200px; }
+.credits-box { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 14px; margin-bottom: 12px; border-radius: 12px; border: 1px solid color-mix(in srgb, var(--accent-2) 40%, var(--line)); background: color-mix(in srgb, var(--accent-2) 7%, var(--bg-2)); font-size: 14px; }
+.credits-card { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; margin-top: 18px; border-color: color-mix(in srgb, var(--accent-2) 40%, var(--line)); }
+.credits-card h3 { font-size: 17px; margin-bottom: 4px; }
+
+/* ================= Lịch sử ================= */
+.history-head { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 8px; }
+.history-head .seg { margin: 0; }
+.history-head .seg-btn em { font-style: normal; font-size: 11px; font-weight: 700; margin-left: 4px; padding: 1px 7px; border-radius: 999px; background: var(--card-2); color: var(--muted); }
+.history-head .seg-btn.active em { background: color-mix(in srgb, var(--accent) 25%, transparent); color: var(--text); }
+.history-head .clear-wrap, .history-head > input[type="search"] { flex: 1; min-width: 200px; }
+#history-count { display: block; margin-bottom: 12px; }
+.h-item { display: flex; gap: 14px; align-items: flex-start; padding: 14px 16px; border: 1px solid var(--line); background: var(--bg-2); border-radius: 14px; margin-bottom: 10px; transition: border-color .15s; }
+.h-item:hover { border-color: color-mix(in srgb, var(--accent) 40%, var(--line)); }
+.h-ico { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; font-size: 19px; background: var(--card-2); flex: none; }
+.h-item.tts .h-ico { background: color-mix(in srgb, var(--accent-2) 16%, var(--card-2)); }
+.h-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.h-top { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; align-items: baseline; }
+.h-top strong { font-size: 14.5px; }
+.h-meta { font-size: 12px; color: var(--muted); }
+.h-body p { color: var(--muted); font-size: 13.5px; line-height: 1.55; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
+.h-body audio { width: 100%; height: 36px; }
+.h-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.btn.ghost { background: transparent; }
+#history-filter .seg-btn { white-space: nowrap; padding: 7px 14px; }
+
+.wm-preview { padding: 12px 14px; border: 1px dashed var(--line); border-radius: 12px; background: var(--bg-2); display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.wm-preview p { font-size: 14px; color: var(--text); }

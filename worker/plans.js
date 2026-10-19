@@ -45,6 +45,12 @@ export const PREMIUM_PACKAGES = [
   { id: 'y1', name: '12 tháng', days: 365, price: 399000, active: true }
 ];
 
+// Mua thêm lượt (chỉ gói Premium). Admin chỉnh giá / giới hạn trong trang Quản trị.
+export const CREDITS = { enabled: true, price: 200, min: 20, max: 10000, presets: [50, 100, 200, 500] };
+
+// Câu ghi nguồn tự thêm vào cuối mỗi file giọng đọc. {domain} = tên miền website (đã phiên âm để đọc đúng).
+export const WATERMARK = { enabled: true, vi: 'File được tạo ra tại trang web {domain}.', en: 'This file was created at {domain}.', exemptPremium: false };
+
 // Chặn tổng toàn hệ thống để không vượt gói free của Cloudflare (100.000 request/ngày).
 export const GLOBAL_DAILY_TTS = 60000;
 export const GLOBAL_SOFT_RATIO = 0.85;

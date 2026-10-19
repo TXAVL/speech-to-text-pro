@@ -13,6 +13,10 @@ import { getConfig } from './worker/config.js';
 import { handleAdmin } from './worker/admin.js';
 import { handleBilling, handleInvoice } from './worker/billing.js';
 import { handleHf } from './worker/hfproxy.js';
+import { sourceLine, langOfVoice, spokenDomain } from './worker/spoken.js';
+
+/** Tên miền website: lấy từ URL đang truy cập (hoặc APP_URL nếu cấu hình) */
+const siteHost = (request, env) => new URL(env.APP_URL || request.url).host;
 
 async function ttsRoute(request, env, synth, label, premiumOnly = false) {
   let body;
@@ -30,12 +34,23 @@ async function ttsRoute(request, env, synth, label, premiumOnly = false) {
       return json({ error: `${label} chỉ dành cho gói Premium.`, premium: true }, 403);
     }
     quota = await takeTtsQuota(env.DB, request, user, text.length, cfg);
-    if (!quota.ok) return json({ error: quota.error, quota: true, plan: quota.plan.id }, quota.status);
+    if (!quota.ok) return json({ error: quota.error, quota: true, plan: quota.plan.id, buyCredits: !!quota.buyCredits }, quota.status);
+  }
+  let finalText = text;
+  if (env.DB) {
+    const cfg = await getConfig(env.DB);
+    const user = quota ? await getUser(request, env) : null;
+    const exempt = cfg.watermark.exemptPremium && user && effectivePlan(user, cfg).id === 'premium';
+    if (!exempt) {
+      const lang = label.includes('CapCut') ? 'vi' : langOfVoice(body.voice);
+      const line = sourceLine(cfg, siteHost(request, env), lang);
+      if (line) finalText = `${text.replace(/[\s.!?…]*$/, '')}. ${line}`;
+    }
   }
   try {
-    const audio = await synth({ ...body, text });
+    const audio = await synth({ ...body, text: finalText });
     const headers = { 'Content-Type': 'audio/mpeg', 'Cache-Control': 'no-store' };
-    if (quota) headers['X-Quota-Remaining'] = String(quota.remaining);
+    if (quota) { headers['X-Quota-Remaining'] = String(quota.remaining); headers['X-Credits-Remaining'] = String(quota.credits || 0); }
     return new Response(audio, { headers });
   } catch (err) {
     if (quota) await quota.refund(); // lỗi thì trả lại lượt
@@ -71,6 +86,15 @@ export default {
     if (path.startsWith('/api/admin/')) return handleAdmin(request, env, path);
     if (path.startsWith('/api/pay/') || path === '/api/payos/webhook') return handleBilling(request, env, path);
 
+    if (path === '/api/tts-suffix') {
+      if (!env.DB) return json({ enabled: false, text: '' });
+      const cfg = await getConfig(env.DB);
+      const lang = url.searchParams.get('lang') === 'en' ? 'en' : 'vi';
+      const user = await getUser(request, env);
+      const exempt = cfg.watermark.exemptPremium && user && effectivePlan(user, cfg).id === 'premium';
+      const host = siteHost(request, env);
+      return json({ enabled: cfg.watermark.enabled && !exempt, text: exempt ? '' : sourceLine(cfg, host, lang), host, spoken: spokenDomain(host, lang) });
+    }
     if (path === '/api/edge/voices') {
       try { return json({ success: true, voices: await edgeVoices() }, 200, { 'Cache-Control': 'public, max-age=86400' }); }
       catch (err) { return json({ error: err.message }, 500); }
