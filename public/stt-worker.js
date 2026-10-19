@@ -3,6 +3,12 @@ import { pipeline, env } from 'https://cdn.jsdelivr.net/npm/@huggingface/transfo
 
 env.allowLocalModels = false;
 
+// Trên website (Cloudflare Worker) tải mô hình qua proxy /hf/ cùng tên miền: tránh CORS và giới hạn tải của Hugging Face.
+// Chạy bằng start.bat (không có proxy) thì giữ nguyên tải thẳng từ Hugging Face.
+const hostReady = fetch('/hf/health', { cache: 'no-store' })
+  .then(r => { if (r.ok) env.remoteHost = self.location.origin + '/hf/'; })
+  .catch(() => {});
+
 let asr = null;
 let loadedKey = '';
 
@@ -50,6 +56,7 @@ async function load(modelId, forceWasm) {
   };
 
   if (asr) { try { await asr.dispose(); } catch {} asr = null; }
+  await hostReady;
   asr = await pipeline('automatic-speech-recognition', modelId, {
     device: info.device,
     dtype: pickDtype(modelId, info.device, info.f16),

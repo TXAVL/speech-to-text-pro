@@ -2,6 +2,12 @@
 import { pipeline, env } from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.2/+esm';
 
 env.allowLocalModels = false;
+
+// Trên website (Cloudflare Worker) tải mô hình qua proxy /hf/ cùng tên miền: tránh CORS và giới hạn tải của Hugging Face.
+// Chạy bằng start.bat (không có proxy) thì giữ nguyên tải thẳng từ Hugging Face.
+const hostReady = fetch('/hf/health', { cache: 'no-store' })
+  .then(r => { if (r.ok) env.remoteHost = self.location.origin + '/hf/'; })
+  .catch(() => {});
 let synth = null;
 
 self.onmessage = async (e) => {
@@ -9,6 +15,7 @@ self.onmessage = async (e) => {
   try {
     if (!synth) {
       const files = {};
+      await hostReady;
       synth = await pipeline('text-to-speech', 'Xenova/mms-tts-vie', {
         dtype: 'fp32',
         progress_callback: (p) => {

@@ -10,7 +10,7 @@ const store = {
 
 /** Gói Premium (hoặc website không bật tài khoản như bản start.bat) */
 function isPremium() {
-  if (typeof vkAccount === 'undefined' || !vkAccount.state.enabled) return true;
+  try { if (typeof vkAccount === 'undefined' || !vkAccount.state.enabled) return true; } catch { return true; }
   return vkAccount.state.plan?.id === 'premium';
 }
 
@@ -106,7 +106,7 @@ function showView(name) {
   if (name === 'tts') initTts();
   if (typeof vkAccount !== 'undefined') {
     if (name === 'plans') vkAccount.renderPlans();
-    if (name === 'admin') vkAccount.loadAdmin();
+    if (name === 'admin' && typeof vkAdmin !== 'undefined') vkAdmin.open();
   }
   window.scrollTo({ top: 0 });
 }

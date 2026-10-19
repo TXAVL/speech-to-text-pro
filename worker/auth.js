@@ -1,8 +1,9 @@
 // Tài khoản: đăng ký, xác minh email, đăng nhập, quên/đổi mật khẩu, quản trị gói. Lưu trong D1.
-import { PLANS, AUTH_ACTIONS_PER_IP, MAIL_COOLDOWN_MS, publicPlans } from './plans.js';
+import { AUTH_ACTIONS_PER_IP, MAIL_COOLDOWN_MS } from './plans.js';
+import { getConfig, publicPlans } from './config.js';
 import { consume, used, effectivePlan, subjectFor, sha256Hex, clientIp } from './quota.js';
 import { sendMail, smtpConfigured } from './mailer.js';
-import { verifyEmail, resetEmail, welcomeEmail, planEmail } from './emails.js';
+import { renderEmail } from './emails.js';
 
 const COOKIE = 'vk_sid';
 const SESSION_MS = 30 * 24 * 3600 * 1000;
@@ -19,7 +20,7 @@ const randomHex = (n = 32) => hex(crypto.getRandomValues(new Uint8Array(n)));
 const normEmail = (e) => String(e || '').trim().toLowerCase();
 const validEmail = (e) => /^[^\s@]{1,64}@[^\s@]{1,190}\.[^\s@]{2,}$/.test(e);
 
-async function hashPassword(password, saltHex) {
+export async function hashPassword(password, saltHex) {
   const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveBits']);
   const salt = Uint8Array.from(saltHex.match(/../g).map(h => parseInt(h, 16)));
   return hex(await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt, iterations: PBKDF2_ITER }, key, 256));
@@ -34,7 +35,7 @@ function safeEqual(a, b) {
 function adminEmails(env) {
   return String(env.ADMIN_EMAILS || '').split(',').map(normEmail).filter(Boolean);
 }
-const isAdmin = (env, user) => !!user && (user.role === 'admin' || adminEmails(env).includes(user.email));
+export const isAdmin = (env, user) => !!user && (user.role === 'admin' || adminEmails(env).includes(user.email));
 const appUrl = (env, request) => (env.APP_URL || new URL(request.url).origin).replace(/\/$/, '');
 
 function cookieHeader(request, value, maxAgeSec) {
@@ -51,7 +52,7 @@ export async function getUser(request, env) {
   const token = readCookie(request);
   if (!token) return null;
   return await env.DB.prepare(
-    `SELECT u.* FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ? AND s.expires_at > ?`
+    `SELECT u.* FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ? AND s.expires_at > ? AND u.banned = 0`
   ).bind(await sha256Hex(token), Date.now()).first();
 }
 
@@ -67,9 +68,9 @@ async function createSession(env, request, userId) {
   return cookieHeader(request, token, SESSION_MS / 1000);
 }
 
-function publicUser(env, user) {
+export function publicUser(env, user, cfg) {
   if (!user) return null;
-  const plan = effectivePlan(user);
+  const plan = effectivePlan(user, cfg);
   return {
     id: user.id, email: user.email, name: user.name, verified: !!user.verified,
     plan: user.plan, planExpires: user.plan_expires, effectivePlan: plan.id,
@@ -107,7 +108,7 @@ async function mailWithToken(env, user, kind, ttl, build) {
   if (!smtpConfigured(env)) throw Object.assign(new Error('Website chưa cấu hình máy chủ email (SMTP).'), { status: 503 });
   const token = await issueToken(env, user.id, kind, ttl);
   try {
-    await sendMail(env, { to: user.email, ...build(token) });
+    await sendMail(env, { to: user.email, ...(await build(token)) });
   } catch (e) {
     await env.DB.prepare('DELETE FROM email_tokens WHERE token_hash = ?').bind(await sha256Hex(token)).run();
     throw Object.assign(new Error('Không gửi được email: ' + e.message), { status: 502 });
@@ -115,7 +116,9 @@ async function mailWithToken(env, user, kind, ttl, build) {
 }
 
 const sendVerify = (env, request, user) =>
-  mailWithToken(env, user, 'verify', VERIFY_MS, token => verifyEmail({ name: user.name, url: `${appUrl(env, request)}/?verify=${token}` }));
+  mailWithToken(env, user, 'verify', VERIFY_MS, async token => renderEmail(env.DB, 'verify', {
+    action_url: `${appUrl(env, request)}/?verify=${token}`, expires_hours: 24, free_calls: (await getConfig(env.DB)).plans.free.ttsCalls
+  }, { appName: 'VoiceKit', appUrl: appUrl(env, request), name: user.name || user.email.split('@')[0], email: user.email }));
 
 async function guardIp(env, request) {
   const n = await consume(env.DB, 'auth:' + (await sha256Hex('vk-auth:' + clientIp(request))).slice(0, 32), AUTH_ACTIONS_PER_IP);
@@ -130,25 +133,27 @@ async function readBody(request) {
 }
 
 /** Trạng thái tài khoản + gói + lượt dùng hôm nay (cho giao diện). */
-export async function meResponse(request, env) {
+export async function meResponse(request, env, cfg) {
   if (!env.DB) return json({ accounts: false });
   const user = await getUser(request, env);
-  const plan = effectivePlan(user);
+  const plan = effectivePlan(user, cfg);
   const u = await used(env.DB, await subjectFor(request, user));
   return json({
     accounts: true, smtp: smtpConfigured(env),
-    user: publicUser(env, user),
+    user: publicUser(env, user, cfg),
     plan: { id: plan.id, name: plan.name, ttsCalls: plan.ttsCalls, maxChars: plan.maxChars },
     usage: { calls: u.calls, remaining: Math.max(0, plan.ttsCalls - u.calls) },
-    plans: publicPlans()
+    plans: publicPlans(cfg),
+    theme: cfg.saved.theme || 'auto'
   });
 }
 
 export async function handleAuth(request, env, path) {
   if (!env.DB) return fail('Website chưa bật tài khoản (thiếu cơ sở dữ liệu D1).', 503);
   try {
-    if (path === '/api/me' && request.method === 'GET') return meResponse(request, env);
-    if (request.method !== 'POST' && !path.startsWith('/api/admin/')) return fail('Phương thức không hỗ trợ.', 405);
+    const cfg = await getConfig(env.DB);
+    if (path === '/api/me' && request.method === 'GET') return meResponse(request, env, cfg);
+    if (request.method !== 'POST') return fail('Phương thức không hỗ trợ.', 405);
 
     switch (path) {
       case '/api/auth/register': {
@@ -169,7 +174,7 @@ export async function handleAuth(request, env, path) {
         let mailError = null;
         try { await sendVerify(env, request, user); } catch (e) { mailError = e.message; }
         const cookie = await createSession(env, request, user.id);
-        return json({ ok: true, user: publicUser(env, user), mailSent: !mailError, mailError }, 201, { 'Set-Cookie': cookie });
+        return json({ ok: true, user: publicUser(env, user, cfg), mailSent: !mailError, mailError }, 201, { 'Set-Cookie': cookie });
       }
 
       case '/api/auth/login': {
@@ -179,11 +184,12 @@ export async function handleAuth(request, env, path) {
         const user = await env.DB.prepare('SELECT * FROM users WHERE email = ?').bind(email).first();
         const ok = user && safeEqual(await hashPassword(String(b.password || ''), user.pass_salt), user.pass_hash);
         if (!ok) return fail('Email hoặc mật khẩu không đúng.', 401);
+        if (user.banned) return fail('Tài khoản đã bị khóa. Liên hệ quản trị viên nếu bạn cho rằng đây là nhầm lẫn.', 403);
         if (user.role !== 'admin' && adminEmails(env).includes(email)) {
           await env.DB.prepare("UPDATE users SET role = 'admin' WHERE id = ?").bind(user.id).run();
           user.role = 'admin';
         }
-        return json({ ok: true, user: publicUser(env, user) }, 200, { 'Set-Cookie': await createSession(env, request, user.id) });
+        return json({ ok: true, user: publicUser(env, user, cfg) }, 200, { 'Set-Cookie': await createSession(env, request, user.id) });
       }
 
       case '/api/auth/logout': {
@@ -197,8 +203,8 @@ export async function handleAuth(request, env, path) {
         const userId = await useToken(env, b.token, 'verify');
         if (!userId) return fail('Liên kết xác minh không hợp lệ hoặc đã hết hạn. Hãy đăng nhập và gửi lại email xác minh.', 400);
         const user = await env.DB.prepare('UPDATE users SET verified = 1 WHERE id = ? RETURNING *').bind(userId).first();
-        try { await sendMail(env, { to: user.email, ...welcomeEmail({ name: user.name, url: appUrl(env, request) }) }); } catch {}
-        return json({ ok: true, user: publicUser(env, user) }, 200, { 'Set-Cookie': await createSession(env, request, user.id) });
+        try { await sendMail(env, { to: user.email, ...(await renderEmail(env.DB, 'welcome', { free_calls: cfg.plans.free.ttsCalls }, { appName: 'VoiceKit', appUrl: appUrl(env, request), name: user.name || user.email.split('@')[0], email: user.email })) }); } catch {}
+        return json({ ok: true, user: publicUser(env, user, cfg) }, 200, { 'Set-Cookie': await createSession(env, request, user.id) });
       }
 
       case '/api/auth/resend-verify': {
@@ -220,7 +226,7 @@ export async function handleAuth(request, env, path) {
         if (!smtpConfigured(env)) return fail('Website chưa cấu hình máy chủ email (SMTP).', 503);
         if (user) {
           try {
-            await mailWithToken(env, user, 'reset', RESET_MS, token => resetEmail({ name: user.name, url: `${appUrl(env, request)}/?reset=${token}` }));
+            await mailWithToken(env, user, 'reset', RESET_MS, token => renderEmail(env.DB, 'reset', { action_url: `${appUrl(env, request)}/?reset=${token}`, expires_minutes: 60 }, { appName: 'VoiceKit', appUrl: appUrl(env, request), name: user.name || user.email.split('@')[0], email: user.email }));
           } catch (e) { if (e.status === 429) return fail(e.message, 429); console.log('reset mail failed', e.message); }
         }
         // Luôn trả lời giống nhau để không lộ email nào đã đăng ký
@@ -239,7 +245,7 @@ export async function handleAuth(request, env, path) {
           env.DB.prepare('DELETE FROM sessions WHERE user_id = ?').bind(userId)
         ]);
         const user = await env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(userId).first();
-        return json({ ok: true, user: publicUser(env, user) }, 200, { 'Set-Cookie': await createSession(env, request, userId) });
+        return json({ ok: true, user: publicUser(env, user, cfg) }, 200, { 'Set-Cookie': await createSession(env, request, userId) });
       }
 
       case '/api/auth/password': {
@@ -257,36 +263,6 @@ export async function handleAuth(request, env, path) {
         return json({ ok: true }, 200, { 'Set-Cookie': await createSession(env, request, user.id) });
       }
 
-      case '/api/admin/users': {
-        const user = await getUser(request, env);
-        if (!isAdmin(env, user)) return fail('Chỉ quản trị viên.', 403);
-        const url = new URL(request.url);
-        const q = `%${(url.searchParams.get('q') || '').trim().toLowerCase()}%`;
-        const page = Math.max(0, Number(url.searchParams.get('page')) || 0);
-        const { results } = await env.DB.prepare(
-          `SELECT id, email, name, plan, plan_expires, role, verified, created_at, last_login FROM users
-           WHERE email LIKE ?1 OR lower(name) LIKE ?1 ORDER BY id DESC LIMIT 50 OFFSET ?2`
-        ).bind(q, page * 50).all();
-        const total = await env.DB.prepare('SELECT COUNT(*) AS n FROM users').first();
-        const day = await env.DB.prepare("SELECT calls FROM usage WHERE subject = 'global' AND day = ?").bind(new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10)).first();
-        return json({ users: results, total: total.n, globalToday: day?.calls || 0 });
-      }
-
-      case '/api/admin/plan': {
-        const admin = await getUser(request, env);
-        if (!isAdmin(env, admin)) return fail('Chỉ quản trị viên.', 403);
-        const b = await readBody(request);
-        if (!PLANS[b.plan] || b.plan === 'guest') return fail('Gói không hợp lệ.');
-        const days = Math.max(0, Math.min(3650, Number(b.days) || 0));
-        const expires = b.plan === 'premium' && days ? Date.now() + days * 86400000 : null;
-        const user = await env.DB.prepare('UPDATE users SET plan = ?, plan_expires = ? WHERE id = ? RETURNING *').bind(b.plan, expires, Number(b.userId)).first();
-        if (!user) return fail('Không tìm thấy người dùng.', 404);
-        let mailSent = false;
-        if (b.notify) {
-          try { await sendMail(env, { to: user.email, ...planEmail({ name: user.name, planName: PLANS[b.plan].name, expires, url: appUrl(env, request) }) }); mailSent = true; } catch {}
-        }
-        return json({ ok: true, user: publicUser(env, user), mailSent });
-      }
     }
     return fail('Không tìm thấy.', 404);
   } catch (e) {

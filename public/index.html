@@ -308,22 +308,23 @@
 
     <!-- ============ QUẢN TRỊ ============ -->
     <section class="view" id="view-admin">
-      <div class="hero small">
-        <h1>Quản trị</h1>
-        <p id="admin-stats">Đang tải…</p>
-      </div>
-      <div class="card">
-        <div class="url-row admin-search">
-          <input type="text" id="admin-q" placeholder="Tìm theo email hoặc tên…">
-          <button class="btn" id="admin-search">Tìm</button>
+      <div class="admin-head">
+        <div>
+          <h1>Quản trị</h1>
+          <p class="muted" id="adm-sub">Bảng điều khiển VoiceKit</p>
         </div>
-        <div class="table-wrap">
-          <table class="admin-table">
-            <thead><tr><th>Người dùng</th><th>Trạng thái</th><th>Gói</th><th>Đổi gói</th></tr></thead>
-            <tbody id="admin-rows"></tbody>
-          </table>
-        </div>
+        <div class="adm-status" id="adm-status"></div>
       </div>
+      <div class="adm-tabs" id="adm-tabs">
+        <button class="adm-tab active" data-adm="overview">Tổng quan</button>
+        <button class="adm-tab" data-adm="users">Người dùng</button>
+        <button class="adm-tab" data-adm="orders">Đơn hàng</button>
+        <button class="adm-tab" data-adm="settings">Gói &amp; giá</button>
+        <button class="adm-tab" data-adm="email">Email</button>
+        <button class="adm-tab" data-adm="system">Hệ thống</button>
+        <button class="adm-tab" data-adm="logs">Nhật ký</button>
+      </div>
+      <div id="adm-body"></div>
     </section>
   </main>
 
@@ -346,69 +347,171 @@
 
   <!-- Account modal -->
   <div class="modal" id="modal-account" hidden>
-    <div class="modal-box">
-      <div class="modal-head"><h3 id="acc-title">Tài khoản</h3><button class="icon-btn sm" data-close>✕</button></div>
+    <div class="modal-box auth-box">
+      <button class="icon-btn sm auth-close" data-close aria-label="Đóng">✕</button>
+      <aside class="auth-hero" id="auth-hero" aria-hidden="true"></aside>
+      <div class="auth-panel">
+        <div class="auth-head"><h3 id="acc-title">Tài khoản</h3></div>
 
-      <!-- Chưa đăng nhập -->
-      <div id="acc-guest">
-        <div class="seg" id="auth-seg">
-          <button class="seg-btn active" data-auth="login">Đăng nhập</button>
-          <button class="seg-btn" data-auth="register">Đăng ký</button>
-        </div>
-        <form class="auth-form" id="form-login" data-form="login">
-          <label class="field"><span>Email</span><input type="email" name="email" autocomplete="email" required></label>
-          <label class="field"><span>Mật khẩu</span><input type="password" name="password" autocomplete="current-password" required></label>
-          <button class="btn primary big" type="submit">Đăng nhập</button>
-          <button class="link-btn" type="button" data-auth="forgot">Quên mật khẩu?</button>
-        </form>
-        <form class="auth-form" id="form-register" data-form="register" hidden>
-          <label class="field"><span>Tên hiển thị</span><input type="text" name="name" autocomplete="name" maxlength="60"></label>
-          <label class="field"><span>Email</span><input type="email" name="email" autocomplete="email" required></label>
-          <label class="field"><span>Mật khẩu <em class="muted">ít nhất 8 ký tự</em></span><input type="password" name="password" autocomplete="new-password" minlength="8" required></label>
-          <button class="btn primary big" type="submit">Tạo tài khoản miễn phí</button>
-          <p class="muted small">Sau khi đăng ký, mở email xác minh để mở gói Miễn phí (50 lượt Edge/CapCut mỗi ngày).</p>
-        </form>
-        <form class="auth-form" id="form-forgot" data-form="forgot" hidden>
-          <p class="muted small">Nhập email đã đăng ký, chúng tôi sẽ gửi liên kết đặt lại mật khẩu (hiệu lực 1 giờ).</p>
-          <label class="field"><span>Email</span><input type="email" name="email" autocomplete="email" required></label>
-          <button class="btn primary big" type="submit">Gửi liên kết</button>
-          <button class="link-btn" type="button" data-auth="login">← Quay lại đăng nhập</button>
-        </form>
-        <form class="auth-form" id="form-reset" data-form="reset" hidden>
-          <p class="muted small">Tạo mật khẩu mới cho tài khoản của bạn.</p>
-          <label class="field"><span>Mật khẩu mới</span><input type="password" name="password" autocomplete="new-password" minlength="8" required></label>
-          <button class="btn primary big" type="submit">Lưu mật khẩu mới</button>
-        </form>
-      </div>
-
-      <!-- Đã đăng nhập -->
-      <div id="acc-user" hidden>
-        <div class="profile">
-          <span class="avatar lg" id="prof-avatar">?</span>
-          <div><strong id="prof-name"></strong><span class="muted small" id="prof-email"></span></div>
-        </div>
-        <div class="verify-banner" id="verify-banner" hidden>
-          <span>Email chưa xác minh, tài khoản đang dùng giới hạn của gói Khách.</span>
-          <button class="btn sm" id="btn-resend">Gửi lại email xác minh</button>
-        </div>
-        <div class="usage-box">
-          <div class="usage-top"><span>Gói <b id="prof-plan"></b></span><span class="muted small" id="prof-expire"></span></div>
-          <div class="bar"><div class="bar-fill" id="prof-bar"></div></div>
-          <span class="muted small" id="prof-usage"></span>
-        </div>
-        <details class="pw-change">
-          <summary>Đổi mật khẩu</summary>
-          <form class="auth-form" id="form-password" data-form="password">
-            <label class="field"><span>Mật khẩu hiện tại</span><input type="password" name="current" autocomplete="current-password" required></label>
-            <label class="field"><span>Mật khẩu mới</span><input type="password" name="next" autocomplete="new-password" minlength="8" required></label>
-            <button class="btn" type="submit">Đổi mật khẩu</button>
+        <!-- Chưa đăng nhập -->
+        <div id="acc-guest">
+          <div class="auth-switch" id="auth-seg">
+            <button class="seg-btn active" data-auth="login">Đăng nhập</button>
+            <button class="seg-btn" data-auth="register">Đăng ký</button>
+            <span class="auth-switch-glow"></span>
+          </div>
+          <form class="auth-form" id="form-login" data-form="login">
+            <label class="inp"><svg viewBox="0 0 24 24"><path d="M4 6h16v12H4z" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="m4 7 8 6 8-6" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
+              <input type="email" name="email" autocomplete="username email" placeholder="Email" required></label>
+            <label class="inp"><svg viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8 10V7a4 4 0 0 1 8 0v3" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
+              <input type="password" name="password" autocomplete="current-password" placeholder="Mật khẩu" required><button type="button" class="eye" data-eye tabindex="-1" aria-label="Hiện mật khẩu">👁</button></label>
+            <div class="auth-row"><span></span><button class="link-btn" type="button" data-auth="forgot">Quên mật khẩu?</button></div>
+            <button class="btn primary big auth-submit" type="submit">Đăng nhập</button>
+            <p class="auth-alt">Chưa có tài khoản? <button class="link-btn" type="button" data-auth="register">Tạo miễn phí</button></p>
           </form>
-        </details>
-        <div class="modal-foot spread">
-          <button class="btn sm" id="btn-see-plans">Xem các gói</button>
-          <button class="btn sm danger" id="btn-logout">Đăng xuất</button>
+          <form class="auth-form" id="form-register" data-form="register" hidden>
+            <label class="inp"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M4 20c1.5-4 4.5-6 8-6s6.5 2 8 6" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
+              <input type="text" name="name" autocomplete="name" maxlength="60" placeholder="Tên hiển thị"></label>
+            <label class="inp"><svg viewBox="0 0 24 24"><path d="M4 6h16v12H4z" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="m4 7 8 6 8-6" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
+              <input type="email" name="email" autocomplete="email" placeholder="Email" required></label>
+            <label class="inp"><svg viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8 10V7a4 4 0 0 1 8 0v3" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
+              <input type="password" name="password" autocomplete="new-password" minlength="8" placeholder="Mật khẩu (ít nhất 8 ký tự)" required data-strength><button type="button" class="eye" data-eye tabindex="-1" aria-label="Hiện mật khẩu">👁</button></label>
+            <div class="pw-meter" id="pw-meter"><i></i><i></i><i></i><i></i><span></span></div>
+            <button class="btn primary big auth-submit" type="submit">Tạo tài khoản miễn phí</button>
+            <p class="auth-alt">Sau khi đăng ký, mở email xác minh để mở gói Miễn phí. Đã có tài khoản? <button class="link-btn" type="button" data-auth="login">Đăng nhập</button></p>
+          </form>
+          <form class="auth-form" id="form-forgot" data-form="forgot" hidden>
+            <p class="auth-note">Nhập email đã đăng ký, chúng tôi sẽ gửi liên kết đặt lại mật khẩu (hiệu lực 1 giờ).</p>
+            <label class="inp"><svg viewBox="0 0 24 24"><path d="M4 6h16v12H4z" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="m4 7 8 6 8-6" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
+              <input type="email" name="email" autocomplete="email" placeholder="Email" required></label>
+            <button class="btn primary big auth-submit" type="submit">Gửi liên kết</button>
+            <p class="auth-alt"><button class="link-btn" type="button" data-auth="login">← Quay lại đăng nhập</button></p>
+          </form>
+          <form class="auth-form" id="form-reset" data-form="reset" hidden>
+            <p class="auth-note">Tạo mật khẩu mới cho tài khoản của bạn.</p>
+            <label class="inp"><svg viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8 10V7a4 4 0 0 1 8 0v3" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
+              <input type="password" name="password" autocomplete="new-password" minlength="8" placeholder="Mật khẩu mới" required><button type="button" class="eye" data-eye tabindex="-1" aria-label="Hiện mật khẩu">👁</button></label>
+            <button class="btn primary big auth-submit" type="submit">Lưu mật khẩu mới</button>
+          </form>
+        </div>
+
+        <!-- Đã đăng nhập -->
+        <div id="acc-user" hidden>
+          <div class="profile">
+            <span class="avatar lg" id="prof-avatar">?</span>
+            <div><strong id="prof-name"></strong><span class="muted small" id="prof-email"></span></div>
+          </div>
+          <div class="verify-banner" id="verify-banner" hidden>
+            <span>Email chưa xác minh, tài khoản đang dùng giới hạn của gói Khách.</span>
+            <button class="btn sm" id="btn-resend">Gửi lại email xác minh</button>
+          </div>
+          <div class="usage-box">
+            <div class="usage-top"><span>Gói <b id="prof-plan"></b></span><span class="muted small" id="prof-expire"></span></div>
+            <div class="bar"><div class="bar-fill" id="prof-bar"></div></div>
+            <span class="muted small" id="prof-usage"></span>
+          </div>
+          <div id="prof-orders"></div>
+          <details class="pw-change">
+            <summary>Đổi mật khẩu</summary>
+            <form class="auth-form" id="form-password" data-form="password">
+              <label class="field"><span>Mật khẩu hiện tại</span><input type="password" name="current" autocomplete="current-password" required></label>
+              <label class="field"><span>Mật khẩu mới</span><input type="password" name="next" autocomplete="new-password" minlength="8" required></label>
+              <button class="btn" type="submit">Đổi mật khẩu</button>
+            </form>
+          </details>
+          <div class="modal-foot spread">
+            <button class="btn sm" id="btn-see-plans">Xem các gói</button>
+            <button class="btn sm danger" id="btn-logout">Đăng xuất</button>
+          </div>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- Checkout modal (payOS) -->
+  <div class="modal" id="modal-pay" hidden>
+    <div class="modal-box pay-box">
+      <div class="modal-head"><h3 id="pay-title">Thanh toán Premium</h3><button class="icon-btn sm" data-close>✕</button></div>
+      <div id="pay-confirm" hidden>
+        <div class="pay-summary">
+          <div><span class="muted small">Gói</span><b id="pc-pkg">Premium</b></div>
+          <div class="r"><span class="muted small">Tổng thanh toán</span><b class="pay-amount" id="pc-amount">0đ</b></div>
+        </div>
+        <div class="pay-methods" id="pc-methods">
+          <span class="pm-title">Phương thức thanh toán</span>
+          <label class="pm-card"><input type="radio" name="pc-mode" value="api" checked>
+            <span class="pm-ico">▦</span><span class="pm-body"><b>Chuyển khoản VietQR</b><small>Hiện mã QR ngay tại trang, tự xác nhận trong vài giây.</small></span></label>
+          <label class="pm-card"><input type="radio" name="pc-mode" value="redirect">
+            <span class="pm-ico">↗</span><span class="pm-body"><b>Cổng thanh toán payOS</b><small>Chuyển sang trang payOS, thanh toán xong tự quay lại.</small></span></label>
+        </div>
+        <label class="invoice-toggle"><input type="checkbox" id="pc-invoice"> <span><b>Tôi cần xuất hóa đơn</b><small class="muted">Điền trước khi thanh toán để chúng tôi ghi đúng thông tin trên hóa đơn.</small></span></label>
+        <div class="invoice-form" id="pc-form" hidden>
+          <div class="seg tiny" id="pc-type">
+            <button type="button" class="seg-btn active" data-type="personal">Cá nhân</button>
+            <button type="button" class="seg-btn" data-type="company">Công ty</button>
+          </div>
+          <label class="field"><span id="pc-name-label">Họ tên người mua</span><input type="text" id="pc-name" maxlength="150" autocomplete="name"></label>
+          <div class="field-group" style="margin-top:0">
+            <label class="field"><span>Mã số thuế <em class="muted" id="pc-tax-opt">tùy chọn</em></span><input type="text" id="pc-tax" maxlength="14" inputmode="numeric" placeholder="0101234567"></label>
+            <label class="field"><span>Email nhận hóa đơn</span><input type="email" id="pc-email" maxlength="190" autocomplete="email"></label>
+          </div>
+          <label class="field"><span>Địa chỉ <em class="muted" id="pc-addr-opt">tùy chọn</em></span><input type="text" id="pc-addr" maxlength="250" autocomplete="street-address"></label>
+        </div>
+        <button class="btn primary big" id="pc-continue">Tiếp tục thanh toán VietQR →</button>
+      </div>
+      <div id="pay-loading" class="pay-center"><div class="wave"><i></i><i></i><i></i><i></i><i></i></div><span class="muted">Đang tạo đơn thanh toán…</span></div>
+      <div id="pay-main" hidden>
+        <div class="pay-grid">
+          <div class="pay-qr">
+            <div class="qr-frame" id="pay-qr"></div>
+            <span class="muted small">Mở app ngân hàng, quét mã để chuyển khoản</span>
+          </div>
+          <div class="pay-info">
+            <div class="pay-amount" id="pay-amount"></div>
+            <div class="pay-pkg" id="pay-pkg"></div>
+            <dl class="pay-dl">
+              <dt>Ngân hàng</dt><dd id="pay-bank">—</dd>
+              <dt>Số tài khoản</dt><dd><span id="pay-acc">—</span> <button class="copy-mini" data-copy="pay-acc">Chép</button></dd>
+              <dt>Chủ tài khoản</dt><dd id="pay-name">—</dd>
+              <dt>Nội dung</dt><dd><b id="pay-desc">—</b> <button class="copy-mini" data-copy="pay-desc">Chép</button></dd>
+            </dl>
+            <div class="pay-timer"><span class="dot-live"></span> Đang chờ thanh toán · còn <b id="pay-countdown">--:--</b></div>
+          </div>
+        </div>
+        <p class="muted small pay-note">Chuyển <b>đúng số tiền và nội dung</b>. Hệ thống tự kích hoạt Premium trong vài giây sau khi nhận được tiền, không cần gửi ảnh chụp.</p>
+        <div class="modal-foot spread">
+          <button class="btn sm danger" id="pay-cancel">Hủy đơn</button>
+          <a class="btn sm" id="pay-open" target="_blank" rel="noopener">Mở trang payOS ↗</a>
+        </div>
+      </div>
+      <div id="pay-done" class="pay-center" hidden>
+        <div class="pay-check">✓</div>
+        <h3>Thanh toán thành công!</h3>
+        <p class="muted" id="pay-done-text"></p>
+        <div class="adm-actions" style="justify-content:center"><a class="btn" id="pay-invoice" target="_blank" rel="noopener">🧾 Xem hóa đơn</a><button class="btn primary" data-close>Bắt đầu dùng Premium</button></div>
+      </div>
+      <div id="pay-failed" class="pay-center" hidden>
+        <div class="pay-check fail">!</div>
+        <h3 id="pay-failed-title">Đơn đã hết hạn</h3>
+        <p class="muted" id="pay-failed-text">Bạn có thể tạo đơn mới bất cứ lúc nào.</p>
+        <button class="btn" data-close>Đóng</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Admin: form dùng chung (tạo / sửa) -->
+  <div class="modal" id="modal-adm-form" hidden>
+    <div class="modal-box adm-user-box">
+      <div class="modal-head"><h3 id="adm-form-title">Form</h3><button class="icon-btn sm" data-close>✕</button></div>
+      <div id="adm-form-body"></div>
+    </div>
+  </div>
+
+  <!-- Admin: chi tiết người dùng -->
+  <div class="modal" id="modal-adm-user" hidden>
+    <div class="modal-box adm-user-box">
+      <div class="modal-head"><h3>Chi tiết người dùng</h3><button class="icon-btn sm" data-close>✕</button></div>
+      <div id="adm-user-body"></div>
     </div>
   </div>
 
@@ -425,6 +528,8 @@
   <div class="toasts" id="toasts"></div>
 
   <script src="app.js"></script>
+  <script src="themes.js"></script>
   <script src="account.js"></script>
+  <script src="admin.js"></script>
 </body>
 </html>
