@@ -53,7 +53,49 @@ export const PREMIUM_PACKAGES = [
 ];
 
 // Mua thêm lượt (chỉ gói Premium). Admin chỉnh giá / giới hạn trong trang Quản trị.
-export const CREDITS = { enabled: true, price: 200, min: 20, max: 10000, presets: [50, 100, 200, 500] };
+// Ưu đãi tăng dần từ 10 lượt, làm tròn các mốc 20, 30, 50, 100 (tối đa 40% ở 100 lượt).
+// Vượt quá 100 lượt, ưu đãi chỉ tăng nhẹ lắt nhắt (~115đ/lượt).
+export const CREDITS = { enabled: true, price: 200, min: 10, max: 10000, presets: [10, 20, 30, 50, 100] };
+
+/**
+ * Tính giá mua thêm lượt có chiết khấu số lượng:
+ * - Dưới 10 lượt: 200đ/lượt
+ * - 10 lượt: 2.000đ (200đ/lượt)
+ * - 20 lượt: 3.500đ (175đ/lượt, -12.5%)
+ * - 30 lượt: 5.000đ (~167đ/lượt, -16.7%)
+ * - 50 lượt: 7.500đ (150đ/lượt, -25%)
+ * - 100 lượt: 12.000đ (120đ/lượt, -40% - ưu đãi kịch kim)
+ * - Trên 100 lượt: 100 lượt đầu 12.000đ, các lượt tiếp theo tính 115đ/lượt (chỉ tăng lắt nhắt)
+ */
+export function calcCreditsPrice(qty, basePrice = 200) {
+  qty = Math.floor(Number(qty)) || 0;
+  if (qty <= 0) return 0;
+  basePrice = Number(basePrice) > 0 ? Number(basePrice) : 200;
+
+  let amount = 0;
+  if (qty < 10) {
+    amount = qty * 200;
+  } else if (qty <= 20) {
+    amount = 2000 + ((qty - 10) / 10) * 1500;
+  } else if (qty <= 30) {
+    amount = 3500 + ((qty - 20) / 10) * 1500;
+  } else if (qty <= 50) {
+    amount = 5000 + ((qty - 30) / 20) * 2500;
+  } else if (qty <= 100) {
+    amount = 7500 + ((qty - 50) / 50) * 4500;
+  } else {
+    amount = 12000 + (qty - 100) * 115;
+  }
+
+  // Tỷ lệ theo basePrice nếu admin chỉnh giá khác 200đ
+  if (basePrice !== 200) {
+    amount = (amount / 200) * basePrice;
+  }
+
+  // Làm tròn tiền thanh toán cho đẹp chuẩn giao dịch VNĐ
+  const unit = amount >= 10000 ? 1000 : 500;
+  return Math.max(2000, Math.round(amount / unit) * unit);
+}
 
 // Câu ghi nguồn tự thêm vào cuối mỗi file giọng đọc. {domain} = tên miền website (đã phiên âm để đọc đúng).
 export const WATERMARK = { enabled: true, vi: 'File được tạo ra tại trang web {domain}.', en: 'This file was created at {domain}.', exemptPremium: true };
