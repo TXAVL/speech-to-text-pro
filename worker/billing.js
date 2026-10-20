@@ -56,7 +56,7 @@ export async function activateOrder(env, request, orderCode, via, reference = nu
       invoice_url: `${base}/invoice/${order.order_code}`,
       invoice_line: inv ? `Thông tin xuất hóa đơn cho ${inv.name}${inv.tax_code ? ' (MST ' + inv.tax_code + ')' : ''} đã được ghi nhận.` : '',
       order_table: orderTable([['Mã đơn', '#' + order.order_code], [isCredits ? 'Sản phẩm' : 'Gói', itemName], ['Số tiền', money], ['Nội dung chuyển khoản', order.description], isCredits ? ['Lượt mua thêm hiện có', (Number(user.extra_credits || 0) + Number(order.credits)).toLocaleString('vi-VN') + ' lượt'] : ['Hiệu lực đến', until]])
-    }, { appName: 'VoiceKit', appUrl: base, name: user.name || user.email.split('@')[0], email: user.email });
+    }, { appName: 'TXA Voice', appUrl: base, name: user.name || user.email.split('@')[0], email: user.email });
     await sendMail(env, { to: user.email, ...mail });
     if (inv?.email && inv.email !== user.email) { try { await sendMail(env, { to: inv.email, ...mail }); } catch {} }
   } catch (e) { console.log('receipt mail failed', e.message); }
@@ -212,7 +212,7 @@ export async function handleInvoice(request, env, path) {
   if (!order || (order.user_id !== user.id && !isAdmin(env, user))) return page('Không tìm thấy hóa đơn.', 404);
   const owner = order.user_id === user.id ? user : await env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(order.user_id).first();
   const cfg = await getConfig(env.DB);
-  return new Response(renderInvoice({ order, user: owner, seller: cfg.saved.seller || {}, appName: 'VoiceKit' }), {
+  return new Response(renderInvoice({ order, user: owner, seller: cfg.saved.seller || {}, appName: 'TXA Voice', baseUrl: appUrl(env, request) }), {
     headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'private, no-store' }
   });
 }

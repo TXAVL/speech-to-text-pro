@@ -152,7 +152,7 @@ const vkTheme = (() => {
     const art = ART[th.art || 'none'] || ART.none;
     const title = current.id === 'newyear' ? `Chúc mừng năm mới ${current.year}!` : current.id === 'tet' ? `Chúc mừng năm mới ${canChi(current.year)}` : th.title;
     hero.innerHTML = `<div class="hero-art">${art({ ...current, label: th.label })}</div>
-      <div class="hero-copy"><span class="hero-kicker">${th.badge ? th.badge + ' ' : ''}VoiceKit</span><h4>${title}</h4><p>${th.sub}</p></div>`;
+      <div class="hero-copy"><span class="hero-kicker">${th.badge ? th.badge + ' ' : ''}TXA Voice</span><h4>${title}</h4><p>${th.sub}</p></div>`;
     particles(hero, th.particles.length ? th.particles : ['·'], th.particles.length ? 16 : 0, 'hp');
   }
 

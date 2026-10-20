@@ -123,7 +123,7 @@ export async function renderEmail(db, id, vars = {}, ctx = {}, draft = null) {
   const { template } = await getTemplate(db, id);
   const t = { ...template, ...(draft || {}) };
   const all = {
-    app_name: ctx.appName || 'VoiceKit', app_url: ctx.appUrl || '', name: ctx.name || 'bạn', email: ctx.email || '',
+    app_name: ctx.appName || 'TXA Voice', app_url: ctx.appUrl || '', name: ctx.name || 'bạn', email: ctx.email || '',
     year: new Date().getFullYear(), ...vars
   };
   const blocks = Object.entries(TEMPLATES[id].variables || {}).filter(([, v]) => v.block).map(([k]) => k);

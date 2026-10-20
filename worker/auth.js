@@ -300,7 +300,7 @@ async function mailWithToken(env, user, kind, ttl, build) {
 const sendVerify = (env, request, user) =>
   mailWithToken(env, user, 'verify', VERIFY_MS, async token => renderEmail(env.DB, 'verify', {
     action_url: `${appUrl(env, request)}/?verify=${token}`, expires_hours: 24, free_calls: (await getConfig(env.DB)).plans.free.ttsCalls
-  }, { appName: 'VoiceKit', appUrl: appUrl(env, request), name: user.name || user.email.split('@')[0], email: user.email }));
+  }, { appName: 'TXA Voice', appUrl: appUrl(env, request), name: user.name || user.email.split('@')[0], email: user.email }));
 
 async function guardIp(env, request) {
   const n = await consume(env.DB, 'auth:' + (await sha256Hex('vk-auth:' + clientIp(request))).slice(0, 32), AUTH_ACTIONS_PER_IP);

@@ -35,7 +35,7 @@ function buildMessage({ from, to, subject, text, html, domain }) {
     `Date: ${new Date().toUTCString().replace('GMT', '+0000')}`,
     `Message-ID: <${crypto.randomUUID()}@${domain}>`,
     'MIME-Version: 1.0',
-    'X-Mailer: VoiceKit',
+    'X-Mailer: TXA Voice',
     `Content-Type: multipart/alternative; boundary="${boundary}"`
   ];
   const part = (type, body) => [`--${boundary}`, `Content-Type: ${type}; charset=UTF-8`, 'Content-Transfer-Encoding: base64', '', wrap76(b64(body))].join('\r\n');

@@ -206,85 +206,56 @@ function openModal(id) { $(id).hidden = false; }
 $$('.modal').forEach(m => {
   m.addEventListener('click', e => { if (e.target === m || e.target.hasAttribute('data-close')) m.hidden = true; });
 });
-document.addEventListener('keydown', e => { if (e.key === 'Escape') $$('.modal').forEach(m => m.hidden = true); });
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  const dialog = $('#modal-custom-dialog');
+  if (dialog && !dialog.hidden) { dialog.hidden = true; return; } // chỉ đóng hộp thoại xác nhận, giữ modal bên dưới
+  $$('.modal').forEach(m => m.hidden = true);
+});
 
 /* ---------------- Modal Dialogs tùy chỉnh (thay thế hoàn toàn alert/confirm/prompt) ---------------- */
-function customAlert(message, title = 'Thông báo') {
+/**
+ * Một hộp thoại dùng chung cho alert / confirm / prompt. Đóng bằng ✕, bấm nền hoặc Esc đều trả về giá trị "Hủy"
+ * (alert: true, confirm: false, prompt: null) để nơi gọi không bị treo.
+ */
+function openDialog({ title, message, okText = 'Đồng ý', cancelText = 'Hủy', cancel = false, input = null }) {
   return new Promise((resolve) => {
     const modal = $('#modal-custom-dialog');
-    if (!modal) { toast(message); return resolve(true); }
+    if (!modal) { toast(String(message)); return resolve(input !== null ? null : !cancel); }
+    const field = $('#cd-input'), ok = $('#cd-btn-ok'), no = $('#cd-btn-cancel');
+    const dismissed = input !== null ? null : !cancel;
     $('#cd-title').textContent = title;
-    $('#cd-message').innerHTML = typeof message === 'string' ? message.replace(/\n/g, '<br>') : message;
-    $('#cd-input-wrap').hidden = true;
-    $('#cd-btn-cancel').hidden = true;
-    $('#cd-btn-ok').textContent = 'Đã hiểu';
-    modal.hidden = false;
-    const finish = () => {
-      modal.hidden = true;
-      $('#cd-btn-ok').onclick = null;
-      $('#cd-btn-close').onclick = null;
-      resolve(true);
-    };
-    $('#cd-btn-ok').onclick = finish;
-    $('#cd-btn-close').onclick = finish;
-  });
-}
-
-function customConfirm(message, title = 'Xác nhận', okText = 'Đồng ý', cancelText = 'Hủy') {
-  return new Promise((resolve) => {
-    const modal = $('#modal-custom-dialog');
-    if (!modal) return resolve(false);
-    $('#cd-title').textContent = title;
-    $('#cd-message').innerHTML = typeof message === 'string' ? message.replace(/\n/g, '<br>') : message;
-    $('#cd-input-wrap').hidden = true;
-    $('#cd-btn-cancel').hidden = false;
-    $('#cd-btn-cancel').textContent = cancelText;
-    $('#cd-btn-ok').textContent = okText;
-    modal.hidden = false;
+    $('#cd-message').textContent = String(message); // xuống dòng hiển thị nhờ white-space: pre-line
+    $('#cd-input-wrap').hidden = input === null;
+    no.hidden = !cancel;
+    no.textContent = cancelText;
+    ok.textContent = okText;
+    let done = false;
     const finish = (val) => {
+      if (done) return;
+      done = true;
+      watcher.disconnect();
+      ok.onclick = no.onclick = field.onkeydown = null;
       modal.hidden = true;
-      $('#cd-btn-ok').onclick = null;
-      $('#cd-btn-cancel').onclick = null;
-      $('#cd-btn-close').onclick = null;
       resolve(val);
     };
-    $('#cd-btn-ok').onclick = () => finish(true);
-    $('#cd-btn-cancel').onclick = () => finish(false);
-    $('#cd-btn-close').onclick = () => finish(false);
-  });
-}
-
-function customPrompt(message, defaultValue = '', title = 'Nhập thông tin', okText = 'Xác nhận', cancelText = 'Hủy') {
-  return new Promise((resolve) => {
-    const modal = $('#modal-custom-dialog');
-    if (!modal) return resolve(null);
-    $('#cd-title').textContent = title;
-    $('#cd-message').innerHTML = typeof message === 'string' ? message.replace(/\n/g, '<br>') : message;
-    $('#cd-input-wrap').hidden = false;
-    const input = $('#cd-input');
-    input.value = defaultValue;
-    $('#cd-btn-cancel').hidden = false;
-    $('#cd-btn-cancel').textContent = cancelText;
-    $('#cd-btn-ok').textContent = okText;
+    const watcher = new MutationObserver(() => { if (modal.hidden) finish(dismissed); });
+    watcher.observe(modal, { attributes: true, attributeFilter: ['hidden'] });
+    ok.onclick = () => finish(input !== null ? field.value : true);
+    no.onclick = () => finish(dismissed);
+    if (input !== null) {
+      field.value = input;
+      field.onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); finish(field.value); } };
+    }
     modal.hidden = false;
-    setTimeout(() => { input.focus(); input.select(); }, 50);
-    const finish = (val) => {
-      modal.hidden = true;
-      $('#cd-btn-ok').onclick = null;
-      $('#cd-btn-cancel').onclick = null;
-      $('#cd-btn-close').onclick = null;
-      input.onkeydown = null;
-      resolve(val);
-    };
-    $('#cd-btn-ok').onclick = () => finish(input.value);
-    $('#cd-btn-cancel').onclick = () => finish(null);
-    $('#cd-btn-close').onclick = () => finish(null);
-    input.onkeydown = (e) => {
-      if (e.key === 'Enter') finish(input.value);
-      if (e.key === 'Escape') finish(null);
-    };
+    setTimeout(() => (input !== null ? field : ok).focus(), 50);
   });
 }
+const customAlert = (message, title = 'Thông báo') => openDialog({ title, message, okText: 'Đã hiểu' });
+const customConfirm = (message, title = 'Xác nhận', okText = 'Đồng ý', cancelText = 'Hủy') =>
+  openDialog({ title, message, okText, cancelText, cancel: true });
+const customPrompt = (message, defaultValue = '', title = 'Nhập thông tin', okText = 'Xác nhận', cancelText = 'Hủy') =>
+  openDialog({ title, message, okText, cancelText, cancel: true, input: String(defaultValue ?? '') });
 
 window.customAlert = customAlert;
 window.customConfirm = customConfirm;
