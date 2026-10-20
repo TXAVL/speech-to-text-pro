@@ -313,18 +313,20 @@ dz.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) set
 $('#btn-fetch-url').addEventListener('click', async () => {
   const url = $('#url-input').value.trim();
   if (!url) return toast('Hãy dán link file âm thanh/video.', 'err');
+  try { new URL(url); } catch { return toast('Link không hợp lệ.', 'err'); }
   const btn = $('#btn-fetch-url'); btn.disabled = true; btn.textContent = 'Đang tải…';
   try {
-    let blob, name = decodeURIComponent(new URL(url).pathname.split('/').pop() || 'audio');
-    try { const r = await fetch(url); if (!r.ok) throw 0; blob = await r.blob(); }
-    catch {
-      const info = await api('/api/fetch-url', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url }) })
-        .catch(() => { throw new Error('Không tải được link này (trang chặn CORS). Hãy tải file về rồi kéo thả vào.'); });
-      blob = await (await fetch(info.url)).blob(); name = info.originalName || name;
+    const r = await vkLink.load(url, (done, total) => { btn.textContent = `${done}/${total} đoạn`; });
+    if (r.blob.type === 'audio/aac') {
+      // AAC thô (tách từ .ts) không có thông tin độ dài: trình phát hiện sai thời lượng, đổi sang WAV 16 kHz
+      btn.textContent = 'Đang ghép…';
+      const { data } = await decodeTo16kMono(r.blob);
+      r.blob = f32ToWav(data, 16000);
+      r.name = r.name.replace(/\.aac$/, '.wav');
     }
-    await setMedia(blob, name);
-    toast('Đã tải file từ link.', 'ok');
-  } catch (e) { toast(e.message, 'err'); }
+    await setMedia(r.blob, r.name);
+    toast(r.segments ? `Đã tải và ghép ${r.segments} đoạn HLS.${r.live ? ' Đây là luồng trực tiếp, chỉ lấy được phần đang có.' : ''}` : 'Đã tải file từ link.', 'ok');
+  } catch (e) { toast(e.message || 'Không tải được link này.', 'err'); }
   btn.disabled = false; btn.textContent = 'Tải';
 });
 
@@ -532,6 +534,13 @@ async function runTranscribe() {
   if (!state.media || state.busy) return;
   const [kind, model] = $('#engine').value.split(/:(.+)/);
   const language = $('#language').value;
+  if (kind === 'local' && STT_MODELS[model]?.gpuOnly && !(await checkGpu())) {
+    return customAlert(`Mô hình này cần WebGPU.
+
+${gpu.reason}
+
+${GPU_HELP}`, 'Mô hình cần tăng tốc đồ họa');
+  }
   setBusy(true);
   try {
     let out;
@@ -559,10 +568,10 @@ async function runLocal(modelId, language) {
       else if (m.type === 'load-progress') {
         setProgress('Đang tải mô hình về máy…', `${(m.loaded / 1e6).toFixed(0)} / ${(m.total / 1e6).toFixed(0)} MB (chỉ tải lần đầu)`, m.loaded / m.total);
       } else if (m.type === 'progress') setProgress('Đang nhận diện giọng nói…', `${Math.round(m.ratio * 100)}%`, m.ratio);
-      else if (m.type === 'result') { cleanup(); resolve({ text: m.text, segments: m.segments, duration, model: modelId.split('/').pop() + (m.device === 'webgpu' ? ' · GPU' : ' · CPU'), elapsed: m.elapsed }); }
+      else if (m.type === 'result') { cleanup(); resolve({ text: m.text, segments: m.segments, duration, model: (STT_MODELS[modelId]?.name.split(' — ')[0] || modelId.split('/').pop()) + (m.device === 'webgpu' ? ' · GPU' : ' · CPU'), elapsed: m.elapsed }); }
       else if (m.type === 'error') { cleanup(); reject(new Error(m.message)); }
     };
-    worker.postMessage({ type: 'transcribe', audio: data, modelId, language, duration }, [data.buffer]);
+    worker.postMessage({ type: 'transcribe', audio: data, modelId, language, duration, cpuOnly: gpu.checked && !gpu.ok }, [data.buffer]);
   });
 }
 
@@ -1524,17 +1533,69 @@ $('#btn-share').addEventListener('click', async () => {
 $('#btn-copy-share').addEventListener('click', () => { navigator.clipboard.writeText($('#share-url').value); toast('Đã chép link.', 'ok'); });
 
 /* ---------------- Gợi ý theo công cụ + khởi động ---------------- */
-const HINTS = {
-  'onnx-community/whisper-small': 'Lần đầu mô hình tải về một lần (~250 MB) rồi lưu cache, các lần sau chạy ngay, kể cả offline.',
-  'onnx-community/whisper-base': 'Rất nhẹ (~80 MB) nhưng tiếng Việt thường sai hoặc lặp từ. Chỉ nên dùng cho tiếng Anh; tiếng Việt hãy chọn Small trở lên.',
-  'onnx-community/whisper-large-v3-turbo': 'Chính xác nhất, cần trình duyệt có WebGPU (Chrome/Edge mới) và ~600 MB tải lần đầu.'
-};
-$('#engine').addEventListener('change', () => {
+/* Dò WebGPU một lần: tắt tăng tốc phần cứng / trình duyệt cũ thì các mô hình gpuOnly bị khóa */
+const gpu = { checked: false, ok: false, reason: '' };
+async function checkGpu() {
+  if (gpu.checked) return gpu.ok;
+  gpu.checked = true;
+  if (!navigator.gpu) { gpu.reason = 'Trình duyệt này chưa có WebGPU (cần Chrome / Edge 113 trở lên).'; return false; }
+  try {
+    const adapter = await navigator.gpu.requestAdapter();
+    if (!adapter) { gpu.reason = 'WebGPU đang bị tắt, thường do tắt "Tăng tốc phần cứng" trong cài đặt trình duyệt hoặc card đồ họa không hỗ trợ.'; return false; }
+    gpu.ok = true;
+  } catch { gpu.reason = 'Không khởi tạo được WebGPU trên máy này.'; }
+  return gpu.ok;
+}
+
+const GPU_HELP = 'Cách bật: mở chrome://settings/system (Edge: edge://settings/system), bật "Dùng tăng tốc đồ họa khi khả dụng" rồi khởi động lại trình duyệt. Nếu vẫn không được, cập nhật driver card đồ họa.';
+
+/** Dựng danh sách mô hình chạy trên máy từ stt-models.js (giữ nguyên các nhóm model đám mây) */
+function renderLocalEngines() {
+  const sel = $('#engine'), cur = sel.value;
+  $$('#engine optgroup:not([data-cloud])').forEach(g => g.remove());
+  const first = sel.querySelector('optgroup[data-cloud]');
+  for (const [gid, label] of STT_GROUPS) {
+    const g = document.createElement('optgroup');
+    g.label = label;
+    for (const [id, m] of Object.entries(STT_MODELS)) {
+      if (m.group !== gid) continue;
+      const o = document.createElement('option');
+      o.value = 'local:' + id;
+      const lock = m.gpuOnly && gpu.checked && !gpu.ok;
+      o.textContent = `${lock ? '🔒 ' : ''}${m.name} (${m.size}${m.gpuOnly ? ', cần WebGPU' : ''})`;
+      if (m.default) o.dataset.default = '1';
+      g.appendChild(o);
+    }
+    sel.insertBefore(g, first);
+  }
+  if ([...sel.options].some(o => o.value === cur)) sel.value = cur;
+  else sel.value = sel.querySelector('option[data-default]')?.value || sel.options[0].value;
+}
+
+let lastEngine = '';
+async function onEngineChange() {
   const [kind, id] = $('#engine').value.split(/:(.+)/);
+  const m = kind === 'local' ? STT_MODELS[id] : null;
+  if (m?.gpuOnly && !(await checkGpu())) {
+    await customAlert(`"${m.name}" cần WebGPU để chạy, nhưng máy bạn đang không dùng được WebGPU.
+
+${gpu.reason}
+
+${GPU_HELP}`, 'Mô hình cần tăng tốc đồ họa');
+    $('#engine').value = lastEngine && !STT_MODELS[lastEngine.split(/:(.+)/)[1]]?.gpuOnly ? lastEngine : 'local:onnx-community/whisper-small';
+    return onEngineChange();
+  }
+  lastEngine = $('#engine').value;
+  if (m?.lang && [...$('#language').options].some(o => o.value === m.lang)) $('#language').value = m.lang;
+  $('#language').disabled = !!m?.lang;
   $('#engine-hint').textContent = kind === 'gemini'
     ? 'Gemini xử lý trên máy chủ Google bằng key của bạn (gọi thẳng từ trình duyệt). File tối đa ~14 MB; file lớn hãy dùng Whisper trên máy.'
-    : kind === 'groq' ? 'Groq chạy trên đám mây, rất nhanh. Gọi thẳng từ trình duyệt bằng key của bạn.' : (HINTS[id] || '');
-});
+    : kind === 'groq' ? 'Groq chạy trên đám mây, rất nhanh. Gọi thẳng từ trình duyệt bằng key của bạn.' : (m?.hint || '');
+}
+$('#engine').addEventListener('change', onEngineChange);
+renderLocalEngines();
+onEngineChange();
+checkGpu().then(() => { renderLocalEngines(); onEngineChange(); });
 $('#btn-run').addEventListener('click', runTranscribe);
 
 (async function boot() {

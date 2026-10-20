@@ -55,7 +55,7 @@ Sửa số trong `worker/plans.js`.
 - `start.bat`: bản dùng cá nhân bằng Node, không có tài khoản và giới hạn.
 
 ## Tính năng
-**Giọng → Chữ:** Whisper chạy trong trình duyệt (Small mặc định ~250 MB, Large v3 Turbo ~600 MB cần WebGPU, Base ~80 MB chỉ hợp tiếng Anh). Tùy chọn Gemini / Groq bằng key riêng, app tự dò model theo key.
+**Giọng → Chữ:** 16 mô hình chạy trong trình duyệt, danh mục ở `public/stt-models.js` (đã chạy thử từng mô hình): PhoWhisper Base của VinAI (tiếng Việt); Whisper Tiny / Base / Small (chạy mọi máy, Small mặc định); Whisper Medium, Large v3 Turbo, Large v3 (cần WebGPU); mô hình riêng từng ngôn ngữ: Moonshine (Anh), Kotoba-Whisper (Nhật), Whisper tinh chỉnh cho Pháp, Đức, Ý, Nga, Ba Tư, KB-Whisper (Thụy Điển), NB-Whisper (Na Uy). Máy không có WebGPU (hoặc tắt tăng tốc phần cứng) thì các mô hình cần GPU bị khóa và có hướng dẫn bật. Tab Dán link nhận file trực tiếp hoặc link HLS `.m3u8`: tự chọn luồng tiếng, tải các đoạn (hỗ trợ AES-128, BYTERANGE, .ts / fMP4 / .aac) rồi ghép lại; link chặn CORS đi qua `/api/fetch-proxy`. Tùy chọn Gemini / Groq bằng key riêng, app tự dò model theo key.
 
 **Chữ → Giọng:**
 | Kho giọng | Chạy ở đâu | Giọng Việt |
