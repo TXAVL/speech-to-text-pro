@@ -167,8 +167,14 @@ const vkAdmin = (() => {
       if (v.startsWith('plan-')) { payload.action = 'plan'; payload.plan = v.slice(5); payload.days = Number($('#ub-days').value) || 0; }
       else payload.action = v;
       if (v === 'add_credits') payload.amount = Number($('#ub-credits').value) || 0;
-      if (v === 'delete') { const c = prompt(`Xóa vĩnh viễn ${ids.length} tài khoản cùng lượt dùng và đơn hàng. Nhập XOA để xác nhận:`); if (c === null) return; payload.confirm = c.trim(); }
-      else if (!confirm(`Áp dụng "${$('#ub-action').selectedOptions[0].textContent}" cho ${ids.length} tài khoản?`)) return;
+      if (v === 'delete') {
+        const c = await (window.customPrompt ? window.customPrompt(`Xóa vĩnh viễn ${ids.length} tài khoản cùng lượt dùng và đơn hàng. Nhập XOA để xác nhận:`, '', 'Xác nhận xóa tài khoản') : prompt(`Xóa vĩnh viễn ${ids.length} tài khoản cùng lượt dùng và đơn hàng. Nhập XOA để xác nhận:`));
+        if (c === null) return;
+        payload.confirm = c.trim();
+      } else {
+        const ok = await (window.customConfirm ? window.customConfirm(`Áp dụng "${$('#ub-action').selectedOptions[0].textContent}" cho ${ids.length} tài khoản?`, 'Xác nhận áp dụng') : confirm(`Áp dụng "${$('#ub-action').selectedOptions[0].textContent}" cho ${ids.length} tài khoản?`));
+        if (!ok) return;
+      }
       const r = await post('/api/admin/users/bulk', payload);
       sel.users.clear(); users();
       return r;
@@ -314,11 +320,21 @@ const vkAdmin = (() => {
     $$('#adm-user-body [data-a]').forEach(b => b.addEventListener('click', () => run(b, async () => {
       const a = b.dataset.a, extra = {};
       if (a === 'rename') extra.name = $('#am-name').value;
-      if (a === 'role') { extra.role = b.dataset.role; if (!confirm(extra.role === 'admin' ? 'Cấp quyền quản trị cho tài khoản này?' : 'Gỡ quyền quản trị?')) return; }
-      if (a === 'ban') { if (!confirm('Khóa tài khoản và đăng xuất mọi thiết bị?')) return; extra.reason = prompt('Lý do (tùy chọn):') || ''; }
+      if (a === 'role') {
+        extra.role = b.dataset.role;
+        const msg = extra.role === 'admin' ? 'Cấp quyền quản trị cho tài khoản này?' : 'Gỡ quyền quản trị?';
+        const ok = await (window.customConfirm ? window.customConfirm(msg, 'Phân quyền') : confirm(msg));
+        if (!ok) return;
+      }
+      if (a === 'ban') {
+        const ok = await (window.customConfirm ? window.customConfirm('Khóa tài khoản và đăng xuất mọi thiết bị?', 'Khóa tài khoản') : confirm('Khóa tài khoản và đăng xuất mọi thiết bị?'));
+        if (!ok) return;
+        extra.reason = (await (window.customPrompt ? window.customPrompt('Lý do (tùy chọn):', '', 'Lý do khóa') : prompt('Lý do (tùy chọn):'))) || '';
+      }
       if (a === 'delete') {
-        const c = prompt(`Xóa vĩnh viễn tài khoản, lượt dùng và đơn hàng. Nhập "${u.email}" để xác nhận:`);
-        if (c === null) return; extra.confirm = c.trim();
+        const c = await (window.customPrompt ? window.customPrompt(`Xóa vĩnh viễn tài khoản, lượt dùng và đơn hàng. Nhập "${u.email}" để xác nhận:`, '', 'Xác nhận xóa tài khoản') : prompt(`Xóa vĩnh viễn tài khoản, lượt dùng và đơn hàng. Nhập "${u.email}" để xác nhận:`));
+        if (c === null) return;
+        extra.confirm = c.trim();
       }
       const r = await act(a, extra);
       if (a === 'delete') { $('#modal-adm-user').hidden = true; } else userModal(id);
@@ -373,8 +389,14 @@ const vkAdmin = (() => {
         return;
       }
       const payload = { codes, action: v, send_receipt: $('#ob-receipt').checked };
-      if (v === 'delete') { const c = prompt(`Xóa vĩnh viễn ${codes.length} đơn (không thu hồi ngày Premium đã cộng). Nhập XOA để xác nhận:`); if (c === null) return; payload.confirm = c.trim(); }
-      else if (!confirm(`Áp dụng "${$('#ob-action').selectedOptions[0].textContent}" cho ${codes.length} đơn?`)) return;
+      if (v === 'delete') {
+        const c = await (window.customPrompt ? window.customPrompt(`Xóa vĩnh viễn ${codes.length} đơn (không thu hồi ngày Premium đã cộng). Nhập XOA để xác nhận:`, '', 'Xác nhận xóa đơn hàng') : prompt(`Xóa vĩnh viễn ${codes.length} đơn (không thu hồi ngày Premium đã cộng). Nhập XOA để xác nhận:`));
+        if (c === null) return;
+        payload.confirm = c.trim();
+      } else {
+        const ok = await (window.customConfirm ? window.customConfirm(`Áp dụng "${$('#ob-action').selectedOptions[0].textContent}" cho ${codes.length} đơn?`, 'Xác nhận áp dụng') : confirm(`Áp dụng "${$('#ob-action').selectedOptions[0].textContent}" cho ${codes.length} đơn?`));
+        if (!ok) return;
+      }
       const r = await post('/api/admin/orders/bulk', payload);
       sel.orders.clear(); orders();
       return r;
@@ -398,8 +420,9 @@ const vkAdmin = (() => {
       $$('#o-rows [data-o]').forEach(b => b.addEventListener('click', () => run(b, async () => {
         const a = b.dataset.o, extra = {};
         if (a === 'mark_paid') {
-          if (!confirm('Xác nhận đã nhận tiền cho đơn này và kích hoạt Premium cho khách?')) return;
-          extra.note = prompt('Ghi chú (vd: đã kiểm tra sao kê):') || '';
+          const ok = await (window.customConfirm ? window.customConfirm('Xác nhận đã nhận tiền cho đơn này và kích hoạt Premium cho khách?', 'Kích hoạt đơn hàng') : confirm('Xác nhận đã nhận tiền cho đơn này và kích hoạt Premium cho khách?'));
+          if (!ok) return;
+          extra.note = (await (window.customPrompt ? window.customPrompt('Ghi chú (vd: đã kiểm tra sao kê):', '', 'Ghi chú thanh toán') : prompt('Ghi chú (vd: đã kiểm tra sao kê):'))) || '';
         }
         const res = await post(`/api/admin/orders/${b.dataset.code}/action`, { action: a, ...extra });
         orders();
@@ -506,8 +529,14 @@ const vkAdmin = (() => {
     });
     wireInvoice(form);
     $('#om-delete').addEventListener('click', (e) => {
-      if (!confirm(`Xóa vĩnh viễn đơn #${o.orderCode}? ${paid ? 'Ngày Premium đã cộng sẽ KHÔNG bị thu hồi.' : ''}`)) return;
-      run(e.target, async () => { const r = await post(`/api/admin/orders/${o.orderCode}/action`, { action: 'delete' }); $('#modal-adm-form').hidden = true; orders(); return r; });
+      run(e.target, async () => {
+        const ok = await (window.customConfirm ? window.customConfirm(`Xóa vĩnh viễn đơn #${o.orderCode}? ${paid ? 'Ngày Premium đã cộng sẽ KHÔNG bị thu hồi.' : ''}`, 'Xóa đơn hàng') : confirm(`Xóa vĩnh viễn đơn #${o.orderCode}? ${paid ? 'Ngày Premium đã cộng sẽ KHÔNG bị thu hồi.' : ''}`));
+        if (!ok) return;
+        const r = await post(`/api/admin/orders/${o.orderCode}/action`, { action: 'delete' });
+        $('#modal-adm-form').hidden = true;
+        orders();
+        return r;
+      });
     });
   }
 
@@ -688,7 +717,15 @@ const vkAdmin = (() => {
     $$('#tpl-editor [data-var]').forEach(b => b.addEventListener('click', () => insertVar(`{{${b.dataset.var}}}`)));
     $('#tpl-save').addEventListener('click', (e) => run(e.target, async () => { const r = await post(`/api/admin/email-templates/${tplId}`, draft()); email(tplId); return r; }));
     $('#tpl-test').addEventListener('click', (e) => run(e.target, () => post(`/api/admin/email-templates/${tplId}/test`, draft())));
-    $('#tpl-reset')?.addEventListener('click', (e) => { if (confirm('Khôi phục mẫu gốc? Nội dung đã sửa sẽ mất.')) run(e.target, async () => { const r = await post(`/api/admin/email-templates/${tplId}/reset`); email(tplId); return r; }); });
+    $('#tpl-reset')?.addEventListener('click', (e) => {
+      run(e.target, async () => {
+        const ok = await (window.customConfirm ? window.customConfirm('Khôi phục mẫu gốc? Nội dung đã sửa sẽ mất.', 'Khôi phục mẫu email') : confirm('Khôi phục mẫu gốc? Nội dung đã sửa sẽ mất.'));
+        if (!ok) return;
+        const r = await post(`/api/admin/email-templates/${tplId}/reset`);
+        email(tplId);
+        return r;
+      });
+    });
     preview();
   }
   function draft() {
@@ -747,7 +784,13 @@ const vkAdmin = (() => {
     prev(); $('#sy-theme').addEventListener('change', prev);
     $('#sy-theme-save').addEventListener('click', (e) => run(e.target, async () => { const r = await post('/api/admin/settings', { theme: $('#sy-theme').value }); vkTheme.apply($('#sy-theme').value); return r; }));
     $('#sy-copy').addEventListener('click', () => navigator.clipboard.writeText(s.webhookUrl).then(() => toast('Đã chép.', 'ok')));
-    $('#sy-webhook').addEventListener('click', (e) => { if (confirm('Đăng ký webhook của kênh payOS về VoiceKit?')) run(e.target, () => post('/api/admin/payos/webhook')); });
+    $('#sy-webhook').addEventListener('click', (e) => {
+      run(e.target, async () => {
+        const ok = await (window.customConfirm ? window.customConfirm('Đăng ký webhook của kênh payOS về VoiceKit?', 'Đăng ký Webhook') : confirm('Đăng ký webhook của kênh payOS về VoiceKit?'));
+        if (!ok) return;
+        return post('/api/admin/payos/webhook');
+      });
+    });
     $('#sy-mail').addEventListener('click', (e) => run(e.target, () => post('/api/admin/test-email')));
   }
 

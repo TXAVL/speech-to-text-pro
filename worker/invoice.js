@@ -51,17 +51,17 @@ export function renderInvoice({ order, user, seller = {}, appName = 'VoiceKit' }
   const buyerAddress = inv?.address || '';
   const paid = order.status === 'PAID';
 
-  const sellerName = seller.name || 'CÔNG TY CỔ PHẦN CÔNG NGHỆ VÀ TRÍ TUỆ NHÂN TẠO VOICEKIT VIỆT NAM';
-  const sellerTax = seller.tax_code || '0110293847';
-  const sellerAddress = seller.address || 'Tầng 12, Tòa nhà Innovation Hub, Phố Duy Tân, Quận Cầu Giấy, TP. Hà Nội, Việt Nam';
-  const sellerPhone = seller.phone || '1900 6868 · (+84) 24 7300 6868';
-  const sellerEmail = seller.email || 'billing@voicekit.vn';
-  const sellerBank = seller.bank || '19036868686868 tại Ngân hàng TMCP Quân Đội (MB Bank) - CN Cầu Giấy';
+  const sellerName = seller.name || 'TĂNG XUÂN ANH';
+  const sellerTax = seller.tax_code || '';
+  const sellerAddress = seller.address || 'Xã Hà Nam, thành phố Hải Phòng, Việt Nam';
+  const sellerPhone = seller.phone || '0981 246 899';
+  const sellerEmail = seller.email || 'txasoftdev@gmail.com';
+  const sellerBank = seller.bank || (order.account_number ? `${order.account_number} (${order.account_name || 'TANG XUAN ANH'}) tại Ngân hàng TMCP Quân Đội (MB Bank)` : 'VQRQAMXZO2074 (TANG XUAN ANH) tại Ngân hàng TMCP Quân Đội (MB Bank)');
 
   const invoiceNo = order.invoice_no || String(order.order_code).slice(-8).padStart(8, '0');
-  const serialNo = '1C26TVK';
+  const serialNo = '1C26TXA';
   const formNo = '1/001';
-  const lookupCode = `VK-INV-${order.order_code}`;
+  const lookupCode = `TXA-INV-${order.order_code}`;
   const paidDateStr = vnDate(order.paid_at || order.created_at);
   const paidFullStr = vnDate(order.paid_at || order.created_at, true);
 
@@ -571,6 +571,33 @@ export function renderInvoice({ order, user, seller = {}, appName = 'VoiceKit' }
       .party-row { flex-direction: column; }
       .party-row .lbl { width: auto; font-weight: 600; }
     }
+
+    /* Toast tùy chỉnh không dùng alert trình duyệt */
+    .inv-toast {
+      position: fixed;
+      bottom: 28px;
+      left: 50%;
+      transform: translateX(-50%) translateY(50px);
+      background: #0f172a;
+      color: #f8fafc;
+      padding: 12px 22px;
+      border-radius: 999px;
+      font-size: 13.5px;
+      font-weight: 600;
+      box-shadow: 0 12px 32px rgba(0,0,0,0.35);
+      border: 1px solid rgba(255,255,255,0.2);
+      z-index: 9999;
+      opacity: 0;
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      pointer-events: none;
+    }
+    .inv-toast.show {
+      transform: translateX(-50%) translateY(0);
+      opacity: 1;
+    }
   </style>
 </head>
 <body>
@@ -793,13 +820,13 @@ export function renderInvoice({ order, user, seller = {}, appName = 'VoiceKit' }
       <!-- Footer tra cứu & QR Code -->
       <footer class="invoice-footer">
         <div class="lookup-info">
-          <div>Hóa đơn điện tử khởi tạo từ hệ thống VoiceKit theo quy định NĐ 123/2020/NĐ-CP &amp; TT 78/2021/TT-BTC.</div>
-          <div>Cổng tra cứu: <a href="/invoice/${order.order_code}" style="color:#4f46e5;text-decoration:none">https://${esc(appName.toLowerCase())}.vn/invoice/${order.order_code}</a></div>
+          <div>Hóa đơn điện tử khởi tạo từ hệ thống TXA Voice (TXASOFT) theo quy định NĐ 123/2020/NĐ-CP &amp; TT 78/2021/TT-BTC.</div>
+          <div>Cổng tra cứu: <a href="/invoice/${order.order_code}" style="color:#4f46e5;text-decoration:none">https://speech-to-text-pro.txasoft.workers.dev/invoice/${order.order_code}</a></div>
           <div>Mã tra cứu hóa đơn: <b>${lookupCode}</b></div>
         </div>
 
         <div class="qr-side">
-          <img class="qr-img" src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=https%3A%2F%2Fvoicekit.vn%2Finvoice%2F${order.order_code}" alt="QR Tra cứu">
+          <img class="qr-img" src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=https%3A%2F%2Fspeech-to-text-pro.txasoft.workers.dev%2Finvoice%2F${order.order_code}" alt="QR Tra cứu">
           <div style="font-size:11px;line-height:1.4">
             <b>Quét mã QR</b><br>
             Tra cứu HĐĐT<br>
@@ -811,6 +838,11 @@ export function renderInvoice({ order, user, seller = {}, appName = 'VoiceKit' }
     </article>
   </main>
 
+  <div id="inv-toast" class="inv-toast">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+    <span id="inv-toast-text"></span>
+  </div>
+
   <script>
     if (new URLSearchParams(window.location.search).get('print') === '1') {
       window.addEventListener('load', function() {
@@ -819,9 +851,24 @@ export function renderInvoice({ order, user, seller = {}, appName = 'VoiceKit' }
         }, 500);
       });
     }
+
+    function showInvoiceToast(msg) {
+      var t = document.getElementById('inv-toast');
+      var txt = document.getElementById('inv-toast-text');
+      if (!t || !txt) return;
+      txt.textContent = msg;
+      t.classList.add('show');
+      clearTimeout(window._invToastTimer);
+      window._invToastTimer = setTimeout(function() {
+        t.classList.remove('show');
+      }, 3500);
+    }
+
     function copyLookup() {
       navigator.clipboard.writeText("${lookupCode}").then(function() {
-        alert("Đã sao chép mã tra cứu hóa đơn: ${lookupCode}");
+        showInvoiceToast("Đã sao chép mã tra cứu: ${lookupCode}");
+      }).catch(function() {
+        showInvoiceToast("Mã tra cứu: ${lookupCode}");
       });
     }
   </script>

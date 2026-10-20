@@ -108,6 +108,67 @@ export async function shieldResponse(data, request, status = 200, headers = {}) 
 const hex = (buf) => [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
 const randomHex = (n = 32) => hex(crypto.getRandomValues(new Uint8Array(n)));
 const normEmail = (e) => String(e || '').trim().toLowerCase();
+
+const TEST_AND_DISPOSABLE_DOMAINS = new Set([
+  'example.com', 'example.org', 'example.net', 'test.com', 'test.vn', 'test.org', 'test.net',
+  'sample.com', 'invalid.com', 'demo.com', 'localhost', 'fake.com', 'mail.test', 'email.test',
+  'temp.com', 'temp.vn', 'testmail.com', 'mailinator.com', 'tempmail.com', '10minutemail.com',
+  'guerrillamail.com', 'guerrillamail.net', 'guerrillamail.biz', 'throwawaymail.com', 'yopmail.com',
+  'yopmail.fr', 'yopmail.net', 'trashmail.com', 'sharklasers.com', 'dispostable.com', 'getairmail.com',
+  'mohmal.com', 'crazymailing.com', 'fakemailgenerator.com', 'generator.email', 'temp-mail.org',
+  'guerrillamailblock.com', 'inboxkitten.com', 'burnermail.io'
+]);
+
+export async function validateEmailAddress(email) {
+  if (!email || !/^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/.test(email)) {
+    return { ok: false, error: 'Định dạng email không hợp lệ.' };
+  }
+  const parts = email.split('@');
+  if (parts.length !== 2) return { ok: false, error: 'Email không hợp lệ.' };
+  const local = parts[0], domain = parts[1].toLowerCase();
+  if (local.length > 64 || domain.length > 190) return { ok: false, error: 'Độ dài email vượt quá giới hạn.' };
+
+  if (TEST_AND_DISPOSABLE_DOMAINS.has(domain) || domain.endsWith('.test') || domain.endsWith('.invalid') || domain.endsWith('.localhost') || domain.endsWith('.example')) {
+    return { ok: false, error: 'Tên miền email thử nghiệm hoặc email rác không được chấp nhận. Vui lòng sử dụng email thật (Gmail, Outlook, v.v.).' };
+  }
+
+  const tld = domain.split('.').pop();
+  if (!tld || tld.length < 2 || !/^[a-z]+$/.test(tld)) {
+    return { ok: false, error: 'Đuôi tên miền email không hợp lệ.' };
+  }
+
+  try {
+    const res = await fetch(`https://1.1.1.1/dns-query?name=${encodeURIComponent(domain)}&type=MX`, {
+      headers: { 'Accept': 'application/dns-json' },
+      signal: AbortSignal.timeout(3500)
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.Status === 3) {
+        return { ok: false, error: `Tên miền @${domain} không tồn tại trên hệ thống DNS.` };
+      }
+      const hasMx = Array.isArray(data.Answer) && data.Answer.some(a => a.type === 15);
+      if (!hasMx) {
+        const resA = await fetch(`https://1.1.1.1/dns-query?name=${encodeURIComponent(domain)}&type=A`, {
+          headers: { 'Accept': 'application/dns-json' },
+          signal: AbortSignal.timeout(2500)
+        });
+        if (resA.ok) {
+          const dataA = await resA.json();
+          const hasA = Array.isArray(dataA.Answer) && dataA.Answer.length > 0;
+          if (!hasA) {
+            return { ok: false, error: `Tên miền @${domain} không có bản ghi nhận thư (MX). Vui lòng kiểm tra lại.` };
+          }
+        }
+      }
+    }
+  } catch (e) {
+    // Nếu timeout DNS thì vẫn cho qua nếu cấu trúc hợp lệ để tránh chặn nhầm
+  }
+
+  return { ok: true, email };
+}
+
 const validEmail = (e) => /^[^\s@]{1,64}@[^\s@]{1,190}\.[^\s@]{2,}$/.test(e);
 
 export async function hashPassword(password, saltHex) {
@@ -295,11 +356,23 @@ export async function handleAuth(request, env, path) {
     if (request.method !== 'POST') return fail('Phương thức không hỗ trợ.', 405);
 
     switch (path) {
+      case '/api/auth/check-email': {
+        const b = await readBody(request).catch(() => ({}));
+        const email = normEmail(b.email || new URL(request.url).searchParams.get('email'));
+        if (!email) return fail('Vui lòng nhập email.', 400);
+        const check = await validateEmailAddress(email);
+        if (!check.ok) return ok({ ok: false, valid: false, error: check.error });
+        const exists = await env.DB.prepare('SELECT 1 FROM users WHERE email = ?').bind(email).first();
+        if (exists) return ok({ ok: false, valid: false, exists: true, error: 'Email này đã có tài khoản trên hệ thống. Hãy đăng nhập.' });
+        return ok({ ok: true, valid: true, email });
+      }
+
       case '/api/auth/register': {
         const b = await readBody(request);
         await guardIp(env, request);
         const email = normEmail(b.email), name = String(b.name || '').trim().slice(0, 60), password = String(b.password || '');
-        if (!validEmail(email)) return fail('Email không hợp lệ.');
+        const check = await validateEmailAddress(email);
+        if (!check.ok) return fail(check.error, 400);
         if (password.length < 8) return fail('Mật khẩu cần ít nhất 8 ký tự.');
         if (password.length > 200) return fail('Mật khẩu quá dài.');
         if (await env.DB.prepare('SELECT 1 FROM users WHERE email = ?').bind(email).first()) {
@@ -310,10 +383,27 @@ export async function handleAuth(request, env, path) {
         const user = await env.DB.prepare(
           'INSERT INTO users (email, name, pass_hash, pass_salt, role, created_at) VALUES (?, ?, ?, ?, ?, ?) RETURNING *'
         ).bind(email, name, await hashPassword(password, salt), salt, role, Date.now()).first();
-        let mailError = null;
-        try { await sendVerify(env, request, user); } catch (e) { mailError = e.message; }
+
+        // Gửi thử email xác minh qua SMTP: nếu máy chủ báo người nhận không tồn tại hoặc đầy hòm thư -> xóa user ngay và báo lỗi
+        if (smtpConfigured(env)) {
+          try {
+            await sendVerify(env, request, user);
+          } catch (e) {
+            await env.DB.prepare('DELETE FROM users WHERE id = ?').bind(user.id).run();
+            const errStr = String(e.message || '');
+            if (/550|551|552|553|554|not found|hộp thư|mailbox/i.test(errStr)) {
+              return fail(`Không thể gửi thư tới "${email}" (máy chủ báo hộp thư người nhận không tồn tại hoặc đã đầy). Vui lòng dùng email thật khác.`, 400);
+            }
+            return fail(`Lỗi gửi email xác minh: ${errStr}. Vui lòng thử lại.`, 502);
+          }
+        }
         const cookie = await createSession(env, request, user.id);
-        return ok({ ok: true, user: publicUser(env, user, cfg), mailSent: !mailError, mailError }, 201, { 'Set-Cookie': cookie });
+        return ok({
+          ok: true,
+          user: publicUser(env, user, cfg),
+          mailSent: smtpConfigured(env),
+          message: `Đã tạo tài khoản thành công! Thư xác minh đã được gửi tới ${user.email}. Vui lòng mở email để xác nhận (nếu không thấy trong Hộp thư đến, vui lòng kiểm tra thêm thư mục Spam / Thư rác / Quảng cáo nhé).`
+        }, 201, { 'Set-Cookie': cookie });
       }
 
       case '/api/auth/login': {
@@ -337,7 +427,7 @@ export async function handleAuth(request, env, path) {
         }
         return ok({
           ok: true,
-          message: user.verified ? 'Đăng nhập thành công!' : 'Đăng nhập thành công! Tài khoản của bạn chưa xác minh email.',
+          message: user.verified ? 'Đăng nhập thành công!' : 'Đăng nhập thành công! Tài khoản của bạn chưa xác minh email (kiểm tra cả mục Spam / Thư rác).',
           verified: !!user.verified,
           user: publicUser(env, user, cfg)
         }, 200, { 'Set-Cookie': await createSession(env, request, user.id) });
@@ -360,18 +450,24 @@ export async function handleAuth(request, env, path) {
           });
         }
         if (result.already) {
-          return ok({ ok: true, already: true, message: result.message, user: publicUser(env, result.user, cfg) }, 200);
+          return ok({ ok: true, already: true, email: result.user?.email || null, message: result.message, user: publicUser(env, result.user, cfg) }, 200);
         }
         const user = await env.DB.prepare('UPDATE users SET verified = 1 WHERE id = ? RETURNING *').bind(result.user.id).first();
         try {
           await sendMail(env, {
             to: user.email,
             ...(await renderEmail(env.DB, 'welcome', { free_calls: cfg.plans.free.ttsCalls }, {
-              appName: 'VoiceKit', appUrl: appUrl(env, request), name: user.name || user.email.split('@')[0], email: user.email
+              appName: 'TXA Voice', appUrl: appUrl(env, request), name: user.name || user.email.split('@')[0], email: user.email
             }))
           });
         } catch {}
-        return ok({ ok: true, user: publicUser(env, user, cfg) }, 200, { 'Set-Cookie': await createSession(env, request, user.id) });
+        return ok({
+          ok: true,
+          verified: true,
+          email: user.email,
+          message: 'Xác minh email thành công! Gói Miễn phí đã được kích hoạt.',
+          user: publicUser(env, user, cfg)
+        }, 200, { 'Set-Cookie': await createSession(env, request, user.id) });
       }
 
       case '/api/auth/resend-verify': {
@@ -383,11 +479,11 @@ export async function handleAuth(request, env, path) {
           user = await env.DB.prepare('SELECT * FROM users WHERE email = ?').bind(email).first();
         }
         if (!user) return fail('Vui lòng đăng nhập hoặc nhập đúng email đã đăng ký.', 401);
-        if (user.verified) return ok({ ok: true, already: true, message: 'Tài khoản này đã được xác minh rồi, không cần gửi lại.' });
+        if (user.verified) return ok({ ok: true, already: true, email: user.email, message: 'Tài khoản này đã được xác minh rồi, không cần gửi lại.' });
         if (user.banned) return fail('Tài khoản đã bị khóa.', 403);
         await guardIp(env, request);
         await sendVerify(env, request, user);
-        return ok({ ok: true, email: user.email, message: `Đã gửi lại email xác minh tới ${user.email}. Vui lòng kiểm tra hộp thư.` });
+        return ok({ ok: true, email: user.email, message: `Đã gửi lại email xác minh tới ${user.email}. Vui lòng kiểm tra hộp thư (nếu không thấy trong Hộp thư đến, vui lòng kiểm tra thêm thư mục Spam / Thư rác / Quảng cáo nhé).` });
       }
 
       case '/api/auth/forgot': {
@@ -399,11 +495,11 @@ export async function handleAuth(request, env, path) {
         if (!smtpConfigured(env)) return fail('Website chưa cấu hình máy chủ email (SMTP).', 503);
         if (user) {
           try {
-            await mailWithToken(env, user, 'reset', RESET_MS, token => renderEmail(env.DB, 'reset', { action_url: `${appUrl(env, request)}/?reset=${token}`, expires_minutes: 60 }, { appName: 'VoiceKit', appUrl: appUrl(env, request), name: user.name || user.email.split('@')[0], email: user.email }));
+            await mailWithToken(env, user, 'reset', RESET_MS, token => renderEmail(env.DB, 'reset', { action_url: `${appUrl(env, request)}/?reset=${token}`, expires_minutes: 60 }, { appName: 'TXA Voice', appUrl: appUrl(env, request), name: user.name || user.email.split('@')[0], email: user.email }));
           } catch (e) { if (e.status === 429) return fail(e.message, 429); console.log('reset mail failed', e.message); }
         }
         // Luôn trả lời giống nhau để không lộ email nào đã đăng ký
-        return ok({ ok: true });
+        return ok({ ok: true, message: 'Nếu email tồn tại trên hệ thống, thư đặt lại mật khẩu đã được gửi. Vui lòng kiểm tra hộp thư (kể cả thư mục Spam / Thư rác).' });
       }
 
       case '/api/auth/reset': {

@@ -13,12 +13,13 @@ const isAdmin = (env, u) => !!u && (u.role === 'admin' || String(env.ADMIN_EMAIL
 
 export function publicOrder(o) {
   if (!o) return null;
+  const inv = o.invoice ? (typeof o.invoice === 'string' ? JSON.parse(o.invoice) : o.invoice) : null;
   return {
     orderCode: o.order_code, packageId: o.package_id, packageName: o.package_name, days: o.days, amount: o.amount,
     status: o.status, description: o.description, checkoutUrl: o.checkout_url, qrCode: o.qr_code,
     bankBin: o.bank_bin, accountNumber: o.account_number, accountName: o.account_name,
     expiredAt: o.expired_at, createdAt: o.created_at, paidAt: o.paid_at, paidVia: o.paid_via, kind: o.kind || 'premium', credits: o.credits || 0,
-    invoice: o.invoice ? JSON.parse(o.invoice) : null, invoiceNo: o.invoice_no || null, invoiceIssuedAt: o.invoice_issued_at || null
+    hasInvoice: !!inv, invoiceNo: o.invoice_no || null, invoiceIssuedAt: o.invoice_issued_at || null
   };
 }
 
@@ -118,13 +119,12 @@ export async function handleBilling(request, env, path) {
           name: String(invoice.name || '').trim().slice(0, 150),
           tax_code: String(invoice.tax_code || '').trim().slice(0, 20),
           address: String(invoice.address || '').trim().slice(0, 250),
-          email: String(invoice.email || '').trim().toLowerCase().slice(0, 190)
+          email: user.email // Email nhận hóa đơn gắn chặt theo tài khoản người mua, không cho đổi khác
         };
         if (!inv.name) return fail(inv.type === 'company' ? 'Nhập tên công ty để xuất hóa đơn.' : 'Nhập họ tên người mua để xuất hóa đơn.');
         if (inv.type === 'company' && !/^\d{10}(-\d{3})?$/.test(inv.tax_code)) return fail('Mã số thuế phải gồm 10 số (hoặc 10 số + "-" + 3 số).');
         if (inv.tax_code && !/^\d{10}(-\d{3})?$/.test(inv.tax_code)) return fail('Mã số thuế không hợp lệ.');
         if (inv.type === 'company' && !inv.address) return fail('Nhập địa chỉ công ty để xuất hóa đơn.');
-        if (inv.email && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(inv.email)) return fail('Email nhận hóa đơn không hợp lệ.');
         invoiceJson = JSON.stringify(inv);
       }
       let pkg;
@@ -159,7 +159,7 @@ export async function handleBilling(request, env, path) {
       const base = appUrl(env, request);
       const link = await createLink(env, {
         orderCode, amount: pkg.price, description,
-        itemName: pkg.kind === 'credits' ? `VoiceKit ${pkg.name} Edge/CapCut` : `VoiceKit Premium ${pkg.name}`,
+        itemName: pkg.kind === 'credits' ? `TXA Voice ${pkg.name} Lượt mua thêm` : `TXA Voice Premium ${pkg.name}`,
         buyerName: user.name, buyerEmail: user.email,
         returnUrl: `${base}/?pay=return&order=${orderCode}`,
         cancelUrl: `${base}/?pay=cancel&order=${orderCode}`
