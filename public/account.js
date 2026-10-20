@@ -39,7 +39,7 @@ const vkAccount = (() => {
 
   function render() {
     const u = acc.user;
-    applyKeyGate(!!u, u ? u.id : null);
+    applyKeyGate(!!u && !!u.verified, u ? u.id : null);
     $('#acc-avatar').textContent = u ? initials(u) : '?';
     $('#acc-name').textContent = u ? (u.name || u.email.split('@')[0]) : 'Đăng nhập';
     $('#acc-plan').textContent = acc.plan?.name || 'Khách';
@@ -344,8 +344,11 @@ const vkAccount = (() => {
     e.target.reset();
     await load();
     if (r.mailSent) {
-      showFormAlert(e.target, `✓ Tạo tài khoản thành công! Hãy mở email ${r.user.email} để bấm liên kết xác minh.`, 'ok');
+      showFormAlert(e.target, `✓ Tạo tài khoản thành công! Hãy mở email ${r.user.email} để bấm liên kết xác minh (nhớ kiểm tra cả thư mục Spam/Rác).`, 'ok');
       toast(`Đã tạo tài khoản thành công. Hãy mở email ${r.user.email} để xác minh.`, 'ok');
+      if (window.customAlert) {
+        window.customAlert(`🎉 Đăng ký tài khoản thành công!\n\nEmail xác nhận đã được gửi đến: ${r.user.email}.\n\n⚠️ Lưu ý quan trọng: Nếu không thấy trong Hộp thư đến, bạn vui lòng kiểm tra kỹ thư mục Spam / Thư rác / Quảng cáo nhé!`, 'Đã gửi email xác minh');
+      }
     } else {
       showFormAlert(e.target, `Đã tạo tài khoản nhưng chưa gửi được email: ${r.mailError || ''}`, 'warn');
       toast('Đã tạo tài khoản nhưng chưa gửi được email: ' + (r.mailError || ''), 'err');
@@ -431,13 +434,16 @@ const vkAccount = (() => {
         const r = await post('/api/auth/verify', { token: verify });
         await load();
         if (r.already) {
-          toast('Tài khoản này đã được xác minh trước đó rồi.', 'ok');
+          if (window.customAlert) await window.customAlert('Tài khoản này đã được xác minh trước đó rồi.\n\nBạn có thể sử dụng đầy đủ các tính năng của TXA Voice!', 'Thông báo xác minh');
+          else toast('Tài khoản này đã được xác minh trước đó rồi.', 'ok');
         } else {
-          toast('🎉 Email đã được xác minh thành công! Gói Miễn phí đã mở.', 'ok');
+          if (window.customAlert) await window.customAlert('🎉 Chúc mừng bạn!\n\nEmail đã được xác minh thành công. Gói tài khoản của bạn đã được kích hoạt!', 'Xác minh thành công');
+          else toast('🎉 Email đã được xác minh thành công! Gói Miễn phí đã mở.', 'ok');
         }
       } catch (e) {
         if (e.expired || e.message?.includes('hết hạn')) {
-          toast('⚠️ Liên kết xác minh đã hết hạn. Hãy nhập email để nhận liên kết mới.', 'err');
+          if (window.customAlert) await window.customAlert('⚠️ Liên kết xác minh đã hết hạn hoặc không hợp lệ.\n\nVui lòng nhập email để nhận liên kết mới.', 'Liên kết hết hạn');
+          else toast('⚠️ Liên kết xác minh đã hết hạn. Hãy nhập email để nhận liên kết mới.', 'err');
           if (e.email) {
             const inp = $('#resend-email');
             if (inp) inp.value = e.email;
@@ -445,7 +451,8 @@ const vkAccount = (() => {
           switchForm('resend');
           openModal('#modal-account');
         } else {
-          toast(e.message, 'err');
+          if (window.customAlert) await window.customAlert('❌ Xác minh không thành công:\n\n' + (e.message || 'Liên kết không hợp lệ.'), 'Lỗi xác minh');
+          else toast(e.message, 'err');
         }
       }
     } else if (reset) {
@@ -467,7 +474,10 @@ const vkAccount = (() => {
   }
   function onQuotaError(err) {
     if (acc.usage && err.error?.includes('Đã hết')) { acc.usage.remaining = 0; acc.usage.credits = 0; render(); }
-    if (err.buyCredits) setTimeout(() => { if (confirm('Bạn đã hết lượt hôm nay. Mua thêm lượt để dùng tiếp ngay?')) buyCredits(); }, 300);
+    if (err.buyCredits) setTimeout(async () => {
+      const ok = await (window.customConfirm ? window.customConfirm('Bạn đã hết lượt hôm nay. Mua thêm lượt để dùng tiếp ngay?', 'Hết lượt sử dụng') : confirm('Bạn đã hết lượt hôm nay. Mua thêm lượt để dùng tiếp ngay?'));
+      if (ok) buyCredits();
+    }, 300);
   }
 
   $('#tts-text').addEventListener('input', () => acc.enabled && renderQuota());
@@ -616,7 +626,7 @@ const vkPay = (() => {
     $('#pc-amount').textContent = fmt(pkg.price) + 'đ';
     payLabel();
     if (!$('#pc-name').value) $('#pc-name').value = u.name || '';
-    if (!$('#pc-email').value) $('#pc-email').value = u.email || '';
+    if ($('#pc-email')) { $('#pc-email').value = u.email || ''; $('#pc-email').readOnly = true; }
     openModal('#modal-pay'); show('pay-confirm');
   }
   const payMode = () => document.querySelector('input[name=pc-mode]:checked')?.value || 'api';
@@ -726,7 +736,7 @@ const vkPay = (() => {
     qty.value = initialQty > 0 ? initialQty : presets.includes(30) ? 30 : (presets[1] || 20);
     $('#pc-credits').hidden = false;
     if (!$('#pc-name').value) $('#pc-name').value = u.name || '';
-    if (!$('#pc-email').value) $('#pc-email').value = u.email || '';
+    if ($('#pc-email')) { $('#pc-email').value = u.email || ''; $('#pc-email').readOnly = true; }
     syncCredits();
     openModal('#modal-pay'); show('pay-confirm');
   }
@@ -748,7 +758,7 @@ const vkPay = (() => {
     }
     const invoice = $('#pc-invoice').checked ? {
       enabled: true, type: invType, name: $('#pc-name').value.trim(), tax_code: $('#pc-tax').value.trim(),
-      address: $('#pc-addr').value.trim(), email: $('#pc-email').value.trim()
+      address: $('#pc-addr').value.trim(), email: (vkAccount.state.user?.email || $('#pc-email').value || '').trim()
     } : null;
     if (invoice) {
       if (!invoice.name) {
@@ -816,7 +826,9 @@ const vkPay = (() => {
   }
 
   $('#pay-cancel').addEventListener('click', async () => {
-    if (!order || !confirm('Hủy đơn thanh toán này?')) return;
+    if (!order) return;
+    const ok = await (window.customConfirm ? window.customConfirm('Hủy đơn thanh toán này?', 'Xác nhận hủy') : confirm('Hủy đơn thanh toán này?'));
+    if (!ok) return;
     stop();
     try { await api(`/api/pay/order/${order.orderCode}/cancel`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }); } catch {}
     $('#modal-pay').hidden = true; toast('Đã hủy đơn.');

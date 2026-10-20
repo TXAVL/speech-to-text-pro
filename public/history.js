@@ -121,7 +121,8 @@ const vkHistory = (() => {
   $$('#history-filter .seg-btn').forEach(b => b.addEventListener('click', () => { filter = b.dataset.f; render(); }));
   $('#history-search').addEventListener('input', (e) => { query = e.target.value.trim(); render(); });
   $('#history-clear').addEventListener('click', async () => {
-    if (!confirm('Xóa toàn bộ lịch sử trên trình duyệt này?')) return;
+    const ok = await (window.customConfirm ? window.customConfirm('Xóa toàn bộ lịch sử trên trình duyệt này?', 'Xác nhận xóa') : confirm('Xóa toàn bộ lịch sử trên trình duyệt này?'));
+    if (!ok) return;
     for (const h of await list()) await remove(h.id);
     render();
   });

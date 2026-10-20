@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>VoiceKit - Giọng nói ⇄ Văn bản miễn phí</title>
-  <meta name="description" content="Chuyển giọng nói thành văn bản bằng Whisper chạy ngay trong trình duyệt và đọc văn bản bằng giọng Neural. Miễn phí, không cần API key.">
+  <title>TXA Voice - AI Giọng nói ⇄ Văn bản</title>
+  <meta name="description" content="Chuyển giọng nói thành văn bản bằng Whisper và đọc văn bản bằng giọng AI Neural tự nhiên. Miễn phí, chất lượng cao.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -35,7 +35,7 @@
     <div class="topbar-inner">
       <a class="brand" href="/">
         <span class="brand-mark"><svg><use href="#i-mic"/></svg></span>
-        <span class="brand-name">Voice<b>Kit</b></span>
+        <span class="brand-name">TXA<b>Voice</b></span>
       </a>
 
       <nav class="main-tabs" role="tablist">
@@ -301,13 +301,13 @@
               <span>Tốc độ đọc <b id="rate-val">1.00×</b></span>
               <input type="range" id="tts-rate" min="0.75" max="1.50" step="0.05" value="1">
             </label>
-            <label class="field" id="row-format">
+            <div class="field" id="row-format">
               <span>Định dạng xuất</span>
               <div class="seg tiny" id="tts-format-seg">
                 <button type="button" class="seg-btn active" data-fmt="mp3">MP3</button>
                 <button type="button" class="seg-btn" data-fmt="wav">WAV 48 kHz</button>
               </div>
-            </label>
+            </div>
           </div>
 
           <label class="field range" id="row-pitch" hidden>
@@ -475,18 +475,19 @@
             <label class="inp"><svg viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8 10V7a4 4 0 0 1 8 0v3" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
               <input type="password" name="password" autocomplete="new-password" minlength="8" placeholder="Mật khẩu (ít nhất 8 ký tự)" required data-strength><button type="button" class="eye" data-eye tabindex="-1" aria-label="Hiện mật khẩu">👁</button></label>
             <div class="pw-meter" id="pw-meter"><i></i><i></i><i></i><i></i><span></span></div>
+            <div class="auth-spam-hint">💡 <b>Lưu ý email:</b> Sau khi đăng ký, vui lòng mở hòm thư để bấm xác minh tài khoản. Nếu sau 1–2 phút chưa thấy trong Hộp thư đến, hãy kiểm tra thêm mục <b>Spam (Thư rác)</b> hoặc <b>Quảng cáo</b> nhé.</div>
             <button class="btn primary big auth-submit" type="submit">Tạo tài khoản miễn phí</button>
             <p class="auth-alt">Sau khi đăng ký, mở email xác minh để mở gói Miễn phí. Đã có tài khoản? <button class="link-btn" type="button" data-auth="login">Đăng nhập</button></p>
           </form>
           <form class="auth-form" id="form-resend" data-form="resend" hidden>
-            <p class="auth-note" id="resend-note">Nhập email tài khoản của bạn để nhận liên kết xác minh mới (liên kết có hiệu lực 24 giờ).</p>
+            <p class="auth-note" id="resend-note">Nhập email tài khoản của bạn để nhận liên kết xác minh mới (liên kết có hiệu lực 24 giờ). Hãy kiểm tra cả thư mục <b>Spam / Thư rác</b> nếu không thấy ở Hộp thư đến.</p>
             <label class="inp"><svg viewBox="0 0 24 24"><path d="M4 6h16v12H4z" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="m4 7 8 6 8-6" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
               <input type="email" name="email" id="resend-email" autocomplete="email" placeholder="Email của bạn" required></label>
             <button class="btn primary big auth-submit" type="submit">Gửi lại email xác minh</button>
             <p class="auth-alt"><button class="link-btn" type="button" data-auth="login">← Quay lại đăng nhập</button></p>
           </form>
           <form class="auth-form" id="form-forgot" data-form="forgot" hidden>
-            <p class="auth-note">Nhập email đã đăng ký, chúng tôi sẽ gửi liên kết đặt lại mật khẩu (hiệu lực 1 giờ).</p>
+            <p class="auth-note">Nhập email đã đăng ký, chúng tôi sẽ gửi liên kết đặt lại mật khẩu (hiệu lực 1 giờ). Đừng quên kiểm tra cả thư mục <b>Spam / Thư rác</b>.</p>
             <label class="inp"><svg viewBox="0 0 24 24"><path d="M4 6h16v12H4z" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="m4 7 8 6 8-6" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
               <input type="email" name="email" autocomplete="email" placeholder="Email" required></label>
             <button class="btn primary big auth-submit" type="submit">Gửi liên kết</button>
@@ -507,7 +508,7 @@
             <div><strong id="prof-name"></strong><span class="muted small" id="prof-email"></span></div>
           </div>
           <div class="verify-banner" id="verify-banner" hidden>
-            <span>Email chưa xác minh, tài khoản đang dùng giới hạn của gói Khách.</span>
+            <span>Email chưa xác minh (vui lòng kiểm tra cả thư mục Spam / Thư rác).</span>
             <button class="btn sm" id="btn-resend">Gửi lại email xác minh</button>
           </div>
           <div class="usage-box">
@@ -569,7 +570,7 @@
           <label class="field"><span id="pc-name-label">Họ tên người mua</span><input type="text" id="pc-name" maxlength="150" autocomplete="name"></label>
           <div class="field-group" style="margin-top:0">
             <label class="field"><span>Mã số thuế <em class="muted" id="pc-tax-opt">tùy chọn</em></span><input type="text" id="pc-tax" maxlength="14" inputmode="numeric" placeholder="0101234567"></label>
-            <label class="field"><span>Email nhận hóa đơn</span><input type="email" id="pc-email" maxlength="190" autocomplete="email"></label>
+            <label class="field"><span>Email nhận hóa đơn <em class="muted">(theo tài khoản)</em></span><input type="email" id="pc-email" maxlength="190" autocomplete="email" readonly style="opacity:0.85;cursor:not-allowed" title="Email nhận hóa đơn được cố định theo tài khoản của bạn"></label>
           </div>
           <label class="field"><span>Địa chỉ <em class="muted" id="pc-addr-opt">tùy chọn</em></span><input type="text" id="pc-addr" maxlength="250" autocomplete="street-address"></label>
         </div>
@@ -664,6 +665,8 @@
       <div class="qr-wrap"><img id="qr-img" alt="QR" hidden><span class="muted" id="qr-wait">Đang tạo link…</span></div>
       <div class="url-row"><input type="text" id="share-url" readonly><button class="btn" id="btn-copy-share">Chép</button></div>
     </div>
+  </div>
+
   <!-- Từ điển phát âm modal -->
   <div class="modal" id="modal-dict" hidden>
     <div class="modal-box dict-modal-box">
@@ -689,6 +692,24 @@
         <button type="button" class="btn sm ghost" id="btn-dict-reset">Khôi phục mặc định</button>
         <div style="flex:1"></div>
         <button type="button" class="btn sm primary" id="btn-dict-save">Lưu từ điển</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Custom Dialog Modal (thay thế hoàn toàn alert / confirm / prompt trình duyệt) -->
+  <div class="modal custom-dialog-modal" id="modal-custom-dialog" hidden>
+    <div class="modal-box custom-dialog-box">
+      <div class="modal-head">
+        <h3 id="cd-title">Thông báo</h3>
+        <button type="button" class="icon-btn sm" id="cd-btn-close" data-close>✕</button>
+      </div>
+      <div class="cd-body" id="cd-message"></div>
+      <div class="cd-input-wrap" id="cd-input-wrap" hidden>
+        <input type="text" id="cd-input" class="cd-input" autocomplete="off" spellcheck="false">
+      </div>
+      <div class="modal-foot cd-foot" id="cd-foot">
+        <button type="button" class="btn" id="cd-btn-cancel" hidden>Hủy</button>
+        <button type="button" class="btn primary" id="cd-btn-ok">Đồng ý</button>
       </div>
     </div>
   </div>

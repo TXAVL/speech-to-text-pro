@@ -45,7 +45,16 @@ function build(saved) {
     en: typeof sw.en === 'string' && sw.en.trim() ? sw.en.trim() : WATERMARK.en,
     exemptPremium: sw.exemptPremium !== undefined ? !!sw.exemptPremium : WATERMARK.exemptPremium
   };
-  return { plans, packages, allPackages, credits, watermark, globalDaily: Number(saved.globalDaily) > 0 ? Math.floor(Number(saved.globalDaily)) : GLOBAL_DAILY_TTS, saved };
+  const defaultSeller = {
+    name: 'TĂNG XUÂN ÁNH',
+    tax_code: '',
+    address: 'Xã Hà Nam, thành phố Hải Phòng, Việt Nam',
+    email: 'txasoftdev@gmail.com',
+    phone: '0981 246 899',
+    bank: 'VQRQAMXZO2074 (TANG XUAN ANH) tại Ngân hàng TMCP Quân Đội (MB Bank)'
+  };
+  const savedWithSeller = { ...saved, seller: { ...defaultSeller, ...(saved.seller || {}) } };
+  return { plans, packages, allPackages, credits, watermark, globalDaily: Number(saved.globalDaily) > 0 ? Math.floor(Number(saved.globalDaily)) : GLOBAL_DAILY_TTS, saved: savedWithSeller };
 }
 
 export async function getConfig(db) {

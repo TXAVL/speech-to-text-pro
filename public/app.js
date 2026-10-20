@@ -208,6 +208,89 @@ $$('.modal').forEach(m => {
 });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') $$('.modal').forEach(m => m.hidden = true); });
 
+/* ---------------- Modal Dialogs tùy chỉnh (thay thế hoàn toàn alert/confirm/prompt) ---------------- */
+function customAlert(message, title = 'Thông báo') {
+  return new Promise((resolve) => {
+    const modal = $('#modal-custom-dialog');
+    if (!modal) { toast(message); return resolve(true); }
+    $('#cd-title').textContent = title;
+    $('#cd-message').innerHTML = typeof message === 'string' ? message.replace(/\n/g, '<br>') : message;
+    $('#cd-input-wrap').hidden = true;
+    $('#cd-btn-cancel').hidden = true;
+    $('#cd-btn-ok').textContent = 'Đã hiểu';
+    modal.hidden = false;
+    const finish = () => {
+      modal.hidden = true;
+      $('#cd-btn-ok').onclick = null;
+      $('#cd-btn-close').onclick = null;
+      resolve(true);
+    };
+    $('#cd-btn-ok').onclick = finish;
+    $('#cd-btn-close').onclick = finish;
+  });
+}
+
+function customConfirm(message, title = 'Xác nhận', okText = 'Đồng ý', cancelText = 'Hủy') {
+  return new Promise((resolve) => {
+    const modal = $('#modal-custom-dialog');
+    if (!modal) return resolve(false);
+    $('#cd-title').textContent = title;
+    $('#cd-message').innerHTML = typeof message === 'string' ? message.replace(/\n/g, '<br>') : message;
+    $('#cd-input-wrap').hidden = true;
+    $('#cd-btn-cancel').hidden = false;
+    $('#cd-btn-cancel').textContent = cancelText;
+    $('#cd-btn-ok').textContent = okText;
+    modal.hidden = false;
+    const finish = (val) => {
+      modal.hidden = true;
+      $('#cd-btn-ok').onclick = null;
+      $('#cd-btn-cancel').onclick = null;
+      $('#cd-btn-close').onclick = null;
+      resolve(val);
+    };
+    $('#cd-btn-ok').onclick = () => finish(true);
+    $('#cd-btn-cancel').onclick = () => finish(false);
+    $('#cd-btn-close').onclick = () => finish(false);
+  });
+}
+
+function customPrompt(message, defaultValue = '', title = 'Nhập thông tin', okText = 'Xác nhận', cancelText = 'Hủy') {
+  return new Promise((resolve) => {
+    const modal = $('#modal-custom-dialog');
+    if (!modal) return resolve(null);
+    $('#cd-title').textContent = title;
+    $('#cd-message').innerHTML = typeof message === 'string' ? message.replace(/\n/g, '<br>') : message;
+    $('#cd-input-wrap').hidden = false;
+    const input = $('#cd-input');
+    input.value = defaultValue;
+    $('#cd-btn-cancel').hidden = false;
+    $('#cd-btn-cancel').textContent = cancelText;
+    $('#cd-btn-ok').textContent = okText;
+    modal.hidden = false;
+    setTimeout(() => { input.focus(); input.select(); }, 50);
+    const finish = (val) => {
+      modal.hidden = true;
+      $('#cd-btn-ok').onclick = null;
+      $('#cd-btn-cancel').onclick = null;
+      $('#cd-btn-close').onclick = null;
+      input.onkeydown = null;
+      resolve(val);
+    };
+    $('#cd-btn-ok').onclick = () => finish(input.value);
+    $('#cd-btn-cancel').onclick = () => finish(null);
+    $('#cd-btn-close').onclick = () => finish(null);
+    input.onkeydown = (e) => {
+      if (e.key === 'Enter') finish(input.value);
+      if (e.key === 'Escape') finish(null);
+    };
+  });
+}
+
+window.customAlert = customAlert;
+window.customConfirm = customConfirm;
+window.customPrompt = customPrompt;
+window.alert = (msg) => { customAlert(msg); };
+
 /* ---------------- Âm thanh đầu vào ---------------- */
 async function decodeTo16kMono(blob) {
   const buf = await blob.arrayBuffer();
@@ -676,12 +759,50 @@ $('#tts-rate').addEventListener('input', e => { $('#rate-val').textContent = Num
 $('#tts-pitch').addEventListener('input', e => { $('#pitch-val').textContent = e.target.value + ' Hz'; });
 
 /* Chuyển đổi định dạng xuất: MP3 hoặc WAV 48 kHz */
-$$('#tts-format-seg .seg-btn').forEach(b => b.addEventListener('click', () => {
+$$('#tts-format-seg .seg-btn').forEach(b => b.addEventListener('click', async () => {
   $$('#tts-format-seg .seg-btn').forEach(x => x.classList.remove('active'));
   b.classList.add('active');
-  tts.format = b.dataset.fmt;
+  const targetFmt = b.dataset.fmt;
+  tts.format = targetFmt;
   const dl = $('#tts-download span');
-  if (dl) dl.textContent = tts.format === 'wav' ? 'Tải WAV (48 kHz)' : 'Tải MP3';
+  if (dl) dl.textContent = targetFmt === 'wav' ? 'Tải WAV (48 kHz)' : 'Tải MP3';
+
+  // Nếu người dùng đã tạo giọng trước đó, chuyển đổi ngay định dạng file tải về
+  if (tts.lastResult && tts.lastResult.blob) {
+    try {
+      let activeBlob = null;
+      if (targetFmt === 'wav') {
+        if (tts.lastResult.wavBlob) {
+          activeBlob = tts.lastResult.wavBlob;
+        } else if (typeof vkAudio !== 'undefined') {
+          toast('Đang chuyển đổi sang chuẩn phòng thu WAV 48 kHz…', 'info');
+          const samples = await vkAudio.decodeTo48k(tts.lastResult.rawBlob || tts.lastResult.blob, 48000);
+          activeBlob = vkAudio.f32ToWav48k(samples, 48000);
+          tts.lastResult.wavBlob = activeBlob;
+        }
+      } else {
+        // targetFmt === 'mp3'
+        if (tts.lastResult.mp3Blob) {
+          activeBlob = tts.lastResult.mp3Blob;
+        } else if (tts.lastResult.rawBlob && (tts.lastResult.rawBlob.type.includes('mpeg') || tts.lastResult.rawBlob.type.includes('mp3'))) {
+          activeBlob = tts.lastResult.rawBlob;
+        } else {
+          activeBlob = tts.lastResult.blob;
+        }
+      }
+      if (activeBlob) {
+        if (tts.audioUrl) URL.revokeObjectURL(tts.audioUrl);
+        tts.audioUrl = URL.createObjectURL(activeBlob);
+        $('#tts-player').src = tts.audioUrl;
+        $('#tts-download').href = tts.audioUrl;
+        $('#tts-download').download = ttsFileName(tts.lastResult.rawText || 'voice', targetFmt);
+        if (dl) dl.textContent = targetFmt === 'wav' ? 'Tải WAV (48 kHz)' : 'Tải MP3';
+        toast(`Đã đổi định dạng xuất sang ${targetFmt.toUpperCase()}`, 'ok');
+      }
+    } catch (err) {
+      console.warn('Lỗi chuyển đổi định dạng:', err);
+    }
+  }
 }));
 
 /* Chèn thẻ cảm xúc / thẻ nghỉ vào vị trí con trỏ trong ô văn bản */
@@ -702,8 +823,8 @@ $$('.tts-ctrl-bar [data-tag]').forEach(b => b.addEventListener('click', () => {
   insertTagIntoText(b.dataset.tag);
 }));
 
-$('#btn-custom-pause')?.addEventListener('click', () => {
-  const input = prompt('Nhập số giây nghỉ mong muốn (ví dụ 1.5 hoặc 3, tối đa 10 giây):', '2');
+$('#btn-custom-pause')?.addEventListener('click', async () => {
+  const input = await customPrompt('Nhập số giây nghỉ mong muốn (ví dụ 1.5 hoặc 3, tối đa 10 giây):', '2', 'Chèn thẻ nghỉ');
   if (input === null) return;
   const sec = Math.max(0.1, Math.min(10, parseFloat(input) || 1));
   insertTagIntoText(`[nghỉ ${sec}s]`);
@@ -745,8 +866,8 @@ $('#btn-dict-add')?.addEventListener('click', () => {
   tr.querySelector('.d-from').focus();
 });
 
-$('#btn-dict-reset')?.addEventListener('click', () => {
-  if (!confirm('Khôi phục danh sách từ điển về mặc định?')) return;
+$('#btn-dict-reset')?.addEventListener('click', async () => {
+  if (!await customConfirm('Khôi phục danh sách từ điển về mặc định?')) return;
   vkDict.save(vkDict.defaults);
   renderDictTable();
   toast('Đã khôi phục từ điển phát âm mặc định.', 'ok');
@@ -1247,8 +1368,10 @@ $('#btn-tts-run').addEventListener('click', async () => {
     // Mốc thời gian từng đoạn chữ, dùng để tạo phụ đề SRT
     const timeline = [];
 
+    let originalRawBlob = null;
     if (segments.length === 1) {
       blob = await synthOne(segments[0].content);
+      originalRawBlob = blob;
       // Chuyển sang chuẩn phòng thu WAV 48 kHz nếu người dùng chọn định dạng WAV
       if (tts.format === 'wav' && typeof vkAudio !== 'undefined' && !blob.type.includes('wav')) {
         label.textContent = 'Đang chuyển đổi 48 kHz…';
@@ -1280,6 +1403,7 @@ $('#btn-tts-run').addEventListener('click', async () => {
           t += d;
         }
         blob = new Blob(parts.map(pt => pt.blob), { type: 'audio/mpeg' });
+        originalRawBlob = blob;
       } else if (typeof vkAudio !== 'undefined') {
         // Ghép PCM với khoảng lặng chính xác. Văn bản rất dài dùng 24 kHz để đỡ tốn RAM.
         const rate = spoken.length > 20000 ? 24000 : 48000;
@@ -1310,10 +1434,22 @@ $('#btn-tts-run').addEventListener('click', async () => {
 
     if (!blob) throw new Error('Không tạo được file âm thanh');
 
+    tts.lastResult = {
+      blob,
+      rawBlob: originalRawBlob || blob,
+      mp3Blob: (originalRawBlob || blob).type.includes('mpeg') || (originalRawBlob || blob).type.includes('mp3') ? (originalRawBlob || blob) : (blob.type.includes('mpeg') || blob.type.includes('mp3') ? blob : null),
+      wavBlob: blob.type.includes('wav') ? blob : null,
+      rawText,
+      timeline,
+      lib,
+      voice
+    };
+
     const ext = blob.type.includes('wav') ? 'wav' : (tts.format === 'wav' ? 'wav' : 'mp3');
-    const url = URL.createObjectURL(blob);
-    $('#tts-player').src = url;
-    $('#tts-download').href = url;
+    if (tts.audioUrl) URL.revokeObjectURL(tts.audioUrl);
+    tts.audioUrl = URL.createObjectURL(blob);
+    $('#tts-player').src = tts.audioUrl;
+    $('#tts-download').href = tts.audioUrl;
     $('#tts-download').download = ttsFileName(rawText, ext);
     $('#tts-srt').download = $('#tts-download').download.replace(/\.\w+$/, '.srt');
     const dlSpan = $('#tts-download span');
@@ -1334,8 +1470,11 @@ $('#btn-tts-run').addEventListener('click', async () => {
 });
 
 /* ---------------- Cài đặt / chia sẻ ---------------- */
-$('#btn-settings').addEventListener('click', () => {
-  if (!keyGate.allowed) return;
+$('#btn-settings').addEventListener('click', async () => {
+  if (!keyGate.allowed) {
+    await customAlert('Vui lòng đăng ký tài khoản và hoàn tất xác minh email để mở khóa tính năng cài đặt API key cá nhân.', 'Yêu cầu xác minh email');
+    return;
+  }
   $('#key-groq').value = keyGet('groq'); $('#key-gemini').value = keyGet('gemini');
   $$('.secret-input').forEach(i => i.classList.remove('revealed'));
   openModal('#modal-settings');
