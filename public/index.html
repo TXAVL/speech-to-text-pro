@@ -95,10 +95,10 @@
 
           <div class="src-panel" id="src-url">
             <div class="url-row">
-              <input type="url" id="url-input" placeholder="https://… (link trực tiếp tới file mp3/mp4/wav)" autocomplete="off">
+              <input type="url" id="url-input" placeholder="https://… link file mp3/mp4/wav hoặc link .m3u8" autocomplete="off">
               <button class="btn" id="btn-fetch-url">Tải</button>
             </div>
-            <p class="muted small">Cần chạy bằng <code>start.bat</code> (server tải hộ file). Link YouTube không hỗ trợ.</p>
+            <p class="muted small">Dán link file âm thanh/video trực tiếp hoặc link HLS <code>.m3u8</code> (lấy ở tab Network của DevTools). Link .m3u8 sẽ được tải đủ các đoạn rồi ghép lại. Link YouTube và luồng có DRM không hỗ trợ.</p>
           </div>
 
           <div class="media-card" id="media-card" hidden>
@@ -116,11 +116,7 @@
             <label class="field">
               <span>Công cụ nhận diện</span>
               <select id="engine">
-                <optgroup label="Miễn phí · chạy trên máy bạn · không cần key">
-                  <option value="local:onnx-community/whisper-small" selected>Whisper Small — cân bằng (~250 MB)</option>
-                  <option value="local:onnx-community/whisper-base">Whisper Base — nhẹ nhất, chỉ nên dùng cho tiếng Anh (~80 MB)</option>
-                  <option value="local:onnx-community/whisper-large-v3-turbo">Whisper Large v3 Turbo — chính xác nhất (~600 MB, cần WebGPU)</option>
-                </optgroup>
+                <!-- Danh sách mô hình chạy trên máy dựng từ stt-models.js -->
               </select>
               <small class="muted" id="engine-extra"></small>
             </label>
@@ -138,6 +134,12 @@
                 <option value="german">Deutsch</option>
                 <option value="russian">Русский</option>
                 <option value="thai">ไทย</option>
+                <option value="portuguese">Português</option>
+                <option value="italian">Italiano</option>
+                <option value="persian">فارسی</option>
+                <option value="swedish">Svenska</option>
+                <option value="norwegian">Norsk</option>
+                <option value="indonesian">Bahasa Indonesia</option>
               </select>
             </label>
           </div>
@@ -716,8 +718,10 @@
 
   <div class="toasts" id="toasts"></div>
 
+  <script src="stt-models.js"></script>
   <script src="vieneu.js"></script>
   <script src="app.js"></script>
+  <script src="hls.js"></script>
   <script src="history.js"></script>
   <script src="themes.js"></script>
   <script src="account.js"></script>

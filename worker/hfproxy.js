@@ -1,7 +1,8 @@
 // Proxy + cache file mô hình Hugging Face qua chính tên miền website.
 // Trình duyệt tải /hf/<repo>/resolve/<rev>/<file> -> không bị CORS / giới hạn tải của Hugging Face,
 // và Cloudflare cache lại nên người dùng sau tải nhanh hơn.
-const ALLOWED = [/^onnx-community\/whisper-[a-z0-9.-]+$/i, /^Xenova\/mms-tts-vie$/i];
+// Chỉ các repo mô hình ONNX của onnx-community (danh mục Giọng → Chữ trong public/stt-models.js) và giọng MMS tiếng Việt
+const ALLOWED = [/^onnx-community\/[a-z0-9._-]+$/i, /^Xenova\/mms-tts-vie$/i];
 
 export async function handleHf(request, ctx, path) {
   if (path === '/hf/health') return new Response('ok', { headers: { 'Cache-Control': 'no-store' } });
@@ -16,7 +17,7 @@ export async function handleHf(request, ctx, path) {
   if (hit) return hit;
 
   const upstream = await fetch(`https://huggingface.co/${m[1]}/resolve/${m[2]}/${m[3]}`, {
-    redirect: 'follow', headers: { 'User-Agent': 'VoiceKit-Worker' }
+    redirect: 'follow', headers: { 'User-Agent': 'TXA-Voice-Worker' }
   });
   if (!upstream.ok) {
     return new Response(`Hugging Face trả về ${upstream.status}`, { status: upstream.status === 404 ? 404 : 502 });
