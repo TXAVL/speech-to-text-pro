@@ -136,7 +136,7 @@ export async function handleAdmin(request, env, path) {
             try {
               await sendMail(env, { to: user.email, ...(await renderEmail(db, 'plan', {
                 plan_name: cfg.plans[body.plan].name, expires_date: expires ? new Date(expires).toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' }) : 'vĩnh viễn'
-              }, { appName: 'VoiceKit', appUrl: appUrl(env, request), name: user.name || user.email.split('@')[0], email: user.email })) });
+              }, { appName: 'TXA Voice', appUrl: appUrl(env, request), name: user.name || user.email.split('@')[0], email: user.email })) });
             } catch {}
           }
           message = body.plan === 'premium' ? `Đã đặt Premium ${days ? (body.mode === 'extend' ? 'thêm ' : '') + days + ' ngày' : 'vĩnh viễn'}.` : 'Đã chuyển về gói Miễn phí.';
@@ -148,12 +148,12 @@ export async function handleAdmin(request, env, path) {
           await log(env, admin, 'user.verify', user.email); message = 'Đã xác minh email.'; break;
         case 'resend_verify': {
           const token = await mailToken(env, user, 'verify', 24 * 3600 * 1000);
-          await sendMail(env, { to: user.email, ...(await renderEmail(db, 'verify', { action_url: `${appUrl(env, request)}/?verify=${token}`, expires_hours: 24, free_calls: cfg.plans.free.ttsCalls }, { appName: 'VoiceKit', appUrl: appUrl(env, request), name: user.name || user.email.split('@')[0], email: user.email })) });
+          await sendMail(env, { to: user.email, ...(await renderEmail(db, 'verify', { action_url: `${appUrl(env, request)}/?verify=${token}`, expires_hours: 24, free_calls: cfg.plans.free.ttsCalls }, { appName: 'TXA Voice', appUrl: appUrl(env, request), name: user.name || user.email.split('@')[0], email: user.email })) });
           await log(env, admin, 'user.resend_verify', user.email); message = 'Đã gửi email xác minh.'; break;
         }
         case 'reset_password': {
           const token = await mailToken(env, user, 'reset', 3600 * 1000);
-          await sendMail(env, { to: user.email, ...(await renderEmail(db, 'reset', { action_url: `${appUrl(env, request)}/?reset=${token}`, expires_minutes: 60 }, { appName: 'VoiceKit', appUrl: appUrl(env, request), name: user.name || user.email.split('@')[0], email: user.email })) });
+          await sendMail(env, { to: user.email, ...(await renderEmail(db, 'reset', { action_url: `${appUrl(env, request)}/?reset=${token}`, expires_minutes: 60 }, { appName: 'TXA Voice', appUrl: appUrl(env, request), name: user.name || user.email.split('@')[0], email: user.email })) });
           await log(env, admin, 'user.reset_password', user.email); message = 'Đã gửi email đặt lại mật khẩu.'; break;
         }
         case 'ban':
@@ -262,7 +262,7 @@ export async function handleAdmin(request, env, path) {
     const bad = (msg) => Object.assign(new Error(msg), { status: 400 });
     const normEmail = (e) => String(e || '').trim().toLowerCase();
     const okEmail = (e) => /^[^\s@]{1,64}@[^\s@]{1,190}\.[^\s@]{2,}$/.test(e);
-    const ctxOf = (u) => ({ appName: 'VoiceKit', appUrl: appUrl(env, request), name: u.name || u.email.split('@')[0], email: u.email });
+    const ctxOf = (u) => ({ appName: 'TXA Voice', appUrl: appUrl(env, request), name: u.name || u.email.split('@')[0], email: u.email });
     const expiryOf = (v) => {
       if (v === null || v === undefined || v === '') return null;
       const t = typeof v === 'number' ? v : Date.parse(String(v) + 'T23:59:59+07:00');
@@ -534,7 +534,7 @@ export async function handleAdmin(request, env, path) {
     }
 
     if (path === '/api/admin/test-email' && request.method === 'POST') {
-      const r = await renderEmail(db, 'welcome', sampleVars('welcome'), { appName: 'VoiceKit', appUrl: appUrl(env, request), name: admin.name || 'Admin', email: admin.email });
+      const r = await renderEmail(db, 'welcome', sampleVars('welcome'), { appName: 'TXA Voice', appUrl: appUrl(env, request), name: admin.name || 'Admin', email: admin.email });
       await sendMail(env, { to: admin.email, subject: '[Thử SMTP] ' + r.subject, html: r.html, text: r.text });
       return json({ ok: true, message: `Đã gửi email thử tới ${admin.email}.` });
     }
@@ -552,7 +552,7 @@ export async function handleAdmin(request, env, path) {
     if (m) {
       const id = m[1], sub = m[2];
       if (!TEMPLATES[id]) return fail('Không có mẫu này.', 404);
-      const ctxS = { appName: 'VoiceKit', appUrl: appUrl(env, request), name: admin.name || admin.email.split('@')[0], email: admin.email };
+      const ctxS = { appName: 'TXA Voice', appUrl: appUrl(env, request), name: admin.name || admin.email.split('@')[0], email: admin.email };
       const draft = body && typeof body === 'object' ? Object.fromEntries(FIELDS.filter(f => typeof body[f] === 'string').map(f => [f, body[f]])) : null;
       if (!sub && request.method === 'GET') {
         const g = await getTemplate(db, id);

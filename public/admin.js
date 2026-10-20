@@ -597,7 +597,7 @@ const vkAdmin = (() => {
       <div class="card" style="margin-bottom:16px">
         <h4>Thông tin người bán (in trên hóa đơn)</h4>
         <div class="field-group" style="margin-top:0">
-          <label class="field"><span>Tên người bán / công ty</span><input id="sl-name" value="${esc(s.seller.name || '')}" placeholder="VoiceKit"></label>
+          <label class="field"><span>Tên người bán / công ty</span><input id="sl-name" value="${esc(s.seller.name || '')}" placeholder="TXA Voice"></label>
           <label class="field"><span>Mã số thuế</span><input id="sl-tax" value="${esc(s.seller.tax_code || '')}" placeholder="0101234567"></label>
         </div>
         <label class="field"><span>Địa chỉ</span><input id="sl-addr" value="${esc(s.seller.address || '')}"></label>
@@ -786,7 +786,7 @@ const vkAdmin = (() => {
     $('#sy-copy').addEventListener('click', () => navigator.clipboard.writeText(s.webhookUrl).then(() => toast('Đã chép.', 'ok')));
     $('#sy-webhook').addEventListener('click', (e) => {
       run(e.target, async () => {
-        const ok = await (window.customConfirm ? window.customConfirm('Đăng ký webhook của kênh payOS về VoiceKit?', 'Đăng ký Webhook') : confirm('Đăng ký webhook của kênh payOS về VoiceKit?'));
+        const ok = await (window.customConfirm ? window.customConfirm('Đăng ký webhook của kênh payOS về TXA Voice?', 'Đăng ký Webhook') : confirm('Đăng ký webhook của kênh payOS về TXA Voice?'));
         if (!ok) return;
         return post('/api/admin/payos/webhook');
       });

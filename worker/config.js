@@ -46,7 +46,7 @@ function build(saved) {
     exemptPremium: sw.exemptPremium !== undefined ? !!sw.exemptPremium : WATERMARK.exemptPremium
   };
   const defaultSeller = {
-    name: 'TĂNG XUÂN ÁNH',
+    name: 'TĂNG XUÂN ANH',
     tax_code: '',
     address: 'Xã Hà Nam, thành phố Hải Phòng, Việt Nam',
     email: 'txasoftdev@gmail.com',

@@ -11,7 +11,7 @@ export const TEMPLATES = Object.fromEntries([verify, reset, welcome, plan, recei
 
 // Biến dùng được trong mọi mẫu
 export const GLOBAL_VARS = {
-  app_name: { desc: 'Tên website', sample: 'VoiceKit' },
+  app_name: { desc: 'Tên website', sample: 'TXA Voice' },
   app_url: { desc: 'Địa chỉ website', sample: 'https://voicekit.example' },
   name: { desc: 'Tên người nhận (hoặc "bạn")', sample: 'Minh Anh' },
   email: { desc: 'Email người nhận', sample: 'minhanh@example.com' },

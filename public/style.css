@@ -4235,6 +4235,7 @@ input[type="range"] {
   color: var(--text);
   margin-bottom: 16px;
   word-break: break-word;
+  white-space: pre-line;
 }
 .cd-input-wrap {
   margin-bottom: 16px;
@@ -4252,7 +4253,7 @@ input[type="range"] {
 }
 .cd-input:focus {
   outline: none;
-  border-color: var(--primary);
+  border-color: var(--accent);
   box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.2);
 }
 .cd-foot {
