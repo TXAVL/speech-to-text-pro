@@ -315,11 +315,18 @@
             <input type="range" id="tts-pitch" min="-50" max="50" step="5" value="0">
           </label>
 
+          <div class="lock-card" id="tts-lock" hidden>
+            <span>👑</span>
+            <div><b id="tts-lock-title">Kho giọng Premium</b><span class="muted" id="tts-lock-text"></span></div>
+            <button type="button" class="btn gold sm" id="tts-lock-btn">Xem gói</button>
+          </div>
+
           <button class="btn primary big" id="btn-tts-run"><svg><use href="#i-play"/></svg><span>Tạo giọng đọc</span></button>
 
           <div class="tts-result" id="tts-result" hidden>
             <audio id="tts-player" controls></audio>
             <a class="btn" id="tts-download" download="voice.mp3"><svg><use href="#i-download"/></svg><span>Tải về</span></a>
+            <a class="btn srt" id="tts-srt" download="voice.srt" hidden title="Phụ đề khớp với file giọng đọc (Premium)"><svg><use href="#i-download"/></svg><span>Phụ đề SRT</span></a>
           </div>
           <p class="muted small" id="tts-note">Hỗ trợ đọc tiếng Anh xen tiếng Việt mượt mà, thẻ cảm xúc và thẻ nghỉ chuẩn xác.</p>
         </div>
@@ -349,14 +356,50 @@
 
     <!-- ============ GÓI ============ -->
     <section class="view" id="view-plans">
-      <div class="hero small">
-        <h1>Chọn gói phù hợp</h1>
-        <p>Tính năng chạy trên máy bạn (Whisper, Piper, MMS) luôn miễn phí, không giới hạn. Gói quyết định số lượt mỗi ngày và mở khóa các mô hình AI độc quyền: VieNeu-TTS (25 giọng 3 miền), Supertonic 3 (31 ngôn ngữ) và CapCut/TikTok.</p>
+      <div class="pr-hero">
+        <span class="pr-eyebrow"><svg><use href="#i-spark"/></svg>Bảng giá VoiceKit</span>
+        <h1>Giọng đọc chuẩn phòng thu,<br><span class="grad-gold">giá chỉ bằng một ly cà phê</span></h1>
+        <p>Whisper, Piper, Meta MMS chạy trên máy bạn luôn miễn phí. Premium mở khóa VieNeu-TTS (25 giọng 3 miền), Supertonic 3 (31 ngôn ngữ), kho CapCut / TikTok, đọc truyện dài không giới hạn và phụ đề tự động.</p>
+        <div class="pr-period" id="pr-period" role="tablist" aria-label="Chu kỳ thanh toán"></div>
       </div>
+
       <div class="plans-grid" id="plans-grid"></div>
-      <div class="card credits-card" id="credits-card" hidden>
-        <div><h3>⚡ Mua thêm lượt</h3><p class="muted small" id="credits-card-text"></p></div>
-        <button class="btn primary" id="btn-credits-card">Mua thêm lượt</button>
+
+      <div class="pr-trust">
+        <span><svg><use href="#i-check"/></svg>Kích hoạt tự động trong vài giây</span>
+        <span><svg><use href="#i-check"/></svg>Thanh toán VietQR qua payOS</span>
+        <span><svg><use href="#i-check"/></svg>Xuất hóa đơn điện tử theo yêu cầu</span>
+        <span><svg><use href="#i-check"/></svg>Không tự động gia hạn</span>
+      </div>
+
+      <div class="pr-section">
+        <h2>So sánh chi tiết các gói</h2>
+        <div class="card pr-compare-wrap"><table class="pr-compare" id="pr-compare"></table></div>
+      </div>
+
+      <div class="pr-section" id="credits-card" hidden>
+        <div class="pr-credits card">
+          <div class="pr-credits-head">
+            <div>
+              <h2>⚡ Mua thêm lượt</h2>
+              <p class="muted" id="credits-card-text"></p>
+            </div>
+            <button class="btn primary" id="btn-credits-card">Mua thêm lượt</button>
+          </div>
+          <div class="pr-credit-tiers" id="pr-credit-tiers"></div>
+        </div>
+      </div>
+
+      <div class="pr-section">
+        <h2>Câu hỏi thường gặp</h2>
+        <div class="pr-faq" id="pr-faq">
+          <details><summary>Premium có tự động gia hạn không?</summary><p>Không. Bạn trả một lần cho số ngày đã chọn. Gần hết hạn, bạn tự gia hạn nếu muốn; số ngày còn lại được cộng dồn.</p></details>
+          <details><summary>Bao lâu thì Premium được kích hoạt?</summary><p>Hệ thống nhận tiền qua payOS và kích hoạt tự động trong vài giây, không cần gửi ảnh chụp chuyển khoản.</p></details>
+          <details><summary>Lượt dùng được tính thế nào?</summary><p>Mỗi lần tạo giọng bằng kho chạy trên máy chủ (Edge, VieNeu, Supertonic, CapCut) tính một lượt. Văn bản dài được chia đoạn, mỗi đoạn một lượt. Lượt làm mới lúc 0h giờ Việt Nam, lượt lỗi được hoàn lại.</p></details>
+          <details><summary>Hết lượt trong ngày thì sao?</summary><p>Thành viên Premium có thể mua thêm lượt cộng dồn. Lượt mua thêm không hết hạn và chỉ dùng khi đã hết lượt trong ngày.</p></details>
+          <details><summary>Tôi có được dùng file âm thanh cho mục đích thương mại?</summary><p>File Premium không chèn câu ghi nguồn, bạn dùng được cho video, podcast, sách nói. Hãy tuân thủ điều khoản của từng kho giọng gốc.</p></details>
+          <details><summary>Có xuất hóa đơn công ty không?</summary><p>Có. Ở bước thanh toán, bật “Xuất hóa đơn” và nhập tên công ty, mã số thuế, địa chỉ. Hóa đơn được gửi qua email sau khi thanh toán.</p></details>
+        </div>
       </div>
       <p class="muted small center" id="plans-note">Lượt dùng được làm mới lúc 0h mỗi ngày (giờ Việt Nam).</p>
     </section>

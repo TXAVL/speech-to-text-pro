@@ -1008,6 +1008,81 @@ function ttsFileName(text, ext) {
   }
   return base + '.' + ext;
 }
+/* ---------- Văn bản dài & phụ đề SRT (Premium) ---------- */
+const TTS_LONG_MAX = 100000;
+
+/** Số ký tự tối đa mỗi lượt gửi lên máy chủ theo gói hiện tại */
+function ttsCharsPerCall() {
+  const st = typeof vkAccount !== 'undefined' ? vkAccount.state : null;
+  return st?.enabled && st.plan?.maxChars ? st.plan.maxChars : 20000;
+}
+
+/** Chia văn bản thành các đoạn <= max ký tự, ưu tiên cắt ở cuối đoạn văn, rồi cuối câu, rồi khoảng trắng */
+function splitLongText(text, max) {
+  const units = text.match(/[^\n.!?…]+(?:[.!?…]+["”’)]*|\n+|$)/g) || [text];
+  const out = [];
+  let cur = '';
+  const flush = () => { if (cur.trim()) out.push(cur.trim()); cur = ''; };
+  for (let u of units) {
+    while (u.length > max) {
+      flush();
+      let cut = u.lastIndexOf(' ', max);
+      if (cut < max * 0.5) cut = max;
+      out.push(u.slice(0, cut).trim());
+      u = u.slice(cut);
+    }
+    if (cur.length + u.length > max) flush();
+    cur += u;
+  }
+  flush();
+  return out;
+}
+
+function f32ToInt16(f) {
+  const out = new Int16Array(f.length);
+  for (let i = 0; i < f.length; i++) {
+    const x = Math.max(-1, Math.min(1, f[i]));
+    out[i] = x < 0 ? x * 0x8000 : x * 0x7fff;
+  }
+  return out;
+}
+
+/** Ghép nhiều mảng PCM 16-bit mono thành một file WAV */
+function int16ToWav(chunks, rate) {
+  const bytes = chunks.reduce((n, c) => n + c.byteLength, 0);
+  const h = new DataView(new ArrayBuffer(44));
+  const w = (o, str) => { for (let i = 0; i < str.length; i++) h.setUint8(o + i, str.charCodeAt(i)); };
+  w(0, 'RIFF'); h.setUint32(4, 36 + bytes, true); w(8, 'WAVE');
+  w(12, 'fmt '); h.setUint32(16, 16, true); h.setUint16(20, 1, true); h.setUint16(22, 1, true);
+  h.setUint32(24, rate, true); h.setUint32(28, rate * 2, true); h.setUint16(32, 2, true); h.setUint16(34, 16, true);
+  w(36, 'data'); h.setUint32(40, bytes, true);
+  return new Blob([h.buffer, ...chunks], { type: 'audio/wav' });
+}
+
+/**
+ * Phụ đề SRT từ mốc thời gian từng đoạn: mỗi đoạn chia thành câu ngắn (<= 90 ký tự),
+ * thời lượng chia theo độ dài chữ của từng câu.
+ */
+function buildSrt(timeline) {
+  const clean = (t) => t.replace(/\[[^\]]*\]|<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+  const stamp = (sec) => {
+    const ms = Math.max(0, Math.round(sec * 1000)), p = (n, l = 2) => String(n).padStart(l, '0');
+    return `${p(Math.floor(ms / 3600000))}:${p(Math.floor(ms / 60000) % 60)}:${p(Math.floor(ms / 1000) % 60)},${p(ms % 1000, 3)}`;
+  };
+  const cues = [];
+  for (const seg of timeline) {
+    const lines = splitLongText(clean(seg.text), 90).filter(Boolean);
+    const total = lines.reduce((n, l) => n + l.length, 0) || 1;
+    let t = seg.start;
+    for (const l of lines) {
+      const d = (seg.end - seg.start) * (l.length / total);
+      cues.push({ start: t, end: t + d, text: l });
+      t += d;
+    }
+  }
+  return cues.map((c, i) => `${i + 1}\n${stamp(c.start)} --> ${stamp(c.end)}\n${c.text}\n`).join('\n');
+}
+
 function f32ToWav(f, rate) {
   const buf = new ArrayBuffer(44 + f.length * 2), v = new DataView(buf);
   const w = (o, s) => [...s].forEach((c, i) => v.setUint8(o + i, c.charCodeAt(0)));
@@ -1078,14 +1153,15 @@ function updateLibLock() {
   const locked = !!LIBS[tts.lib]?.premium && !isPremium();
   const label = $('#btn-tts-run span');
   if (!tts.speaking && !$('#btn-tts-run').disabled) label.textContent = locked ? 'Nâng cấp Premium để dùng' : 'Tạo giọng đọc';
+  $('#tts-lock').hidden = !locked;
   if (locked) {
-    const libTitle = LIBS[tts.lib]?.badge || 'này';
-    $('#tts-note').textContent = `🔒 Kho giọng ${libTitle} chỉ dành cho gói Premium. Bạn vẫn dùng được Edge Neural, Piper, Meta MMS miễn phí.`;
-  } else if ($('#tts-note').textContent.startsWith('🔒')) {
-    $('#tts-note').textContent = '';
+    $('#tts-lock-title').textContent = `${LIBS[tts.lib]?.badge || 'Kho giọng này'} dành cho Premium`;
+    $('#tts-lock-text').textContent = 'Mở khóa cùng đọc văn bản dài và phụ đề SRT. Edge Neural, Piper, Meta MMS vẫn miễn phí.';
   }
   return locked;
 }
+
+$('#tts-lock-btn').addEventListener('click', () => showView('plans'));
 
 $('#btn-tts-run').addEventListener('click', async () => {
   if (updateLibLock()) { showView('plans'); return; }
@@ -1149,49 +1225,87 @@ $('#btn-tts-run').addEventListener('click', async () => {
     };
 
     // 3. Phân tích các thẻ nghỉ [nghỉ 2s], [nghỉ 500ms]
-    const segments = typeof vkTags !== 'undefined' && vkTags.parsePauses
+    let segments = typeof vkTags !== 'undefined' && vkTags.parsePauses
       ? vkTags.parsePauses(spoken)
       : [{ type: 'text', content: spoken }];
 
-    const hasPauses = segments.some(s => s.type === 'pause');
+    // 4. Premium: văn bản dài hơn giới hạn mỗi lượt được chia đoạn theo câu, mỗi đoạn một lượt
+    const premium = isPremium();
+    const perCall = ttsCharsPerCall();
+    if (premium) {
+      segments = segments.flatMap(sg => sg.type === 'text' && sg.content.length > perCall
+        ? splitLongText(sg.content, perCall).map(c => ({ type: 'text', content: c }))
+        : [sg]);
+    }
+    const textParts = segments.filter(sg => sg.type === 'text').length;
+    if (textParts > 1 && ['edge', 'capcut', 'vieneu', 'supertonic'].includes(lib)) {
+      const u = typeof vkAccount !== 'undefined' && vkAccount.state.enabled ? vkAccount.state.usage : null;
+      const left = u ? (u.remaining || 0) + (u.credits || 0) : Infinity;
+      if (left < textParts) throw new Error(`Văn bản cần ${textParts} lượt nhưng bạn chỉ còn ${left} lượt hôm nay. Hãy rút ngắn văn bản hoặc mua thêm lượt.`);
+    }
 
-    if (!hasPauses) {
-      blob = await synthOne(spoken);
+    // Mốc thời gian từng đoạn chữ, dùng để tạo phụ đề SRT
+    const timeline = [];
+
+    if (segments.length === 1) {
+      blob = await synthOne(segments[0].content);
       // Chuyển sang chuẩn phòng thu WAV 48 kHz nếu người dùng chọn định dạng WAV
       if (tts.format === 'wav' && typeof vkAudio !== 'undefined' && !blob.type.includes('wav')) {
         label.textContent = 'Đang chuyển đổi 48 kHz…';
         const samples = await vkAudio.decodeTo48k(blob, 48000);
         blob = vkAudio.f32ToWav48k(samples, 48000);
       }
+      if (premium) timeline.push({ start: 0, end: await audioDuration(blob), text: segments[0].content });
     } else {
-      // Ghép nối âm thanh đa đoạn với khoảng lặng thời lượng chính xác
-      const audioChunks = [];
+      // Tạo lần lượt từng đoạn
+      const parts = [];
       for (let i = 0; i < segments.length; i++) {
         const seg = segments[i];
         if (seg.type === 'text') {
           label.textContent = `Đang đọc đoạn ${i + 1}/${segments.length}…`;
-          const subBlob = await synthOne(seg.content);
-          if (subBlob && typeof vkAudio !== 'undefined') {
-            const f32 = await vkAudio.decodeTo48k(subBlob, 48000);
-            audioChunks.push(f32);
-          }
-        } else if (seg.type === 'pause' && typeof vkAudio !== 'undefined') {
-          const silence = vkAudio.createSilence(seg.sec, 48000);
-          audioChunks.push(silence);
+          parts.push({ type: 'text', text: seg.content, blob: await synthOne(seg.content) });
+        } else {
+          parts.push({ type: 'pause', sec: seg.sec });
         }
       }
 
-      if (typeof vkAudio !== 'undefined' && audioChunks.length) {
-        label.textContent = 'Đang ghép nối âm thanh 48 kHz…';
-        const totalLen = audioChunks.reduce((acc, c) => acc + c.length, 0);
-        const merged = new Float32Array(totalLen);
-        let offset = 0;
-        for (const chunk of audioChunks) {
-          merged.set(chunk, offset);
-          offset += chunk.length;
+      const mp3Only = tts.format === 'mp3' && parts.every(pt => pt.type === 'text' && /mpeg|mp3/.test(pt.blob.type));
+      if (mp3Only) {
+        // Các khung MP3 nối thẳng được với nhau, không cần giải mã (nhẹ bộ nhớ khi đọc truyện dài)
+        label.textContent = 'Đang ghép các đoạn…';
+        let t = 0;
+        for (const pt of parts) {
+          const d = (await audioDuration(pt.blob)) || pt.blob.size * 8 / 48000;
+          timeline.push({ start: t, end: t + d, text: pt.text });
+          t += d;
         }
-        blob = vkAudio.f32ToWav48k(merged, 48000);
+        blob = new Blob(parts.map(pt => pt.blob), { type: 'audio/mpeg' });
+      } else if (typeof vkAudio !== 'undefined') {
+        // Ghép PCM với khoảng lặng chính xác. Văn bản rất dài dùng 24 kHz để đỡ tốn RAM.
+        const rate = spoken.length > 20000 ? 24000 : 48000;
+        label.textContent = `Đang ghép nối âm thanh ${rate / 1000} kHz…`;
+        const pcm = [];
+        let t = 0;
+        for (const pt of parts) {
+          const f32 = pt.type === 'text' ? await vkAudio.decodeTo48k(pt.blob, rate) : vkAudio.createSilence(pt.sec, rate);
+          const d = f32.length / rate;
+          if (pt.type === 'text') timeline.push({ start: t, end: t + d, text: pt.text });
+          t += d;
+          pcm.push(f32ToInt16(f32));
+          pt.blob = null;
+        }
+        blob = int16ToWav(pcm, rate);
       }
+    }
+
+    // Phụ đề SRT (Premium)
+    const srtBtn = $('#tts-srt');
+    if (tts.srtUrl) { URL.revokeObjectURL(tts.srtUrl); tts.srtUrl = null; }
+    srtBtn.hidden = true;
+    if (premium && timeline.length && timeline.at(-1).end > 0) {
+      tts.srtUrl = URL.createObjectURL(new Blob([buildSrt(timeline)], { type: 'application/x-subrip' }));
+      srtBtn.href = tts.srtUrl;
+      srtBtn.hidden = false;
     }
 
     if (!blob) throw new Error('Không tạo được file âm thanh');
@@ -1201,6 +1315,7 @@ $('#btn-tts-run').addEventListener('click', async () => {
     $('#tts-player').src = url;
     $('#tts-download').href = url;
     $('#tts-download').download = ttsFileName(rawText, ext);
+    $('#tts-srt').download = $('#tts-download').download.replace(/\.\w+$/, '.srt');
     const dlSpan = $('#tts-download span');
     if (dlSpan) dlSpan.textContent = ext === 'wav' ? 'Tải WAV (48 kHz)' : 'Tải MP3';
     $('#tts-result').hidden = false;

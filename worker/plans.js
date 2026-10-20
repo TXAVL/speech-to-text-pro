@@ -36,6 +36,8 @@ export const PLANS = {
       'Mở khóa độc quyền Mô hình Supertonic 3: 31 ngôn ngữ quốc tế (Anh, Nhật, Hàn, Pháp, Đức, Nga...), 10 giọng nam nữ',
       'Kho giọng CapCut / TikTok: 24 giọng Việt viral (review phim, kịch bản, hài hước...)',
       'Hạn mức vượt trội: {calls} lượt mỗi ngày, tối đa {chars} ký tự/lượt (gấp 10 lần Free, đọc cả chương truyện/kịch bản dài)',
+      'Chế độ văn bản dài: tự chia đoạn và ghép thành một file, đọc tới 100.000 ký tự mỗi lần',
+      'Tự tạo phụ đề SRT khớp với file giọng đọc, dùng ngay cho CapCut / Premiere',
       'Xuất âm thanh chất lượng cao: WAV 48 kHz (16-bit PCM chuẩn phòng thu) hoặc MP3',
       'Điều khiển cảm xúc ([cười], [thở dài], <laugh>...) & Thẻ nghỉ chính xác từng mili-giây ([nghỉ 2s], [nghỉ 500ms])',
       'Hoàn toàn không có câu ghi nguồn (không watermark) vào file âm thanh',
