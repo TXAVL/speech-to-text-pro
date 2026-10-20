@@ -43,6 +43,8 @@ const vkAccount = (() => {
     $('#acc-avatar').textContent = u ? initials(u) : '?';
     $('#acc-name').textContent = u ? (u.name || u.email.split('@')[0]) : 'Đăng nhập';
     $('#acc-plan').textContent = acc.plan?.name || 'Khách';
+    $('#btn-account').classList.toggle('is-premium', acc.plan?.id === 'premium');
+    $('#tts-text').maxLength = acc.plan?.id === 'premium' ? TTS_LONG_MAX : 20000;
     $('#tab-admin').hidden = !u?.admin;
     $('#acc-guest').hidden = !!u && !acc.resetToken;
     $('#acc-user').hidden = !u || !!acc.resetToken;
@@ -86,52 +88,163 @@ const vkAccount = (() => {
     const buy = p.id === 'premium' && acc.credits?.enabled ? `<button data-open="credits">${r === 0 && !acc.usage.credits ? '⚡ Hết lượt, mua thêm →' : 'Mua thêm lượt →'}</button>` : '';
     chip.innerHTML = `<span>Gói <b>${p.name}</b>: còn <b>${fmt(r)}/${fmt(p.ttsCalls)}</b> lượt hôm nay${extra} · tối đa ${fmt(p.maxChars)} ký tự/lượt</span>${cta}${buy}`;
     const len = $('#tts-text').value.length;
-    $('#tts-count').textContent = `${fmt(len)} / ${fmt(p.maxChars)} ký tự`;
-    $('#tts-count').style.color = len > p.maxChars ? 'var(--danger)' : '';
+    const long = p.id === 'premium' && len > p.maxChars;
+    const limit = p.id === 'premium' ? TTS_LONG_MAX : p.maxChars;
+    $('#tts-count').textContent = long
+      ? `${fmt(len)} / ${fmt(limit)} ký tự · văn bản dài, chia ~${Math.ceil(len / p.maxChars)} đoạn`
+      : `${fmt(len)} / ${fmt(p.id === 'premium' ? p.maxChars : limit)} ký tự`;
+    $('#tts-count').style.color = len > limit ? 'var(--danger)' : long ? 'var(--gold)' : '';
   }
 
   /* ---------- Bảng giá ---------- */
+  const PLAN_META = {
+    guest: { icon: '👋', tag: 'Dùng thử nhanh, không cần tài khoản' },
+    free: { icon: '🎧', tag: 'Cho cá nhân dùng hằng ngày' },
+    premium: { icon: '👑', tag: 'Cho nhà sáng tạo nội dung, sách nói, video' }
+  };
+  // Số perk đầu tiên được tô nổi bật trên thẻ Premium
+  const PREMIUM_HIGHLIGHTS = 4;
+
+  function selectedPackage() {
+    return acc.packages.find(k => k.id === acc.selectedPkg) || acc.packages[0] || null;
+  }
+
   function renderPlans() {
     const cur = acc.plan?.id;
-    $('#plans-grid').innerHTML = acc.plans.map(p => `
-      <div class="plan-card ${p.id === 'free' ? 'featured' : ''} ${p.id === 'premium' ? 'premium-card' : ''} ${p.id === cur ? 'current' : ''}">
-        <h3>${p.name}</h3>
-        <div class="plan-price">${p.id === 'premium' && acc.payEnabled && acc.packages.length ? 'từ ' + p.price : p.price || '—'}</div>
-        <div class="plan-limit"><b>${fmt(p.ttsCalls)}</b> lượt ${p.id === 'premium' ? 'AI cao cấp (VieNeu, Supertonic, CapCut, Edge)' : 'Edge Neural'}/ngày · <b>${fmt(p.maxChars)}</b> ký tự/lượt</div>
-        <ul>${p.perks.map(x => `<li>${esc(x)}</li>`).join('')}</ul>
-        ${p.id === 'premium' ? premiumBox() : planAction(p)}
-      </div>`).join('');
+    renderPeriod();
+    $('#plans-grid').innerHTML = acc.plans.map(p => {
+      const meta = PLAN_META[p.id] || { icon: '•', tag: '' };
+      const prem = p.id === 'premium';
+      const perks = p.perks.map((x, i) => `<li class="${prem && i > 0 && i <= PREMIUM_HIGHLIGHTS ? 'hl' : ''}"><svg><use href="#i-check"/></svg><span>${esc(x)}</span></li>`).join('');
+      return `
+      <div class="plan-card ${prem ? 'premium-card' : ''} ${p.id === cur ? 'current' : ''}">
+        ${prem ? '<span class="plan-ribbon">Phổ biến nhất</span>' : ''}
+        <div class="plan-head">
+          <span class="plan-icon">${meta.icon}</span>
+          <div><h3>${esc(p.name)}</h3><p class="plan-tag">${meta.tag}</p></div>
+        </div>
+        ${prem ? premiumPrice() : `<div class="plan-price"><b>${esc(p.price || '0đ')}</b></div><div class="plan-sub muted small">${p.id === 'guest' ? 'Không cần đăng ký' : 'Mãi mãi, chỉ cần xác minh email'}</div>`}
+        <div class="plan-stats">
+          <div><b>${fmt(p.ttsCalls)}</b><small>lượt / ngày</small></div>
+          <div><b>${fmt(p.maxChars)}</b><small>ký tự / lượt</small></div>
+          <div><b>${prem ? '4' : '1'}</b><small>kho giọng AI</small></div>
+        </div>
+        ${prem ? premiumAction() : planAction(p)}
+        <ul class="plan-perks">${perks}</ul>
+      </div>`;
+    }).join('');
     $$('#plans-grid [data-open]').forEach(b => b.addEventListener('click', () => openFrom(b.dataset.open)));
-    $$('#plans-grid .pkg-opt').forEach(el => el.addEventListener('click', () => { acc.selectedPkg = el.dataset.pkg; renderPlans(); }));
     $('#btn-buy')?.addEventListener('click', () => vkPay.start(acc.selectedPkg));
-    const cc = $('#credits-card');
-    cc.hidden = !(acc.payEnabled && acc.credits?.enabled);
-    if (!cc.hidden) {
-      const prem = acc.plan?.id === 'premium';
-      $('#credits-card-text').textContent = `${fmt(acc.credits.price)}đ / lượt giọng AI · cộng dồn, không hết hạn theo ngày · dùng khi đã hết lượt trong ngày.${prem ? '' : ' Chỉ dành cho gói Premium.'}`;
-      $('#btn-credits-card').disabled = !prem;
-      $('#btn-credits-card').textContent = prem ? 'Mua thêm lượt' : 'Cần gói Premium';
-    }
+    renderCompare();
+    renderCreditTiers();
   }
+
+  function renderPeriod() {
+    const box = $('#pr-period');
+    const show = acc.payEnabled && acc.packages.length > 1;
+    box.hidden = !show;
+    if (!show) return;
+    box.innerHTML = acc.packages.map(k => `
+      <button type="button" role="tab" class="${k.id === acc.selectedPkg ? 'active' : ''}" data-pkg="${esc(k.id)}">
+        ${esc(k.name)}${k.save ? `<em>-${k.save}%</em>` : ''}
+      </button>`).join('');
+    $$('#pr-period button').forEach(b => b.addEventListener('click', () => { acc.selectedPkg = b.dataset.pkg; renderPlans(); }));
+  }
+
+  function premiumPrice() {
+    const k = acc.payEnabled ? selectedPackage() : null;
+    if (!k) return '<div class="plan-price"><b>Tạm ngừng bán</b></div><div class="plan-sub muted small">Vui lòng quay lại sau</div>';
+    const months = Math.max(1, k.days / 30);
+    const perMonth = Math.round(k.price / months / 1000) * 1000;
+    const base = acc.packages.find(x => x.days <= 31);
+    const full = base && base !== k ? Math.round(base.price * (k.days / base.days)) : 0;
+    return `
+      <div class="plan-price"><b>${money(perMonth)}</b><span>/tháng</span></div>
+      <div class="plan-sub small">
+        Thanh toán <b>${money(k.price)}</b> cho ${esc(k.name)}
+        ${full > k.price ? `<s class="muted">${money(full)}</s><span class="pkg-save">Tiết kiệm ${money(full - k.price)}</span>` : ''}
+      </div>`;
+  }
+
   function planAction(p) {
     const u = acc.user;
-    if (p.id === 'guest') return u ? '' : '<button class="btn" disabled>Đang dùng</button>';
-    if (!u) return '<button class="btn primary" data-open="register">Đăng ký miễn phí</button>';
-    if (!u.verified) return '<button class="btn primary" data-open="account">Xác minh email</button>';
-    return '';
+    if (p.id === 'guest') return `<button class="btn block" disabled>${u ? 'Gói cơ bản' : 'Đang dùng'}</button>`;
+    if (!u) return '<button class="btn block" data-open="register">Đăng ký miễn phí</button>';
+    if (!u.verified) return '<button class="btn block" data-open="account">Xác minh email</button>';
+    return `<button class="btn block" disabled>${acc.plan?.id === 'free' ? 'Gói hiện tại' : 'Đã bao gồm'}</button>`;
   }
-  function premiumBox() {
-    if (!acc.payEnabled || !acc.packages.length) return '<button class="btn" disabled>Tạm ngừng bán</button>';
-    const list = acc.packages.map(k => `
-      <label class="pkg-opt ${k.id === acc.selectedPkg ? 'selected' : ''}" data-pkg="${esc(k.id)}">
-        <span><b>${esc(k.name)}</b>${k.save ? `<span class="pkg-save">-${k.save}%</span>` : ''}</span>
-        <span class="pkg-price">${money(k.price)}</span>
-      </label>`).join('');
+
+  function premiumAction() {
+    if (!acc.payEnabled || !acc.packages.length) return '<button class="btn block" disabled>Tạm ngừng bán</button>';
     const u = acc.user;
-    const btn = !u ? '<button class="btn primary" data-open="register">Đăng ký để mua Premium</button>'
-      : !u.verified ? '<button class="btn primary" data-open="account">Xác minh email để mua</button>'
-      : `<button class="btn primary" id="btn-buy">${u.effectivePlan === 'premium' ? 'Gia hạn' : 'Mua'} Premium</button>`;
-    return `<div class="pkg-list">${list}</div>${btn}`;
+    if (!u) return '<button class="btn gold block" data-open="register">Đăng ký để mua Premium</button>';
+    if (!u.verified) return '<button class="btn gold block" data-open="account">Xác minh email để mua</button>';
+    const k = selectedPackage();
+    const renew = u.effectivePlan === 'premium';
+    return `<button class="btn gold block" id="btn-buy">${renew ? 'Gia hạn' : 'Nâng cấp'} Premium ${esc(k?.name || '')} →</button>
+      ${renew && u.planExpires ? `<p class="plan-sub muted small center-t">Đang dùng đến ${new Date(u.planExpires).toLocaleDateString('vi-VN')}, gia hạn được cộng dồn</p>` : ''}`;
+  }
+
+  function renderCompare() {
+    const P = Object.fromEntries(acc.plans.map(p => [p.id, p]));
+    const ids = acc.plans.map(p => p.id);
+    const Y = '<span class="yes">✓</span>', N = '<span class="no">—</span>';
+    const row = (label, vals) => `<tr><th scope="row">${label}</th>${ids.map(id => `<td class="${id === 'premium' ? 'col-prem' : ''}">${vals(id)}</td>`).join('')}</tr>`;
+    const only = (...allowed) => (id) => allowed.includes(id) ? Y : N;
+    const all = () => Y;
+    const group = (t) => `<tr class="grp"><th colspan="${ids.length + 1}">${t}</th></tr>`;
+    $('#pr-compare').innerHTML = `
+      <thead><tr><th></th>${ids.map(id => `<th class="${id === 'premium' ? 'col-prem' : ''}">${PLAN_META[id]?.icon || ''} ${esc(P[id].name)}</th>`).join('')}</tr></thead>
+      <tbody>
+        ${group('Hạn mức')}
+        ${row('Lượt giọng AI máy chủ mỗi ngày', id => `<b>${fmt(P[id].ttsCalls)}</b>`)}
+        ${row('Ký tự mỗi lượt', id => `<b>${fmt(P[id].maxChars)}</b>`)}
+        ${row('Đọc văn bản dài (tự chia đoạn, tới 100.000 ký tự)', only('premium'))}
+        ${row('Mua thêm lượt cộng dồn', only('premium'))}
+        ${group('Kho giọng')}
+        ${row('Microsoft Edge Neural (300+ giọng)', all)}
+        ${row('Piper, Meta MMS, giọng trình duyệt (chạy trên máy)', all)}
+        ${row('VieNeu-TTS: 25 giọng Bắc · Trung · Nam', only('premium'))}
+        ${row('Supertonic 3: 31 ngôn ngữ quốc tế', only('premium'))}
+        ${row('CapCut / TikTok: 24 giọng viral', only('premium'))}
+        ${row('Gemini TTS / Groq bằng API key riêng', only('free', 'premium'))}
+        ${group('Công cụ')}
+        ${row('Whisper giọng → chữ, xuất SRT / VTT / TXT', all)}
+        ${row('Thẻ nghỉ chính xác [nghỉ 2s], xuất WAV 48 kHz', all)}
+        ${row('Thẻ cảm xúc [cười], [thở dài]', only('premium'))}
+        ${row('Phụ đề SRT tự động cho giọng đọc', only('premium'))}
+        ${row('Tóm tắt, làm sạch, dịch văn bản bằng AI', only('premium'))}
+        ${row('Từ điển phát âm & lịch sử chuyển đổi', only('free', 'premium'))}
+        ${row('Không chèn câu ghi nguồn vào file âm thanh', only('premium'))}
+        ${row('Ưu tiên hàng đợi giờ cao điểm', only('premium'))}
+      </tbody>`;
+  }
+
+  function renderCreditTiers() {
+    const cc = $('#credits-card');
+    cc.hidden = !(acc.payEnabled && acc.credits?.enabled);
+    if (cc.hidden) return;
+    const prem = acc.plan?.id === 'premium';
+    const c = acc.credits;
+    $('#credits-card-text').textContent = `Lượt mua thêm cộng dồn, không hết hạn theo ngày, chỉ dùng khi đã hết lượt trong ngày.${prem ? '' : ' Dành cho thành viên Premium.'}`;
+    $('#btn-credits-card').disabled = !prem;
+    $('#btn-credits-card').textContent = prem ? 'Chọn số lượng khác' : 'Cần gói Premium';
+    const presets = Array.isArray(c.presets) && c.presets.length ? c.presets : [10, 20, 30, 50, 100];
+    const best = Math.max(...presets);
+    $('#pr-credit-tiers').innerHTML = presets.map(q => {
+      const price = vkPay.calcCreditsPrice(q, c.price);
+      const off = Math.round((1 - price / (q * c.price)) * 100);
+      return `<button type="button" class="pr-tier ${q === best ? 'best' : ''}" data-q="${q}" ${prem ? '' : 'disabled'}>
+        ${q === best ? '<span class="pr-tier-tag">Tốt nhất</span>' : off > 0 ? `<span class="pr-tier-tag soft">-${off}%</span>` : ''}
+        <b>${fmt(q)}</b><small>lượt</small>
+        <span class="pr-tier-price">${money(price)}</span>
+        <span class="muted small">${fmt(Math.round(price / q))}đ / lượt</span>
+      </button>`;
+    }).join('');
+    $$('#pr-credit-tiers .pr-tier').forEach(b => b.addEventListener('click', () => {
+      if (!acc.credits?.enabled) return;
+      vkPay.startCredits(Number(b.dataset.q));
+    }));
   }
 
   function openFrom(what) {
@@ -577,7 +690,7 @@ const vkPay = (() => {
     payLabel();
   }
 
-  function startCredits() {
+  function startCredits(initialQty) {
     const c = vkAccount.state.credits;
     payKind = 'credits';
     const u = vkAccount.state.user || {};
@@ -610,7 +723,7 @@ const vkPay = (() => {
     qty.min = Math.max(10, c.min || 10);
     qty.max = c.max || 10000;
     qty.step = '10';
-    qty.value = presets.includes(30) ? 30 : (presets[1] || 20);
+    qty.value = initialQty > 0 ? initialQty : presets.includes(30) ? 30 : (presets[1] || 20);
     $('#pc-credits').hidden = false;
     if (!$('#pc-name').value) $('#pc-name').value = u.name || '';
     if (!$('#pc-email').value) $('#pc-email').value = u.email || '';
@@ -712,5 +825,5 @@ const vkPay = (() => {
     navigator.clipboard.writeText($('#' + b.dataset.copy).textContent.trim()).then(() => toast('Đã chép.', 'ok'));
   }));
 
-  return { start, startCredits, resume };
+  return { start, startCredits, resume, calcCreditsPrice };
 })();
