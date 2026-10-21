@@ -809,7 +809,46 @@ function insertTagIntoText(tag) {
   ta.dispatchEvent(new Event('input', { bubbles: true }));
 }
 
-$$('.tts-ctrl-bar [data-tag]').forEach(b => b.addEventListener('click', () => {
+/** Khóa hiển thị và tương tác các thẻ cảm xúc đối với tài khoản không phải Premium */
+function updateEmotionLock() {
+  const isPrem = isPremium();
+  const grp = $('#ctrl-group-emotion');
+  if (grp) {
+    let badge = grp.querySelector('.prem-badge-tag');
+    if (!isPrem) {
+      if (!badge) {
+        badge = document.createElement('span');
+        badge.className = 'prem-badge-tag';
+        badge.textContent = '👑 Premium';
+        grp.querySelector('.ctrl-label')?.appendChild(badge);
+      }
+    } else if (badge) {
+      badge.remove();
+    }
+  }
+  $$('.tts-ctrl-bar [data-emotion]').forEach(b => {
+    b.classList.toggle('locked', !isPrem);
+    const rawTag = b.dataset.tag;
+    if (!isPrem) {
+      b.title = `${rawTag} — Tính năng độc quyền gói Premium (bấm để xem nâng cấp)`;
+    } else {
+      b.title = `Chèn thẻ biểu cảm ${rawTag}`;
+    }
+  });
+}
+window.updateEmotionLock = updateEmotionLock;
+
+$$('.tts-ctrl-bar [data-tag]').forEach(b => b.addEventListener('click', async () => {
+  if (b.dataset.emotion && !isPremium()) {
+    const proceed = await customConfirm(
+      `Tính năng chèn thẻ cảm xúc (${b.dataset.tag}...) là đặc quyền chỉ dành riêng cho gói Premium.\n\nBạn có muốn xem bảng giá và nâng cấp tài khoản lên gói Premium không?`,
+      'Thẻ cảm xúc độc quyền Premium',
+      'Nâng cấp Premium ngay',
+      'Để sau'
+    );
+    if (proceed) showView('plans');
+    return;
+  }
   insertTagIntoText(b.dataset.tag);
 }));
 
@@ -1008,6 +1047,7 @@ async function applyLib() {
       if (b.dataset.tag === '<breath>') { b.dataset.tag = '[hắng giọng]'; b.textContent = '[hắng giọng]'; }
     });
   }
+  if (typeof updateEmotionLock === 'function') updateEmotionLock();
 
   try {
     if (lib === 'vieneu') {
@@ -1261,6 +1301,7 @@ function speakBrowser(text, voiceURI, rate) {
 
 /** Kho giọng chỉ dành cho Premium: đổi nút thành lời mời nâng cấp */
 function updateLibLock() {
+  if (typeof updateEmotionLock === 'function') updateEmotionLock();
   const locked = !!LIBS[tts.lib]?.premium && !isPremium();
   const label = $('#btn-tts-run span');
   if (!tts.speaking && !$('#btn-tts-run').disabled) label.textContent = locked ? 'Nâng cấp Premium để dùng' : 'Tạo giọng đọc';
@@ -1278,8 +1319,30 @@ $('#btn-tts-run').addEventListener('click', async () => {
   if (updateLibLock()) { showView('plans'); return; }
   const lib = tts.lib, btn = $('#btn-tts-run'), label = btn.querySelector('span');
   if (lib === 'browser' && tts.speaking) { speechSynthesis.cancel(); tts.speaking = false; label.textContent = 'Tạo giọng đọc'; return; }
-  const rawText = $('#tts-text').value.trim();
+  let rawText = $('#tts-text').value.trim();
   if (!rawText) return toast('Hãy nhập văn bản cần đọc.', 'err');
+
+  // Kiểm tra quyền sử dụng thẻ cảm xúc: nếu tài khoản không phải Premium mà văn bản có chứa thẻ cảm xúc
+  const EMOTION_REGEX = /(\[cười\]|\[thở dài\]|\[hắng giọng\]|<laugh>|<sigh>|<breath>)/i;
+  if (EMOTION_REGEX.test(rawText) && !isPremium()) {
+    const proceed = await customConfirm(
+      'Văn bản của bạn có chứa thẻ cảm xúc ([cười], [thở dài], <laugh>...). Tính năng này là đặc quyền chỉ dành riêng cho gói Premium.\n\nBạn có muốn nâng cấp tài khoản lên gói Premium để sử dụng không?',
+      'Thẻ cảm xúc độc quyền Premium',
+      'Nâng cấp Premium ngay',
+      'Xóa thẻ cảm xúc & Tiếp tục'
+    );
+    if (proceed) {
+      showView('plans');
+      return;
+    }
+    // Tự động xóa thẻ cảm xúc và cập nhật lại textarea
+    rawText = rawText.replace(new RegExp(EMOTION_REGEX.source, 'gi'), '').replace(/\s+/g, ' ').trim();
+    $('#tts-text').value = rawText;
+    updateCount();
+    if (!rawText) return toast('Văn bản trống sau khi xóa thẻ cảm xúc.', 'err');
+    toast('Đã xóa các thẻ cảm xúc khỏi văn bản để tiếp tục.', 'info');
+  }
+
   const voice = $('#tts-voice').value, rate = $('#tts-rate').value;
 
   // 1. Áp dụng từ điển phát âm cá nhân hóa
