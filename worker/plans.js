@@ -32,9 +32,10 @@ export const PLANS = {
     ttsCalls: 500, maxChars: 20000,
     perks: [
       'Mọi thứ của gói Miễn phí',
-      'Mở khóa độc quyền Mô hình VieNeu-TTS: 25 giọng chuẩn Bắc - Trung - Nam, đa phong cách, đọc chuẩn tiếng Anh xen tiếng Việt',
-      'Mở khóa độc quyền Mô hình Supertonic 3: 31 ngôn ngữ quốc tế (Anh, Nhật, Hàn, Pháp, Đức, Nga...), 10 giọng nam nữ',
-      'Kho giọng CapCut / TikTok: 24 giọng Việt viral (review phim, kịch bản, hài hước...)',
+      'Mở khóa độc quyền Model STT Cao cấp: Whisper Large v3 Turbo, PhoWhisper (VinAI tiếng Việt), Kotoba SOTA, Moonshine...',
+      'Mở khóa độc quyền VieNeu-TTS Studio Pro: 35 giọng 3 miền (bổ sung Review phim, Thuyết minh VTV, Kể chuyện trinh thám, MC Bán hàng, ASMR thiền...)',
+      'Mở khóa độc quyền Supertonic 3 Pro: 20 giọng nam nữ quốc tế, 31 ngôn ngữ chuẩn xác',
+      'Kho giọng CapCut / TikTok Global: 30+ giọng viral Việt Nam và Quốc tế (Mỹ, Thái, Trung, Indo...)',
       'Hạn mức vượt trội: {calls} lượt mỗi ngày, tối đa {chars} ký tự/lượt (gấp 10 lần Free, đọc cả chương truyện/kịch bản dài)',
       'Chế độ văn bản dài: tự chia đoạn và ghép thành một file, đọc tới 100.000 ký tự mỗi lần',
       'Tự tạo phụ đề SRT khớp với file giọng đọc, dùng ngay cho CapCut / Premiere',

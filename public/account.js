@@ -66,9 +66,10 @@ const vkAccount = (() => {
     $('#prof-bar').style.width = Math.min(100, used / Math.max(1, acc.plan.ttsCalls) * 100) + '%';
     $('#prof-usage').textContent = `Hôm nay đã dùng ${fmt(used)}/${fmt(acc.plan.ttsCalls)} lượt ${acc.plan.id === 'premium' ? 'Edge/CapCut' : 'Edge Neural'} · tối đa ${fmt(acc.plan.maxChars)} ký tự mỗi lượt`;
     renderQuota();
-    // Gói đổi -> cập nhật khóa Premium (kho CapCut, nút AI)
+    // Gói đổi -> cập nhật khóa Premium (kho CapCut, nút AI, danh sách model STT)
     renderLibOptions();
     updateLibLock();
+    if (typeof renderLocalEngines === 'function') renderLocalEngines();
     if (state.raw.length) $('#ai-row').hidden = !(isPremium() && (keyGet('gemini') || keyGet('groq')));
     if ($('#view-plans').classList.contains('active')) renderPlans();
   }
@@ -201,15 +202,17 @@ const vkAccount = (() => {
         ${row('Ký tự mỗi lượt', id => `<b>${fmt(P[id].maxChars)}</b>`)}
         ${row('Đọc văn bản dài (tự chia đoạn, tới 100.000 ký tự)', only('premium'))}
         ${row('Mua thêm lượt cộng dồn', only('premium'))}
-        ${group('Kho giọng')}
+        ${group('Kho giọng Text-to-Speech')}
         ${row('Microsoft Edge Neural (300+ giọng)', all)}
         ${row('Piper, Meta MMS, giọng trình duyệt (chạy trên máy)', all)}
-        ${row('VieNeu-TTS: 25 giọng Bắc · Trung · Nam', only('premium'))}
-        ${row('Supertonic 3: 31 ngôn ngữ quốc tế', only('premium'))}
-        ${row('CapCut / TikTok: 24 giọng viral', only('premium'))}
+        ${row('VieNeu-TTS Studio Pro: 35 giọng Bắc · Trung · Nam (Review phim, VTV, Kể chuyện trinh thám, MC Bán hàng, ASMR...)', only('premium'))}
+        ${row('Supertonic 3 Pro: 20 giọng nam nữ, 31 ngôn ngữ quốc tế', only('premium'))}
+        ${row('CapCut / TikTok Global: 30+ giọng viral Việt Nam và Quốc tế', only('premium'))}
         ${row('Gemini TTS / Groq bằng API key riêng', only('free', 'premium'))}
-        ${group('Công cụ')}
-        ${row('Whisper giọng → chữ, xuất SRT / VTT / TXT', all)}
+        ${group('Chuyển giọng nói → văn bản (STT)')}
+        ${row('Whisper Small, Tiny, Base & Moonshine Tiny (Miễn phí)', all)}
+        ${row('Model STT Siêu cấp: Whisper Large v3 Turbo, PhoWhisper VinAI, Kotoba SOTA...', only('premium'))}
+        ${row('Xuất phụ đề SRT / VTT / TXT mốc thời gian', all)}
         ${row('Thẻ nghỉ chính xác [nghỉ 2s], xuất WAV 48 kHz', all)}
         ${row('Thẻ cảm xúc [cười], [thở dài]', only('premium'))}
         ${row('Phụ đề SRT tự động cho giọng đọc', only('premium'))}

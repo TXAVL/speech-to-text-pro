@@ -55,14 +55,16 @@ Sửa số trong `worker/plans.js`.
 - `start.bat`: bản dùng cá nhân bằng Node, không có tài khoản và giới hạn.
 
 ## Tính năng
-**Giọng → Chữ:** 16 mô hình chạy trong trình duyệt, danh mục ở `public/stt-models.js` (đã chạy thử từng mô hình): PhoWhisper Base của VinAI (tiếng Việt); Whisper Tiny / Base / Small (chạy mọi máy, Small mặc định); Whisper Medium, Large v3 Turbo, Large v3 (cần WebGPU); mô hình riêng từng ngôn ngữ: Moonshine (Anh), Kotoba-Whisper (Nhật), Whisper tinh chỉnh cho Pháp, Đức, Ý, Nga, Ba Tư, KB-Whisper (Thụy Điển), NB-Whisper (Na Uy). Máy không có WebGPU (hoặc tắt tăng tốc phần cứng) thì các mô hình cần GPU bị khóa và có hướng dẫn bật. Tab Dán link nhận file trực tiếp hoặc link HLS `.m3u8`: tự chọn luồng tiếng, tải các đoạn (hỗ trợ AES-128, BYTERANGE, .ts / fMP4 / .aac) rồi ghép lại; link chặn CORS đi qua `/api/fetch-proxy`. Tùy chọn Gemini / Groq bằng key riêng, app tự dò model theo key.
+**Giọng → Chữ (STT):** Đa dạng mô hình AI chạy trong trình duyệt qua Transformers.js (danh mục ở `public/stt-models.js`). Các mô hình miễn phí: Whisper Small (mặc định), Whisper Tiny, Base, Moonshine Tiny (siêu tốc cho tiếng Anh), cùng các mô hình chuyên biệt từng thứ tiếng. Các mô hình Siêu cấp độc quyền gói Premium: Whisper Large v3 Turbo, Whisper Large v3 đầy đủ, Whisper Medium, PhoWhisper Base (VinAI tối ưu tiếng Việt), Kotoba-Whisper v2.2 (SOTA tiếng Nhật), Whisper Large v3 Turbo (Hàn Quốc, Tây Ban Nha, Đức, Nga, Quảng Đông). Hỗ trợ WebGPU và CPU tự động. Tab Dán link nhận file trực tiếp hoặc link HLS `.m3u8`. Tùy chọn Gemini / Groq bằng key riêng.
 
-**Chữ → Giọng:**
-| Kho giọng | Chạy ở đâu | Giọng Việt |
-|---|---|---|
-| Microsoft Edge Neural | Worker (có giới hạn theo gói) | 2 + 300 giọng đa ngôn ngữ |
-| CapCut / TikTok | Worker (có giới hạn theo gói) | 24 |
-| Piper | Trong trình duyệt | 1 |
-| Meta MMS | Trong trình duyệt | 1 |
-| Giọng trình duyệt / hệ điều hành | Trình duyệt (chỉ nghe) | Tùy máy |
-| Google Gemini TTS | Gọi thẳng Google bằng key riêng | 30 giọng đa ngôn ngữ |
+**Chữ → Giọng (TTS):**
+| Kho giọng | Chạy ở đâu | Số lượng & Đặc điểm | Gói áp dụng |
+|---|---|---|---|
+| Microsoft Edge Neural | Worker (giới hạn theo ngày) | 2 giọng Việt + 300+ giọng quốc tế | Mọi gói |
+| VieNeu-TTS Studio Pro | Worker (giới hạn theo ngày) | 35 giọng 3 miền (Review phim, VTV, Trinh thám, MC Bán hàng, ASMR...) | **Premium** |
+| Supertonic 3 Pro | Worker (giới hạn theo ngày) | 20 giọng nam/nữ, 31 ngôn ngữ quốc tế, hỗ trợ thẻ cảm xúc | **Premium** |
+| CapCut / TikTok Global | Worker (giới hạn theo ngày) | 30+ giọng viral (Việt Nam, US, Thái, Trung, Indo...) | **Premium** |
+| Piper | Trong trình duyệt (WASM) | 1 giọng Việt (offline được) | Miễn phí |
+| Meta MMS | Trong trình duyệt (WASM) | 1 giọng Việt (offline được) | Miễn phí |
+| Giọng trình duyệt / HĐH | Trình duyệt (chỉ nghe) | Tùy hệ điều hành | Miễn phí |
+| Google Gemini TTS | Gọi Google bằng key riêng | 30 giọng đa ngôn ngữ | Dùng API key |
