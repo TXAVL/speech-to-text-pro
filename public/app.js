@@ -541,6 +541,16 @@ ${gpu.reason}
 
 ${GPU_HELP}`, 'Mô hình cần tăng tốc đồ họa');
   }
+  if (kind === 'local' && STT_MODELS[model]?.premium && !isPremium()) {
+    const proceed = await customConfirm(
+      `Mô hình "${STT_MODELS[model]?.name}" là tính năng độc quyền dành riêng cho gói Premium với độ chính xác và chất lượng nhận diện cao nhất.\n\nBạn có muốn nâng cấp tài khoản lên gói Premium để sử dụng mô hình này không?`,
+      'Mô hình độc quyền Premium',
+      'Nâng cấp Premium ngay',
+      'Để sau'
+    );
+    if (proceed) showView('plans');
+    return;
+  }
   setBusy(true);
   try {
     let out;
@@ -721,9 +731,9 @@ const SAMPLE = 'Xin chào! Đây là giọng đọc trí tuệ nhân tạo. Bạ
 const GEMINI_VOICES = [['Zephyr', 'Sáng'], ['Puck', 'Sôi nổi'], ['Charon', 'Thông tin'], ['Kore', 'Chắc chắn'], ['Fenrir', 'Hào hứng'], ['Leda', 'Trẻ trung'], ['Orus', 'Chắc chắn'], ['Aoede', 'Nhẹ nhàng'], ['Callirrhoe', 'Dễ chịu'], ['Autonoe', 'Sáng'], ['Enceladus', 'Thì thầm'], ['Iapetus', 'Rõ ràng'], ['Umbriel', 'Dễ chịu'], ['Algieba', 'Mượt'], ['Despina', 'Mượt'], ['Erinome', 'Rõ ràng'], ['Algenib', 'Khàn'], ['Rasalgethi', 'Thông tin'], ['Laomedeia', 'Sôi nổi'], ['Achernar', 'Êm'], ['Alnilam', 'Chắc chắn'], ['Schedar', 'Đều'], ['Gacrux', 'Trưởng thành'], ['Pulcherrima', 'Mạnh mẽ'], ['Achird', 'Thân thiện'], ['Zubenelgenubi', 'Tự nhiên'], ['Vindemiatrix', 'Dịu dàng'], ['Sadachbia', 'Sống động'], ['Sadaltager', 'Am hiểu'], ['Sulafat', 'Ấm áp']];
 const LIBS = {
   edge:       { title: 'Microsoft Edge Neural — miễn phí', badge: 'Microsoft Edge Neural', free: true, needs: 'api', desc: '2 giọng Việt (HoaiMy, NamMinh) và 300+ giọng đa ngôn ngữ · miễn phí cho mọi tài khoản' },
-  vieneu:     { title: 'VieNeu-TTS (Việt Nam) — 25 giọng 3 miền (Premium)', badge: 'VieNeu-TTS (Việt Nam)', free: false, premium: true, needs: 'api', desc: '25 giọng chuẩn Bắc/Trung/Nam (tin tức, kể chuyện, tự nhiên...), đọc tiếng Anh xen kẽ, xuất WAV 48 kHz · dành cho gói Premium' },
-  supertonic: { title: 'Supertonic 3 — Đa ngôn ngữ (31 thứ tiếng) (Premium)', badge: 'Supertonic 3 (Đa ngôn ngữ)', free: false, premium: true, needs: 'api', desc: 'Đọc 31 ngôn ngữ quốc tế (Anh, Nhật, Hàn, Pháp, Đức...), 10 giọng nam nữ, thẻ cảm xúc <laugh>, <breath>, <sigh> · dành cho gói Premium' },
-  capcut:     { title: 'CapCut / TikTok — Premium', badge: 'CapCut / TikTok', free: false, premium: true, needs: 'api', desc: '24 giọng Việt kiểu TikTok, review phim · dành cho gói Premium' },
+  vieneu:     { title: 'VieNeu-TTS (Việt Nam) — 35 giọng 3 miền Studio Pro (Premium)', badge: 'VieNeu-TTS Studio Pro', free: false, premium: true, needs: 'api', desc: '35 giọng chuẩn Bắc/Trung/Nam (Review phim, VTV, Kể chuyện trinh thám, MC Bán hàng, ASMR thiền...), đọc tiếng Anh xen kẽ, xuất WAV 48 kHz · độc quyền gói Premium' },
+  supertonic: { title: 'Supertonic 3 — Đa ngôn ngữ (31 thứ tiếng, 20 giọng) (Premium)', badge: 'Supertonic 3 Pro (Đa ngôn ngữ)', free: false, premium: true, needs: 'api', desc: 'Đọc 31 ngôn ngữ quốc tế (Anh, Nhật, Hàn, Pháp, Đức, Tây Ban Nha...), 20 giọng nam nữ SOTA, thẻ cảm xúc <laugh>, <breath>, <sigh> · độc quyền gói Premium' },
+  capcut:     { title: 'CapCut / TikTok Global — 30+ giọng viral (Premium)', badge: 'CapCut / TikTok Global', free: false, premium: true, needs: 'api', desc: '30+ giọng viral Việt Nam và quốc tế (Review phim, US TikTok, Thái, Trung, Indo...) · độc quyền gói Premium' },
   piper:      { title: 'Piper — chạy trên máy bạn, miễn phí', badge: 'Piper (trong trình duyệt)', free: true, needs: '', desc: '1 giọng Việt (vais1000) · chạy 100% trong trình duyệt, tải ~63 MB lần đầu rồi dùng offline được' },
   mms:        { title: 'Meta MMS — chạy trên máy bạn, miễn phí', badge: 'Meta MMS (trong trình duyệt)', free: true, needs: '', desc: '1 giọng Việt · chạy 100% trong trình duyệt, tải ~114 MB lần đầu · giọng hơi máy' },
   browser:    { title: 'Giọng có sẵn của trình duyệt / hệ điều hành', badge: 'Trình duyệt / Hệ điều hành', free: true, needs: '', desc: 'Tùy máy bạn (Edge có giọng "Natural" rất tự nhiên) · chỉ nghe trực tiếp, không tải file được' },
@@ -1554,6 +1564,7 @@ function renderLocalEngines() {
   const sel = $('#engine'), cur = sel.value;
   $$('#engine optgroup:not([data-cloud])').forEach(g => g.remove());
   const first = sel.querySelector('optgroup[data-cloud]');
+  const isPrem = isPremium();
   for (const [gid, label] of STT_GROUPS) {
     const g = document.createElement('optgroup');
     g.label = label;
@@ -1562,11 +1573,12 @@ function renderLocalEngines() {
       const o = document.createElement('option');
       o.value = 'local:' + id;
       const lock = m.gpuOnly && gpu.checked && !gpu.ok;
-      o.textContent = `${lock ? '🔒 ' : ''}${m.name} (${m.size}${m.gpuOnly ? ', cần WebGPU' : ''})`;
+      const premTag = m.premium ? (isPrem ? '👑 ' : '👑 [Premium] ') : '';
+      o.textContent = `${lock ? '🔒 ' : ''}${premTag}${m.name} (${m.size}${m.gpuOnly ? ', cần WebGPU' : ''})`;
       if (m.default) o.dataset.default = '1';
       g.appendChild(o);
     }
-    sel.insertBefore(g, first);
+    if (g.children.length) sel.insertBefore(g, first);
   }
   if ([...sel.options].some(o => o.value === cur)) sel.value = cur;
   else sel.value = sel.querySelector('option[data-default]')?.value || sel.options[0].value;
@@ -1588,9 +1600,14 @@ ${GPU_HELP}`, 'Mô hình cần tăng tốc đồ họa');
   lastEngine = $('#engine').value;
   if (m?.lang && [...$('#language').options].some(o => o.value === m.lang)) $('#language').value = m.lang;
   $('#language').disabled = !!m?.lang;
-  $('#engine-hint').textContent = kind === 'gemini'
-    ? 'Gemini xử lý trên máy chủ Google bằng key của bạn (gọi thẳng từ trình duyệt). File tối đa ~14 MB; file lớn hãy dùng Whisper trên máy.'
-    : kind === 'groq' ? 'Groq chạy trên đám mây, rất nhanh. Gọi thẳng từ trình duyệt bằng key của bạn.' : (m?.hint || '');
+  if (m?.premium && !isPremium()) {
+    const curPlanName = typeof vkAccount !== 'undefined' && vkAccount.state?.plan ? vkAccount.state.plan.name : 'Miễn phí';
+    $('#engine-hint').innerHTML = `<span style="color:var(--gold, #eab308); font-weight:600;">👑 Mô hình "${m.name}" chỉ dành riêng cho gói Premium.</span> Bạn đang dùng gói ${curPlanName}. Nhấn "Bắt đầu chuyển đổi" để xem chi tiết và nâng cấp!`;
+  } else {
+    $('#engine-hint').textContent = kind === 'gemini'
+      ? 'Gemini xử lý trên máy chủ Google bằng key của bạn (gọi thẳng từ trình duyệt). File tối đa ~14 MB; file lớn hãy dùng Whisper trên máy.'
+      : kind === 'groq' ? 'Groq chạy trên đám mây, rất nhanh. Gọi thẳng từ trình duyệt bằng key của bạn.' : (m?.hint || '');
+  }
 }
 $('#engine').addEventListener('change', onEngineChange);
 renderLocalEngines();

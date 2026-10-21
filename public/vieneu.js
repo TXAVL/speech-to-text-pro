@@ -114,7 +114,49 @@ const VIENEU_VOICES = [
   { id: 'thuy_dung', name: 'Thùy Dung', gender: 'Nữ', region: 'Nam', style: 'Tin tức',
     desc: 'Giọng nữ miền Nam chuyên nghiệp, rõ ràng, dứt khoát, phong thái hiện đại',
     sample: 'Chào mừng quý vị đang theo dõi chuyên mục nhịp sống đô thị và phong cách sống hiện đại ngày hôm nay.',
-    voiceBase: 'vi_female_huong', pitch: '+3Hz', rateMod: 1.04 }
+    voiceBase: 'vi-VN-HoaiMyNeural', pitch: '+3Hz', rateMod: 1.04 },
+
+  // --- Giọng Studio Pro Đặc Quyền (Mới) ---
+  { id: 'hoang_nam', name: 'Hoàng Nam', gender: 'Nam', region: 'Bắc', style: 'Review Phim',
+    desc: 'Giọng nam trầm vang kịch tính, phong cách review phim chiếu rạp và trailer bom tấn',
+    sample: 'Trong một thế giới đầy rẫy hiểm nguy, một người hùng thầm lặng đã đứng lên để viết lại định mệnh của cả nhân loại.',
+    voiceBase: 'vi-VN-NamMinhNeural', pitch: '-7Hz', rateMod: 1.08 },
+  { id: 'lan_phuong', name: 'Lan Phương', gender: 'Nữ', region: 'Bắc', style: 'Thuyết Minh',
+    desc: 'Giọng nữ chuẩn Hà Nội đĩnh đạc, sâu lắng, phong thái thuyết minh phim tài liệu VTV và phóng sự',
+    sample: 'Trải qua hàng ngàn năm lịch sử thăng trầm, vùng đất cổ kính này vẫn lưu giữ nguyên vẹn những tinh hoa văn hóa truyền thống.',
+    voiceBase: 'vi-VN-HoaiMyNeural', pitch: '-2Hz', rateMod: 0.96 },
+  { id: 'bao_long', name: 'Bảo Long', gender: 'Nam', region: 'Nam', style: 'Trinh Thám',
+    desc: 'Giọng nam miền Nam trầm đục, bí ẩn, phong cách truyện ma, trinh thám rùng rợn và podcast đêm muộn',
+    sample: 'Tiếng bước chân lạ lùng dồn dập vang lên nơi hành lang tối tăm, kéo theo một luồng khí lạnh toát sau gáy.',
+    voiceBase: 'vi-VN-NamMinhNeural', pitch: '-9Hz', rateMod: 0.88 },
+  { id: 'thanh_hang', name: 'Thanh Hằng', gender: 'Nữ', region: 'Nam', style: 'Bán Hàng',
+    desc: 'Giọng nữ miền Nam hoạt ngôn, năng động, cuốn hút, chốt đơn đỉnh cao phong cách TikTok Shop và livestream',
+    sample: 'Dạ em chào cả nhà yêu nha! Cơ hội săn deal hời duy nhất hôm nay, các tình yêu bấm ngay vào giỏ hàng kẻo lỡ nhé!',
+    voiceBase: 'vi-VN-HoaiMyNeural', pitch: '+6Hz', rateMod: 1.12 },
+  { id: 'quang_khai', name: 'Quang Khải', gender: 'Nam', region: 'Trung', style: 'Cổ Trang',
+    desc: 'Giọng nam miền Trung hào sảng, uy phong, khí chất kiếm hiệp anh hùng và phim dã sử cổ phong',
+    sample: 'Đời người như bóng câu qua cửa sổ, ân oán giang hồ một khi đã bước chân vào thì há dễ buông tay dứt bỏ.',
+    voiceBase: 'vi-VN-NamMinhNeural', pitch: '+1Hz', rateMod: 0.98 },
+  { id: 'bich_ngoc', name: 'Bích Ngọc', gender: 'Nữ', region: 'Bắc', style: 'Thiền / ASMR',
+    desc: 'Giọng nữ êm dịu, thì thầm nhẹ nhàng, mang lại cảm giác an yên, giải tỏa căng thẳng và ru ngủ sâu',
+    sample: 'Hãy nhắm mắt lại, hít một hơi thật sâu, và cảm nhận sự bình yên đang lan tỏa nhẹ nhàng trong từng hơi thở.',
+    voiceBase: 'vi-VN-HoaiMyNeural', pitch: '-4Hz', rateMod: 0.89 },
+  { id: 'tuan_kiet', name: 'Tuấn Kiệt', gender: 'Nam', region: 'Nam', style: 'Tài Chính',
+    desc: 'Giọng nam Sài Gòn đĩnh đạc, hiện đại, phong thái chuyên gia phân tích kinh tế, CEO và khởi nghiệp',
+    sample: 'Thị trường công nghệ đang chứng kiến sự trỗi dậy mạnh mẽ của làn sóng chuyển đổi số và trí tuệ nhân tạo toàn diện.',
+    voiceBase: 'vi-VN-NamMinhNeural', pitch: '-2Hz', rateMod: 1.04 },
+  { id: 'hai_dang', name: 'Hải Đăng', gender: 'Nam', region: 'Bắc', style: 'Thiếu Nhi',
+    desc: 'Giọng nam hoạt bát, vui vẻ, biểu cảm sinh động, lồng tiếng truyện cổ tích và phim hoạt hình thiếu nhi',
+    sample: 'Xin chào các bé yêu quý! Hôm nay chú Hải Đăng sẽ kể cho các bé nghe một câu chuyện vô cùng thú vị và ngộ nghĩnh nhé!',
+    voiceBase: 'vi-VN-NamMinhNeural', pitch: '+6Hz', rateMod: 1.10 },
+  { id: 'thao_nhi', name: 'Thảo Nhi', gender: 'Nữ', region: 'Nam', style: 'Vlog / Review',
+    desc: 'Giọng nữ miền Nam tươi tắn, sành điệu, phong cách review ẩm thực, du lịch và đời sống giới trẻ',
+    sample: 'Hello mọi người ơi! Hôm nay Thảo Nhi sẽ dắt cả nhà đi oanh tạc thiên đường ẩm thực cực hot hit ngay tại trung tâm nha.',
+    voiceBase: 'vi-VN-HoaiMyNeural', pitch: '+5Hz', rateMod: 1.07 },
+  { id: 'gia_huy', name: 'Gia Huy', gender: 'Nam', region: 'Bắc', style: 'Radio Tâm Sự',
+    desc: 'Giọng nam trầm ấm, thì thầm truyền cảm, lắng nghe và sẻ chia những tâm tư cảm xúc sâu lắng',
+    sample: 'Gửi đến bạn một nốt trầm bình yên giữa phố thị tấp nập, hy vọng âm nhạc sẽ ôm lấy những muộn phiền ngày hôm nay.',
+    voiceBase: 'vi-VN-NamMinhNeural', pitch: '-5Hz', rateMod: 0.93 }
 ];
 
 // Định dạng nhãn hiển thị cho từng giọng VieNeu
@@ -122,18 +164,29 @@ VIENEU_VOICES.forEach(v => {
   v.label = `${v.name} (${v.gender} · ${v.region} · ${v.style})`;
 });
 
-// --- Supertonic 3: 10 giọng nam/nữ đa ngôn ngữ ---
+// --- Supertonic 3: 20 giọng nam/nữ đa ngôn ngữ ---
 const SUPERTONIC_VOICES = [
-  { id: 'st_alex', name: 'Alex', gender: 'Nam', desc: 'Giọng nam tiếng Anh / quốc tế chuẩn, tự nhiên, tin cậy', sample: 'Hello, welcome to Supertonic multilingual speech synthesis system.' },
-  { id: 'st_emma', name: 'Emma', gender: 'Nữ', desc: 'Giọng nữ tiếng Anh truyền cảm, phát âm trong trẻo, nhẹ nhàng', sample: 'Good morning! It is wonderful to explore new languages with you today.' },
-  { id: 'st_david', name: 'David', gender: 'Nam', desc: 'Giọng nam trầm ấm, đọc truyện và podcast toàn cầu', sample: 'The evening silence was broken only by the gentle sound of falling rain.' },
-  { id: 'st_sophia', name: 'Sophia', gender: 'Nữ', desc: 'Giọng nữ thanh lịch, bản tin tài chính và giáo dục quốc tế', sample: 'Latest international economic reports indicate a steady growth across tech sectors.' },
-  { id: 'st_liam', name: 'Liam', gender: 'Nam', desc: 'Giọng nam trẻ trung, năng động, phong cách vlog và mạng xã hội', sample: 'Hey guys! Check out this incredible new speech feature we just built.' },
-  { id: 'st_olivia', name: 'Olivia', gender: 'Nữ', desc: 'Giọng nữ ngọt ngào, hội thoại đời thường và trợ lý AI', sample: 'I would be happy to assist you with any questions you might have.' },
-  { id: 'st_kenji', name: 'Kenji', gender: 'Nam', desc: 'Giọng nam châu Á (Nhật / Anh), đĩnh đạc, rõ nét', sample: 'こんにちは。本日のニュースをお伝えいたします。 (Konnichiwa, honjitsu no nyuusu o otsutae itashimasu)' },
-  { id: 'st_yuki', name: 'Yuki', gender: 'Nữ', desc: 'Giọng nữ châu Á (Nhật / Anh), dịu dàng, trong sáng', sample: 'はじめまして、よろしくお願いします。 (Hajimemashite, yoroshiku onegai shimasu)' },
-  { id: 'st_minjun', name: 'Min-jun', gender: 'Nam', desc: 'Giọng nam Hàn Quốc / đa ngữ, thời trang, hiện đại', sample: '안녕하세요, 오늘 하루도 행복한 시간 되세요. (Annyeonghaseyo, oneul harudo haengbokhan shigan doeseyo)' },
-  { id: 'st_seoyeon', name: 'Seo-yeon', gender: 'Nữ', desc: 'Giọng nữ Hàn Quốc / đa ngữ, êm dịu, tình cảm', sample: '반갑습니다. 새로운 음성 서비스를 경험해 보세요. (Bangapseumnida. Saeroun eumseong seobiseureul gyeongheomhae boseyo)' }
+  { id: 'st_alex', name: 'Alex', gender: 'Nam', desc: 'Giọng nam tiếng Anh / quốc tế chuẩn, tự nhiên, tin cậy', sample: 'Hello, welcome to Supertonic multilingual speech synthesis system.', baseVoice: 'en-US-GuyNeural' },
+  { id: 'st_emma', name: 'Emma', gender: 'Nữ', desc: 'Giọng nữ tiếng Anh truyền cảm, phát âm trong trẻo, nhẹ nhàng', sample: 'Good morning! It is wonderful to explore new languages with you today.', baseVoice: 'en-US-JennyNeural' },
+  { id: 'st_david', name: 'David', gender: 'Nam', desc: 'Giọng nam trầm ấm, đọc truyện và podcast toàn cầu', sample: 'The evening silence was broken only by the gentle sound of falling rain.', baseVoice: 'en-US-ChristopherNeural' },
+  { id: 'st_sophia', name: 'Sophia', gender: 'Nữ', desc: 'Giọng nữ thanh lịch, bản tin tài chính và giáo dục quốc tế', sample: 'Latest international economic reports indicate a steady growth across tech sectors.', baseVoice: 'en-US-AriaNeural' },
+  { id: 'st_liam', name: 'Liam', gender: 'Nam', desc: 'Giọng nam trẻ trung, năng động, phong cách vlog và mạng xã hội', sample: 'Hey guys! Check out this incredible new speech feature we just built.', baseVoice: 'en-US-EricNeural' },
+  { id: 'st_olivia', name: 'Olivia', gender: 'Nữ', desc: 'Giọng nữ ngọt ngào, hội thoại đời thường và trợ lý AI', sample: 'I would be happy to assist you with any questions you might have.', baseVoice: 'en-US-MichelleNeural' },
+  { id: 'st_kenji', name: 'Kenji', gender: 'Nam', desc: 'Giọng nam châu Á (Nhật / Anh), đĩnh đạc, rõ nét', sample: 'こんにちは。本日のニュースをお伝えいたします。 (Konnichiwa, honjitsu no nyuusu o otsutae itashimasu)', baseVoice: 'ja-JP-KeitaNeural' },
+  { id: 'st_yuki', name: 'Yuki', gender: 'Nữ', desc: 'Giọng nữ châu Á (Nhật / Anh), dịu dàng, trong sáng', sample: 'はじめまして、よろしくお願いします。 (Hajimemashite, yoroshiku onegai shimasu)', baseVoice: 'ja-JP-NanamiNeural' },
+  { id: 'st_minjun', name: 'Min-jun', gender: 'Nam', desc: 'Giọng nam Hàn Quốc / đa ngữ, thời trang, hiện đại', sample: '안녕하세요, 오늘 하루도 행복한 시간 되세요. (Annyeonghaseyo, oneul harudo haengbokhan shigan doeseyo)', baseVoice: 'ko-KR-InJoonNeural' },
+  { id: 'st_seoyeon', name: 'Seo-yeon', gender: 'Nữ', desc: 'Giọng nữ Hàn Quốc / đa ngữ, êm dịu, tình cảm', sample: '반갑습니다. 새로운 음성 서비스를 경험해 보세요. (Bangapseumnida. Saeroun eumseong seobiseureul gyeongheomhae boseyo)', baseVoice: 'ko-KR-SunHiNeural' },
+  // 10 giọng quốc tế mới
+  { id: 'st_lucas', name: 'Lucas', gender: 'Nam', desc: 'Giọng nam Anh / Mỹ trẻ trung, podcast công nghệ quốc tế', sample: 'Artificial intelligence is reshaping the future of human creativity.', baseVoice: 'en-US-RyanNeural' },
+  { id: 'st_chloe', name: 'Chloe', gender: 'Nữ', desc: 'Giọng nữ Anh / Mỹ trong trẻo, cuốn hút, thuyết trình và quảng cáo toàn cầu', sample: 'Experience next-generation voice technology with effortless simplicity.', baseVoice: 'en-US-AvaNeural' },
+  { id: 'st_haruto', name: 'Haruto', gender: 'Nam', desc: 'Giọng nam Nhật Bản mạnh mẽ, anime và phim truyền hình', sample: '未来へ向かって、一緒に新しい一歩を踏み出しましょう。(Mirai e mukatte, issho ni atarashii ippo o fumidashimashou)', baseVoice: 'ja-JP-DaichiNeural' },
+  { id: 'st_sakura', name: 'Sakura', gender: 'Nữ', desc: 'Giọng nữ Nhật Bản ngọt ngào, idol và trợ lý ảo', sample: 'いつも応援してくれて本当にありがとうございます！(Itsumo ouen shite kurete hontou ni arigatou gozaimasu!)', baseVoice: 'ja-JP-AoiNeural' },
+  { id: 'st_jin', name: 'Jin', gender: 'Nam', desc: 'Giọng nam Hàn Quốc ấm áp, k-drama và âm nhạc', sample: '당신의 꿈을 응원합니다. 언제나 최선을 다하세요.(Dangsin-ui kkum-eul eung-wonhamnida. Eonjena choeseon-eul dahaseyo)', baseVoice: 'ko-KR-BongJinNeural' },
+  { id: 'st_jiwoo', name: 'Jiwoo', gender: 'Nữ', desc: 'Giọng nữ Hàn Quốc tươi sáng, phong cách k-pop và vlog', sample: '오늘도 정말 멋진 하루였어요! 함께해서 기뻐요.(Oneuldo jeongmal meotjin haruyeosseoyo! Hamkkehaeseo gippeoyo)', baseVoice: 'ko-KR-JiMinNeural' },
+  { id: 'st_antoine', name: 'Antoine', gender: 'Nam', desc: 'Giọng nam Pháp lãng mạn, lịch lãm, văn học nghệ thuật', sample: 'La vie est un voyage magnifique rempli de découvertes inattendues.', baseVoice: 'fr-FR-AlainNeural' },
+  { id: 'st_camille', name: 'Camille', gender: 'Nữ', desc: 'Giọng nữ Pháp thanh lịch, thời trang và ẩm thực cao cấp', sample: 'Bienvenue dans notre univers dédié à l’élégance et au raffinement.', baseVoice: 'fr-FR-BrigitteNeural' },
+  { id: 'st_mateo', name: 'Mateo', gender: 'Nam', desc: 'Giọng nam Tây Ban Nha sôi nổi, thể thao và phóng sự', sample: '¡Bienvenidos todos a este emocionante recorrido de aventuras!', baseVoice: 'es-ES-TristanNeural' },
+  { id: 'st_sofia_es', name: 'Sofia (ES)', gender: 'Nữ', desc: 'Giọng nữ Tây Ban Nha duyên dáng, truyền cảm hứng', sample: 'El éxito pertenece a quienes creen en la belleza de sus sueños.', baseVoice: 'es-ES-XimenaNeural' }
 ];
 SUPERTONIC_VOICES.forEach(v => {
   v.label = `${v.name} (${v.gender} · Đa ngôn ngữ)`;

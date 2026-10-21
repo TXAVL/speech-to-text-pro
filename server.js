@@ -847,10 +847,27 @@ app.post('/api/edge/tts', async (req, res) => {
 
 // ---- CapCut / TikTok voices (miễn phí, proxy audio để phát & tải được) ----
 app.get('/api/capcut/voices', (req, res) => {
-  const voices = getVoiceCatalog()
-    .filter(v => (v.lan || '').toLowerCase() === 'vi' || (v.lang || '').toLowerCase().startsWith('vi'))
-    .map(v => ({ name: v.voice_type, label: v.display_name }));
-  res.json({ success: true, voices });
+  const flags = {
+    vi: '🇻🇳', en: '🇺🇸', th: '🇹🇭', zh: '🇨🇳', id: '🇮🇩', ja: '🇯🇵',
+    ko: '🇰🇷', es: '🇪🇸', fr: '🇫🇷', pt: '🇧🇷', de: '🇩🇪', ru: '🇷🇺'
+  };
+  const seen = new Set();
+  const viList = [];
+  const otherList = [];
+  for (const v of getVoiceCatalog()) {
+    if (!v.voice_type || seen.has(v.voice_type)) continue;
+    seen.add(v.voice_type);
+    const l = (v.lan || (v.lang ? v.lang.slice(0, 2) : 'vi')).toLowerCase();
+    const flag = flags[l] || '🌐';
+    const langLabel = v.lang || (l === 'vi' ? 'vi-VN' : l);
+    const item = {
+      name: v.voice_type,
+      label: `${flag} ${v.display_name} (${langLabel})`
+    };
+    if (l === 'vi') viList.push(item);
+    else otherList.push(item);
+  }
+  res.json({ success: true, voices: [...viList, ...otherList] });
 });
 
 app.post('/api/capcut/tts', async (req, res) => {
