@@ -32,8 +32,13 @@ async function ttsRoute(request, env, synth, label, premiumOnly = false) {
   if (env.DB) {
     const user = await getUser(request, env);
     const cfg = await getConfig(env.DB);
-    if (premiumOnly && effectivePlan(user, cfg).id !== 'premium') {
+    const isPrem = effectivePlan(user, cfg).id === 'premium';
+    if (premiumOnly && !isPrem) {
       return json({ error: `${label} chỉ dành cho gói Premium.`, premium: true }, 403);
+    }
+    const EMOTION_REGEX = /(\[cười\]|\[thở dài\]|\[hắng giọng\]|<laugh>|<sigh>|<breath>)/i;
+    if (EMOTION_REGEX.test(text) && !isPrem) {
+      return json({ error: 'Thẻ cảm xúc ([cười], [thở dài]...) chỉ dành riêng cho gói Premium.', premium: true }, 403);
     }
     quota = await takeTtsQuota(env.DB, request, user, text.length, cfg);
     if (!quota.ok) return json({ error: quota.error, quota: true, plan: quota.plan.id, buyCredits: !!quota.buyCredits }, quota.status);
