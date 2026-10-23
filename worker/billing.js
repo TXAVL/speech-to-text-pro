@@ -201,18 +201,21 @@ export async function handleBilling(request, env, path) {
   }
 }
 
-/** GET /invoice/<mã đơn>: trang hóa đơn in được (chủ đơn hoặc admin) */
+/** GET /invoice/<mã đơn>: trang biên nhận thanh toán (hỗ trợ quét mã QR công khai) */
 export async function handleInvoice(request, env, path) {
   const code = Number(path.split('/')[2]);
   const page = (msg, status) => new Response(`<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><body style="font-family:system-ui;background:#0b0d14;color:#e9ecf5;display:grid;place-items:center;min-height:100vh;margin:0"><div style="text-align:center"><h2>${msg}</h2><a href="/" style="color:#22d3ee">← Về trang chủ</a></div></body>`, { status, headers: { 'Content-Type': 'text/html; charset=utf-8' } });
   if (!env.DB || !code) return page('Không tìm thấy hóa đơn.', 404);
-  const user = await getUser(request, env);
-  if (!user) return page('Hãy đăng nhập để xem hóa đơn.', 401);
   const order = await env.DB.prepare('SELECT * FROM orders WHERE order_code = ?').bind(code).first();
-  if (!order || (order.user_id !== user.id && !isAdmin(env, user))) return page('Không tìm thấy hóa đơn.', 404);
-  const owner = order.user_id === user.id ? user : await env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(order.user_id).first();
+  if (!order) return page('Không tìm thấy biên lai thanh toán.', 404);
+  let owner = null;
+  if (order.user_id) {
+    try {
+      owner = await env.DB.prepare('SELECT id, name, email FROM users WHERE id = ?').bind(order.user_id).first();
+    } catch {}
+  }
   const cfg = await getConfig(env.DB);
-  return new Response(renderInvoice({ order, user: owner, seller: cfg.saved.seller || {}, appName: 'TXA Voice', baseUrl: appUrl(env, request) }), {
-    headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'private, no-store' }
+  return new Response(renderInvoice({ order, user: owner || {}, seller: cfg.saved.seller || {}, appName: 'TXA Voice', baseUrl: appUrl(env, request) }), {
+    headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'public, max-age=60' }
   });
 }

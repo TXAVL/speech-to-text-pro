@@ -8,6 +8,27 @@ const store = {
   set(k, v) { try { localStorage.setItem(k, v); } catch {} }
 };
 
+/* ---------------- Quản lý tiến độ trên Document Title ---------------- */
+const ORIGINAL_TITLE = document.title || 'TXA Voice - AI Giọng nói ⇄ Văn bản';
+function updateTitleProgress(label, percent = null) {
+  if (!label) {
+    document.title = ORIGINAL_TITLE;
+    return;
+  }
+  const cleanLabel = String(label).replace(/[.…]+$/, '').trim();
+  let prefix = '';
+  if (percent !== null && Number.isFinite(percent)) {
+    prefix = `[${Math.round(percent)}%] `;
+  } else {
+    prefix = `[${cleanLabel}] `;
+  }
+  const mainPart = (prefix.includes(cleanLabel) ? prefix.trim() : `${prefix}${cleanLabel}`).trim();
+  document.title = `${mainPart} · ${ORIGINAL_TITLE}`;
+}
+function clearTitleProgress() {
+  document.title = ORIGINAL_TITLE;
+}
+
 /** Gói Premium (hoặc website không bật tài khoản như bản start.bat) */
 function isPremium() {
   try { if (typeof vkAccount === 'undefined' || !vkAccount.state.enabled) return true; } catch { return true; }
@@ -288,8 +309,9 @@ async function setMedia(blob, name) {
   $('#media-card').hidden = false;
   $('#btn-run').disabled = false;
   try {
-    const { duration } = await decodeTo16kMono(blob);
+    const { data, duration } = await decodeTo16kMono(blob);
     state.media.duration = duration;
+    if (typeof player.setAudioData === 'function') player.setAudioData(data);
     $('#media-meta').textContent = `${fmtSize(blob.size)} · ${clock(duration)}`;
   } catch {
     $('#media-meta').textContent = fmtSize(blob.size);
@@ -297,6 +319,7 @@ async function setMedia(blob, name) {
 }
 function clearMedia() {
   state.media = null;
+  clearTitleProgress();
   $('#player').removeAttribute('src');
   $('#media-card').hidden = true;
   $('#btn-run').disabled = true;
@@ -316,18 +339,28 @@ $('#btn-fetch-url').addEventListener('click', async () => {
   try { new URL(url); } catch { return toast('Link không hợp lệ.', 'err'); }
   const btn = $('#btn-fetch-url'); btn.disabled = true; btn.textContent = 'Đang tải…';
   try {
-    const r = await vkLink.load(url, (done, total) => { btn.textContent = `${done}/${total} đoạn`; });
+    const r = await vkLink.load(url, (done, total) => {
+      btn.textContent = `${done}/${total} đoạn`;
+      const pct = total ? Math.round((done / total) * 100) : null;
+      updateTitleProgress(`Đang tải file (${done}/${total})`, pct);
+    });
     if (r.blob.type === 'audio/aac') {
-      // AAC thô (tách từ .ts) không có thông tin độ dài: trình phát hiện sai thời lượng, đổi sang WAV 16 kHz
       btn.textContent = 'Đang ghép…';
+      updateTitleProgress('Đang xử lý âm thanh');
       const { data } = await decodeTo16kMono(r.blob);
       r.blob = f32ToWav(data, 16000);
       r.name = r.name.replace(/\.aac$/, '.wav');
     }
     await setMedia(r.blob, r.name);
+    clearTitleProgress();
     toast(r.segments ? `Đã tải và ghép ${r.segments} đoạn HLS.${r.live ? ' Đây là luồng trực tiếp, chỉ lấy được phần đang có.' : ''}` : 'Đã tải file từ link.', 'ok');
-  } catch (e) { toast(e.message || 'Không tải được link này.', 'err'); }
-  btn.disabled = false; btn.textContent = 'Tải';
+  } catch (e) {
+    clearTitleProgress();
+    toast(e.message || 'Không tải được link này.', 'err');
+  } finally {
+    clearTitleProgress();
+    btn.disabled = false; btn.textContent = 'Tải';
+  }
 });
 
 /* ---------------- Ghi âm ---------------- */
@@ -523,11 +556,19 @@ function setProgress(title, sub = '', ratio = null) {
   const fill = $('#bar-fill');
   if (ratio == null) { fill.classList.add('indeterminate'); }
   else { fill.classList.remove('indeterminate'); fill.style.width = Math.round(ratio * 100) + '%'; }
+
+  let pct = ratio != null ? Math.round(ratio * 100) : null;
+  if (pct == null && sub) {
+    const m = sub.match(/(\d+)%/);
+    if (m) pct = Number(m[1]);
+  }
+  updateTitleProgress(title, pct);
 }
 function setBusy(b) {
   state.busy = b;
   $('#btn-run').disabled = b || !state.media;
   $('#btn-run span').textContent = b ? 'Đang xử lý…' : 'Bắt đầu chuyển đổi';
+  if (!b) clearTitleProgress();
 }
 
 async function runTranscribe() {
@@ -572,14 +613,28 @@ async function runLocal(modelId, language) {
   const worker = state.worker;
   return new Promise((resolve, reject) => {
     const cleanup = () => { worker.onmessage = null; worker.onerror = null; };
-    worker.onerror = e => { cleanup(); reject(new Error('Không khởi chạy được mô hình: ' + (e.message || 'lỗi worker'))); };
+    worker.onerror = e => { cleanup(); clearTitleProgress(); reject(new Error('Không khởi chạy được mô hình: ' + (e.message || 'lỗi worker'))); };
     worker.onmessage = ({ data: m }) => {
-      if (m.type === 'status') setProgress(m.message, 'Đừng đóng tab này.');
-      else if (m.type === 'load-progress') {
+      if (m.type === 'status') {
+        setProgress(m.message, 'Đừng đóng tab này.');
+        updateTitleProgress(m.message);
+      } else if (m.type === 'load-progress') {
+        const pct = m.total ? Math.round((m.loaded / m.total) * 100) : null;
         setProgress('Đang tải mô hình về máy…', `${(m.loaded / 1e6).toFixed(0)} / ${(m.total / 1e6).toFixed(0)} MB (chỉ tải lần đầu)`, m.loaded / m.total);
-      } else if (m.type === 'progress') setProgress('Đang nhận diện giọng nói…', `${Math.round(m.ratio * 100)}%`, m.ratio);
-      else if (m.type === 'result') { cleanup(); resolve({ text: m.text, segments: m.segments, duration, model: (STT_MODELS[modelId]?.name.split(' — ')[0] || modelId.split('/').pop()) + (m.device === 'webgpu' ? ' · GPU' : ' · CPU'), elapsed: m.elapsed }); }
-      else if (m.type === 'error') { cleanup(); reject(new Error(m.message)); }
+        updateTitleProgress('Đang tải model', pct);
+      } else if (m.type === 'progress') {
+        const pct = Math.round(m.ratio * 100);
+        setProgress('Đang nhận diện giọng nói…', `${pct}%`, m.ratio);
+        updateTitleProgress('Đang chuyển đổi', pct);
+      } else if (m.type === 'result') {
+        clearTitleProgress();
+        cleanup();
+        resolve({ text: m.text, segments: m.segments, duration, model: (STT_MODELS[modelId]?.name.split(' — ')[0] || modelId.split('/').pop()) + (m.device === 'webgpu' ? ' · GPU' : ' · CPU'), elapsed: m.elapsed });
+      } else if (m.type === 'error') {
+        clearTitleProgress();
+        cleanup();
+        reject(new Error(m.message));
+      }
     };
     worker.postMessage({ type: 'transcribe', audio: data, modelId, language, duration, cpuOnly: gpu.checked && !gpu.ok }, [data.buffer]);
   });
@@ -620,6 +675,7 @@ function splitSegments(segs, maxChars) {
 }
 
 function finishResult(r) {
+  clearTitleProgress();
   state.raw = r.segments.length ? r.segments : [{ id: 1, start: 0, end: r.duration || 0, text: r.text }];
   state.text = r.text;
   state.meta = { model: r.model, duration: r.duration, elapsed: r.elapsed, name: state.media?.name || '' };
@@ -1273,13 +1329,24 @@ function synthMms(text, onStatus) {
   tts.mms ||= new Worker('tts-worker.js', { type: 'module' });
   const worker = tts.mms, id = Date.now(), texts = splitSentences(text);
   return new Promise((resolve, reject) => {
-    worker.onerror = e => reject(new Error('Không chạy được MMS: ' + (e.message || 'lỗi worker')));
+    worker.onerror = e => { clearTitleProgress(); reject(new Error('Không chạy được MMS: ' + (e.message || 'lỗi worker'))); };
     worker.onmessage = ({ data: m }) => {
       if (m.id !== id) return;
-      if (m.type === 'load') onStatus(`Đang tải giọng về máy… ${Math.round(m.ratio * 100)}% (chỉ lần đầu)`);
-      else if (m.type === 'progress') onStatus(`Đang đọc… ${Math.round(m.ratio * 100)}%`);
-      else if (m.type === 'done') resolve(f32ToWav(joinWithGaps(m.parts, m.rate), m.rate));
-      else if (m.type === 'error') reject(new Error(m.message));
+      if (m.type === 'load') {
+        const pct = Math.round(m.ratio * 100);
+        onStatus(`Đang tải giọng về máy… ${pct}% (chỉ lần đầu)`);
+        updateTitleProgress('Đang tải model giọng', pct);
+      } else if (m.type === 'progress') {
+        const pct = Math.round(m.ratio * 100);
+        onStatus(`Đang đọc… ${pct}%`);
+        updateTitleProgress('Đang tạo giọng đọc', pct);
+      } else if (m.type === 'done') {
+        clearTitleProgress();
+        resolve(f32ToWav(joinWithGaps(m.parts, m.rate), m.rate));
+      } else if (m.type === 'error') {
+        clearTitleProgress();
+        reject(new Error(m.message));
+      }
     };
     worker.postMessage({ id, texts });
   });
@@ -1370,8 +1437,14 @@ $('#btn-tts-run').addEventListener('click', async () => {
     return;
   }
 
-  const status = s => { label.textContent = s; };
+  const status = s => {
+    label.textContent = s;
+    const m = s.match(/(\d+)%/);
+    const pct = m ? Number(m[1]) : null;
+    updateTitleProgress(s.replace(/\s*\d+%.*$/, '').trim(), pct);
+  };
   btn.disabled = true; label.textContent = 'Đang tạo giọng…';
+  updateTitleProgress('Đang tạo giọng');
 
   try {
     let blob = null;
@@ -1517,9 +1590,14 @@ $('#btn-tts-run').addEventListener('click', async () => {
         voiceLabel: voiceOpt ? voiceOpt.textContent : voice, duration: await audioDuration(blob)
       });
     }
-  } catch (e) { toast(e.message, 'err'); }
-  btn.disabled = false; label.textContent = 'Tạo giọng đọc';
-  updateLibLock();
+  } catch (e) {
+    clearTitleProgress();
+    toast(e.message, 'err');
+  } finally {
+    clearTitleProgress();
+    btn.disabled = false; label.textContent = 'Tạo giọng đọc';
+    updateLibLock();
+  }
 });
 
 /* ---------------- Cài đặt / chia sẻ ---------------- */
