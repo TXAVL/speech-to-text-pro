@@ -109,7 +109,7 @@
               </div>
               <button class="icon-btn sm" id="btn-clear-media" title="Bỏ file"><svg><use href="#i-trash"/></svg></button>
             </div>
-            <audio id="player" controls preload="metadata"></audio>
+            <canvas id="player" class="audio-canvas-player" width="600" height="56" tabindex="0" role="region" aria-label="Trình phát âm thanh"></canvas>
           </div>
 
           <div class="field-group">
@@ -326,7 +326,7 @@
           <button class="btn primary big" id="btn-tts-run"><svg><use href="#i-play"/></svg><span>Tạo giọng đọc</span></button>
 
           <div class="tts-result" id="tts-result" hidden>
-            <audio id="tts-player" controls></audio>
+            <canvas id="tts-player" class="audio-canvas-player" width="600" height="56" tabindex="0" role="region" aria-label="Trình phát giọng đọc"></canvas>
             <a class="btn" id="tts-download" download="voice.mp3"><svg><use href="#i-download"/></svg><span>Tải về</span></a>
             <a class="btn srt" id="tts-srt" download="voice.srt" hidden title="Phụ đề khớp với file giọng đọc (Premium)"><svg><use href="#i-download"/></svg><span>Phụ đề SRT</span></a>
           </div>
@@ -720,6 +720,7 @@
 
   <script src="stt-models.js"></script>
   <script src="vieneu.js"></script>
+  <script src="canvas-player.js"></script>
   <script src="app.js"></script>
   <script src="hls.js"></script>
   <script src="history.js"></script>

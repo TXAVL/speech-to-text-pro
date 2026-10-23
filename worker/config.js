@@ -50,7 +50,7 @@ function build(saved) {
     tax_code: '',
     address: 'Xã Hà Nam, thành phố Hải Phòng, Việt Nam',
     email: 'txasoftdev@gmail.com',
-    phone: '0981 246 899',
+    phone: '0389 077 187',
     bank: 'VQRQAMXZO2074 (TANG XUAN ANH) tại Ngân hàng TMCP Quân Đội (MB Bank)'
   };
   const savedWithSeller = { ...saved, seller: { ...defaultSeller, ...(saved.seller || {}) } };
