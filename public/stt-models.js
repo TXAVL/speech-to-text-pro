@@ -9,6 +9,7 @@
    gpuOnly: mô hình lớn, bắt buộc WebGPU
    cpuOnly: bản ONNX chạy sai trên WebGPU, luôn chạy CPU
    lang:    mô hình chỉ làm một ngôn ngữ -> ép ngôn ngữ này khi nhận diện
+   enOnly:  bản *.en chỉ tiếng Anh, không được truyền language/task cho Whisper
    noTimestamps: mô hình không học mốc thời gian, ước lượng theo độ dài câu
    Đã chạy thử từng mô hình: một số bản fp16 / q4f16 ra chữ lặp vô nghĩa nên ghi rõ dtype dùng được. */
 
@@ -26,6 +27,27 @@ self.STT_MODELS = {
     hint: 'PhoWhisper của VinAI, huấn luyện trên 844 giờ tiếng Việt nhiều vùng miền. Nhận diện chuẩn xác ngữ cảnh tiếng Việt (dành riêng cho gói Premium). Tải ~180 MB (CPU) hoặc ~290 MB (WebGPU).'
   },
 
+  'huuquyet/PhoWhisper-tiny': {
+    group: 'vi', name: 'PhoWhisper Tiny (VinAI) — tiếng Việt, siêu nhẹ', size: '~40 MB', lang: 'vietnamese',
+    family: 'whisper', gpu: ['q8', 'q8'], cpuOnly: true, noTimestamps: true,
+    hint: 'PhoWhisper Tiny của VinAI, huấn luyện riêng cho tiếng Việt, chỉ ~40 MB (bản lượng tử hóa, chạy CPU). Miễn phí cho mọi tài khoản.'
+  },
+  'huuquyet/PhoWhisper-small': {
+    group: 'vi', name: 'PhoWhisper Small (VinAI) — tiếng Việt, cân bằng', size: '~250 MB', lang: 'vietnamese',
+    family: 'whisper', gpu: ['q8', 'q8'], cpuOnly: true, noTimestamps: true,
+    hint: 'PhoWhisper Small của VinAI: nhận diện tiếng Việt nhiều vùng miền tốt hơn hẳn Whisper Small gốc (bản lượng tử hóa, chạy CPU). Miễn phí cho mọi tài khoản.'
+  },
+  'huuquyet/PhoWhisper-medium': {
+    group: 'vi', name: 'PhoWhisper Medium (VinAI) — tiếng Việt, chính xác cao', size: '~775 MB', lang: 'vietnamese',
+    family: 'whisper', gpu: ['q8', 'q8'], cpuOnly: true, noTimestamps: true, premium: true,
+    hint: 'PhoWhisper Medium của VinAI, độ chính xác tiếng Việt cao (bản lượng tử hóa, chạy CPU, hơi chậm với file dài). Dành riêng cho gói Premium.'
+  },
+  'huuquyet/PhoWhisper-large': {
+    group: 'vi', name: 'PhoWhisper Large (VinAI) — tiếng Việt, chính xác nhất', size: '~1.5 GB', lang: 'vietnamese',
+    family: 'whisper', gpu: ['q8', 'q8'], cpuOnly: true, noTimestamps: true, premium: true,
+    hint: 'PhoWhisper Large của VinAI, mô hình tiếng Việt mạnh nhất (bản lượng tử hóa, chạy CPU, cần RAM ≥ 4 GB và khá chậm). Dành riêng cho gói Premium.'
+  },
+
   'onnx-community/whisper-small': {
     group: 'multi-free', name: 'Whisper Small — cân bằng, ổn định (Khuyên dùng)', size: '~250 MB', family: 'whisper', gpu: ['fp16', 'q4'], default: true,
     hint: 'Mô hình cân bằng tốt giữa tốc độ và độ chính xác, miễn phí cho mọi tài khoản. Tải một lần ~250 MB rồi lưu cache offline.'
@@ -37,6 +59,22 @@ self.STT_MODELS = {
   'onnx-community/whisper-tiny': {
     group: 'multi-free', name: 'Whisper Tiny — siêu nhẹ, nháp nhanh', size: '~40 MB', family: 'whisper', gpu: ['fp16', 'q4'],
     hint: 'Siêu nhẹ (~40 MB), nhận diện siêu tốc trên mọi thiết bị. Phù hợp nghe nháp nhanh.'
+  },
+  'onnx-community/whisper-tiny.en': {
+    group: 'multi-free', name: 'Whisper Tiny.en — tiếng Anh, siêu nhẹ', size: '~40 MB', lang: 'english', enOnly: true, family: 'whisper', gpu: ['fp16', 'q4'],
+    hint: 'Bản Whisper Tiny chỉ huấn luyện cho tiếng Anh, nhẹ ~40 MB và chính xác hơn Tiny đa ngôn ngữ khi nghe tiếng Anh.'
+  },
+  'onnx-community/whisper-base.en': {
+    group: 'multi-free', name: 'Whisper Base.en — tiếng Anh, nhẹ & chuẩn', size: '~80 MB', lang: 'english', enOnly: true, family: 'whisper', gpu: ['fp16', 'q4'],
+    hint: 'Whisper Base chuyên tiếng Anh (~80 MB), ít nhầm từ hơn bản đa ngôn ngữ. Miễn phí cho mọi tài khoản.'
+  },
+  'onnx-community/whisper-small.en': {
+    group: 'multi-free', name: 'Whisper Small.en — tiếng Anh, độ chính xác tốt', size: '~250 MB', lang: 'english', enOnly: true, family: 'whisper', gpu: ['fp16', 'q4'],
+    hint: 'Whisper Small chuyên tiếng Anh, cân bằng tốc độ và độ chính xác. Miễn phí cho mọi tài khoản.'
+  },
+  'onnx-community/distil-small.en': {
+    group: 'multi-free', name: 'Distil-Whisper Small.en — nhanh, tiếng Anh', size: '~170 MB', lang: 'english', enOnly: true, family: 'whisper', gpu: ['fp16', 'q4'],
+    hint: 'Bản chưng cất của Whisper Small chỉ cho tiếng Anh: nhanh gấp ~2 lần, độ chính xác gần tương đương. Miễn phí cho mọi tài khoản.'
   },
   'onnx-community/moonshine-tiny-ONNX': {
     group: 'multi-free', name: 'Moonshine Tiny — siêu tốc 5x, tiếng Anh', size: '~35 MB', lang: 'english', family: 'moonshine', gpu: ['fp32', 'fp32'],
@@ -52,6 +90,11 @@ self.STT_MODELS = {
     group: 'premium-pro', name: 'Whisper Large v3 — độ chính xác tối đa SOTA', size: '~1 GB', family: 'whisper',
     gpu: ['q4f16', 'q4f16'], gpuNoF16: ['q4', 'q4'], gpuOnly: true, premium: true,
     hint: 'Bản Whisper Large v3 đầy đủ 1.55B tham số, nhận diện âm thanh nhiễu và từ chuyên ngành xuất sắc nhất. Độc quyền gói Premium.'
+  },
+  'onnx-community/distil-large-v3.5-ONNX': {
+    group: 'premium-pro', name: 'Distil-Whisper Large v3.5 — tiếng Anh, siêu chính xác', size: '~530 MB', lang: 'english', enOnly: true, family: 'whisper',
+    gpu: ['q4f16', 'q4f16'], gpuNoF16: ['q4', 'q4'], gpuOnly: true, premium: true,
+    hint: 'Distil-Whisper Large v3.5: độ chính xác ngang Large v3 cho tiếng Anh nhưng nhanh hơn nhiều lần. Độc quyền gói Premium (cần WebGPU).'
   },
   'onnx-community/whisper-medium-ONNX': {
     group: 'premium-pro', name: 'Whisper Medium — nhận diện sâu, chính xác cao', size: '~680 MB', family: 'whisper',
@@ -92,6 +135,30 @@ self.STT_MODELS = {
   'onnx-community/moonshine-base-ONNX': {
     group: 'lang', name: 'English · Moonshine Base — rất nhanh, nhẹ', size: '~65 MB', lang: 'english', family: 'moonshine', gpu: ['fp32', 'fp32'],
     hint: 'Moonshine (Useful Sensors) chỉ cho tiếng Anh: nhẹ ~65 MB, chạy nhanh hơn Whisper nhiều lần và chính xác hơn Whisper Base.'
+  },
+  'onnx-community/moonshine-tiny-ko-ONNX': {
+    group: 'lang', name: '한국어 · Moonshine Tiny — nhẹ, nhanh', size: '~110 MB', lang: 'korean', family: 'moonshine', gpu: ['fp32', 'fp32'],
+    hint: 'Moonshine (Useful Sensors) chuyên tiếng Hàn, nhẹ và nhanh hơn Whisper nhiều lần. Miễn phí cho mọi tài khoản.'
+  },
+  'onnx-community/moonshine-base-ko-ONNX': {
+    group: 'lang', name: '한국어 · Moonshine Base — nhẹ, nhanh', size: '~250 MB', lang: 'korean', family: 'moonshine', gpu: ['fp32', 'fp32'],
+    hint: 'Moonshine (Useful Sensors) chuyên tiếng Hàn, nhẹ và nhanh hơn Whisper nhiều lần. Miễn phí cho mọi tài khoản.'
+  },
+  'onnx-community/moonshine-base-ja-ONNX': {
+    group: 'lang', name: '日本語 · Moonshine Base — nhẹ, nhanh', size: '~250 MB', lang: 'japanese', family: 'moonshine', gpu: ['fp32', 'fp32'],
+    hint: 'Moonshine (Useful Sensors) chuyên tiếng Nhật, nhẹ và nhanh hơn Whisper nhiều lần. Miễn phí cho mọi tài khoản.'
+  },
+  'onnx-community/moonshine-base-zh-ONNX': {
+    group: 'lang', name: '中文 · Moonshine Base — nhẹ, nhanh', size: '~250 MB', lang: 'chinese', family: 'moonshine', gpu: ['fp32', 'fp32'],
+    hint: 'Moonshine (Useful Sensors) chuyên tiếng Trung, nhẹ và nhanh hơn Whisper nhiều lần. Miễn phí cho mọi tài khoản.'
+  },
+  'onnx-community/moonshine-tiny-fr-ONNX': {
+    group: 'lang', name: 'Français · Moonshine Tiny — nhẹ, nhanh', size: '~110 MB', lang: 'french', family: 'moonshine', gpu: ['fp32', 'fp32'],
+    hint: 'Moonshine (Useful Sensors) chuyên tiếng Pháp, nhẹ và nhanh hơn Whisper nhiều lần. Miễn phí cho mọi tài khoản.'
+  },
+  'onnx-community/moonshine-tiny-ar-ONNX': {
+    group: 'lang', name: 'العربية · Moonshine Tiny — nhẹ, nhanh', size: '~110 MB', lang: 'arabic', family: 'moonshine', gpu: ['fp32', 'fp32'],
+    hint: 'Moonshine (Useful Sensors) chuyên tiếng Ả Rập, nhẹ và nhanh hơn Whisper nhiều lần. Miễn phí cho mọi tài khoản.'
   },
   'onnx-community/whisper-small-cv11-french-ONNX': {
     group: 'lang', name: 'Français · Whisper Small (Common Voice 11)', size: '~400 MB', lang: 'french', family: 'whisper', gpu: ['fp16', 'q4'],

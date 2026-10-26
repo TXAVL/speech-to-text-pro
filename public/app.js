@@ -790,7 +790,7 @@ const LIBS = {
   vieneu:     { title: 'VieNeu-TTS (Việt Nam) — 35 giọng 3 miền Studio Pro (Premium)', badge: 'VieNeu-TTS Studio Pro', free: false, premium: true, needs: 'api', desc: '35 giọng chuẩn Bắc/Trung/Nam (Review phim, VTV, Kể chuyện trinh thám, MC Bán hàng, ASMR thiền...), đọc tiếng Anh xen kẽ, xuất WAV 48 kHz · độc quyền gói Premium' },
   supertonic: { title: 'Supertonic 3 — Đa ngôn ngữ (31 thứ tiếng, 20 giọng) (Premium)', badge: 'Supertonic 3 Pro (Đa ngôn ngữ)', free: false, premium: true, needs: 'api', desc: 'Đọc 31 ngôn ngữ quốc tế (Anh, Nhật, Hàn, Pháp, Đức, Tây Ban Nha...), 20 giọng nam nữ SOTA, thẻ cảm xúc <laugh>, <breath>, <sigh> · độc quyền gói Premium' },
   capcut:     { title: 'CapCut / TikTok Global — 30+ giọng viral (Premium)', badge: 'CapCut / TikTok Global', free: false, premium: true, needs: 'api', desc: '30+ giọng viral Việt Nam và quốc tế (Review phim, US TikTok, Thái, Trung, Indo...) · độc quyền gói Premium' },
-  piper:      { title: 'Piper — chạy trên máy bạn, miễn phí', badge: 'Piper (trong trình duyệt)', free: true, needs: '', desc: '1 giọng Việt (vais1000) · chạy 100% trong trình duyệt, tải ~63 MB lần đầu rồi dùng offline được' },
+  piper:      { title: 'Piper — chạy trên máy bạn, miễn phí', badge: 'Piper (trong trình duyệt)', free: true, needs: '', desc: '5 giọng miễn phí (3 giọng Việt + 2 giọng Anh) và 29 giọng 👑 Premium (Anh Mỹ/Anh chất lượng cao, Pháp, Đức, Tây Ban Nha, Nga, Trung, Bồ, Thổ...) · chạy 100% trong trình duyệt, mỗi giọng tải ~60 MB lần đầu rồi dùng offline được' },
   mms:        { title: 'Meta MMS — chạy trên máy bạn, miễn phí', badge: 'Meta MMS (trong trình duyệt)', free: true, needs: '', desc: '1 giọng Việt · chạy 100% trong trình duyệt, tải ~114 MB lần đầu · giọng hơi máy' },
   browser:    { title: 'Giọng có sẵn của trình duyệt / hệ điều hành', badge: 'Trình duyệt / Hệ điều hành', free: true, needs: '', desc: 'Tùy máy bạn (Edge có giọng "Natural" rất tự nhiên) · chỉ nghe trực tiếp, không tải file được' },
   gemini:     { title: 'Google Gemini TTS — dùng key của bạn', badge: 'Google Gemini TTS', free: false, needs: '', desc: '30 giọng đa ngôn ngữ (có tiếng Việt), đọc theo phong cách bạn mô tả · gọi thẳng Google bằng key của bạn' }
@@ -988,7 +988,7 @@ function renderLibOptions() {
 }
 
 function setVoiceOptions(list) {
-  $('#tts-voice').innerHTML = list.map(v => `<option value="${v.id || v.name}">${v.label || v.name}</option>`).join('');
+  $('#tts-voice').innerHTML = list.map(v => `<option value="${v.id || v.name}" data-premium="${v.premium ? 1 : 0}">${v.premium ? (isPremium() ? '👑 ' : '🔒 ') : ''}${v.label || v.name}</option>`).join('');
   updateVoiceDetail();
 }
 function browserVoices() {
@@ -1134,7 +1134,42 @@ async function applyLib() {
       if (!tts.capcutVoices) tts.capcutVoices = (await api('/api/capcut/voices')).voices;
       setVoiceOptions(tts.capcutVoices);
     } else if (lib === 'piper') {
-      setVoiceOptions([{ name: 'vi_VN-vais1000-medium', label: 'Vais1000 — Nữ (Piper)' }]);
+      setVoiceOptions([
+        { name: 'vi_VN-vais1000-medium', label: '🇻🇳 Vais1000 — Nữ (Tiếng Việt)' },
+        { name: 'vi_VN-25hours_single-low', label: '🇻🇳 25 Hours — Giọng đọc đơn (Tiếng Việt, nhẹ)' },
+        { name: 'vi_VN-vivos-x_low', label: '🇻🇳 Vivos — Tiếng Việt (siêu nhẹ)' },
+        { name: 'en_US-amy-medium', label: '🇺🇸 Amy — Nữ (English US)' },
+        { name: 'en_US-lessac-medium', label: '🇺🇸 Lessac — Nữ (English US)' },
+        { name: 'en_US-ryan-high', label: '🇺🇸 Ryan — Nam (English US, chất lượng cao)', premium: true },
+        { name: 'en_US-lessac-high', label: '🇺🇸 Lessac HQ — Nữ (English US, chất lượng cao)', premium: true },
+        { name: 'en_US-ljspeech-high', label: '🇺🇸 LJSpeech HQ — Nữ (English US, chất lượng cao)', premium: true },
+        { name: 'en_US-libritts-high', label: '🇺🇸 LibriTTS HQ — Đa giọng (English US)', premium: true },
+        { name: 'en_US-hfc_female-medium', label: '🇺🇸 HFC — Nữ (English US)', premium: true },
+        { name: 'en_US-hfc_male-medium', label: '🇺🇸 HFC — Nam (English US)', premium: true },
+        { name: 'en_US-joe-medium', label: '🇺🇸 Joe — Nam (English US)', premium: true },
+        { name: 'en_US-kristin-medium', label: '🇺🇸 Kristin — Nữ (English US)', premium: true },
+        { name: 'en_GB-cori-high', label: '🇬🇧 Cori HQ — Nữ (English UK, chất lượng cao)', premium: true },
+        { name: 'en_GB-alan-medium', label: '🇬🇧 Alan — Nam (English UK)', premium: true },
+        { name: 'en_GB-alba-medium', label: '🇬🇧 Alba — Nữ (English UK)', premium: true },
+        { name: 'en_GB-jenny_dioco-medium', label: '🇬🇧 Jenny — Nữ (English UK)', premium: true },
+        { name: 'fr_FR-siwis-medium', label: '🇫🇷 Siwis — Nữ (Français)', premium: true },
+        { name: 'fr_FR-tom-medium', label: '🇫🇷 Tom — Nam (Français)', premium: true },
+        { name: 'fr_FR-upmc-medium', label: '🇫🇷 UPMC — Nữ (Français)', premium: true },
+        { name: 'de_DE-thorsten-high', label: '🇩🇪 Thorsten HQ — Nam (Deutsch, chất lượng cao)', premium: true },
+        { name: 'de_DE-thorsten_emotional-medium', label: '🇩🇪 Thorsten Emotional — Nam (Deutsch)', premium: true },
+        { name: 'es_ES-davefx-medium', label: '🇪🇸 Davefx — Nam (Español)', premium: true },
+        { name: 'es_ES-sharvard-medium', label: '🇪🇸 Sharvard — Đa giọng (Español)', premium: true },
+        { name: 'es_MX-claude-high', label: '🇲🇽 Claude HQ — Nam (Español México)', premium: true },
+        { name: 'pt_BR-faber-medium', label: '🇧🇷 Faber — Nam (Português Brasil)', premium: true },
+        { name: 'ru_RU-irina-medium', label: '🇷🇺 Irina — Nữ (Русский)', premium: true },
+        { name: 'ru_RU-denis-medium', label: '🇷🇺 Denis — Nam (Русский)', premium: true },
+        { name: 'zh_CN-huayan-medium', label: '🇨🇳 Huayan — Nữ (中文)', premium: true },
+        { name: 'tr_TR-fahrettin-medium', label: '🇹🇷 Fahrettin — Nam (Türkçe)', premium: true },
+        { name: 'pl_PL-gosia-medium', label: '🇵🇱 Gosia — Nữ (Polski)', premium: true },
+        { name: 'nl_NL-mls-medium', label: '🇳🇱 MLS — Nam (Nederlands)', premium: true },
+        { name: 'uk_UA-ukrainian_tts-medium', label: '🇺🇦 Ukrainian TTS — Đa giọng (Українська)', premium: true },
+        { name: 'ar_JO-kareem-medium', label: '🇯🇴 Kareem — Nam (العربية)', premium: true }
+      ]);
     } else if (lib === 'mms') {
       setVoiceOptions([{ name: 'mms-vie', label: 'Tiếng Việt — Meta MMS' }]);
     } else if (lib === 'browser') {
@@ -1162,6 +1197,7 @@ function fillEdgeVoices() {
 }
 $('#tts-locale').addEventListener('change', fillEdgeVoices);
 $('#tts-lib').addEventListener('change', applyLib);
+$('#tts-voice').addEventListener('change', () => updateLibLock());
 
 let ttsReady = false;
 function initTts() { if (ttsReady) return; ttsReady = true; renderLibOptions(); applyLib(); }
@@ -1190,7 +1226,8 @@ async function ttsSuffix(lang) {
   } catch { return ''; }
 }
 function sourceLang(lib, voice, text) {
-  if (lib === 'piper' || lib === 'mms') return 'vi';
+  if (lib === 'piper') return /^vi_/.test(voice || '') ? 'vi' : 'en';
+  if (lib === 'mms') return 'vi';
   if (lib === 'browser') { const v = speechSynthesis.getVoices().find(x => (x.voiceURI || x.name) === voice); return /^vi/i.test(v?.lang || '') ? 'vi' : 'en'; }
   return /[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]/i.test(text) ? 'vi' : 'en';
 }
@@ -1369,12 +1406,14 @@ function speakBrowser(text, voiceURI, rate) {
 /** Kho giọng chỉ dành cho Premium: đổi nút thành lời mời nâng cấp */
 function updateLibLock() {
   if (typeof updateEmotionLock === 'function') updateEmotionLock();
-  const locked = !!LIBS[tts.lib]?.premium && !isPremium();
+  const voiceOpt = $('#tts-voice').selectedOptions[0];
+  const voiceLocked = tts.lib === 'piper' && voiceOpt?.dataset.premium === '1' && !isPremium();
+  const locked = (!!LIBS[tts.lib]?.premium && !isPremium()) || voiceLocked;
   const label = $('#btn-tts-run span');
   if (!tts.speaking && !$('#btn-tts-run').disabled) label.textContent = locked ? 'Nâng cấp Premium để dùng' : 'Tạo giọng đọc';
   $('#tts-lock').hidden = !locked;
   if (locked) {
-    $('#tts-lock-title').textContent = `${LIBS[tts.lib]?.badge || 'Kho giọng này'} dành cho Premium`;
+    $('#tts-lock-title').textContent = voiceLocked ? 'Giọng này dành cho Premium' : `${LIBS[tts.lib]?.badge || 'Kho giọng này'} dành cho Premium`;
     $('#tts-lock-text').textContent = 'Mở khóa cùng đọc văn bản dài và phụ đề SRT. Edge Neural, Piper, Meta MMS vẫn miễn phí.';
   }
   return locked;

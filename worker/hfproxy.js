@@ -1,8 +1,8 @@
 // Proxy + cache file mô hình Hugging Face qua chính tên miền website.
 // Trình duyệt tải /hf/<repo>/resolve/<rev>/<file> -> không bị CORS / giới hạn tải của Hugging Face,
 // và Cloudflare cache lại nên người dùng sau tải nhanh hơn.
-// Chỉ các repo mô hình ONNX của onnx-community (danh mục Giọng → Chữ trong public/stt-models.js) và giọng MMS tiếng Việt
-const ALLOWED = [/^onnx-community\/[a-z0-9._-]+$/i, /^Xenova\/mms-tts-vie$/i];
+// Chỉ các repo mô hình ONNX của onnx-community (danh mục Giọng → Chữ trong public/stt-models.js), PhoWhisper của huuquyet và giọng MMS tiếng Việt
+const ALLOWED = [/^onnx-community\/[a-z0-9._-]+$/i, /^huuquyet\/PhoWhisper-(tiny|small|medium|large)$/i, /^Xenova\/mms-tts-vie$/i];
 
 export async function handleHf(request, ctx, path) {
   if (path === '/hf/health') return new Response('ok', { headers: { 'Cache-Control': 'no-store' } });

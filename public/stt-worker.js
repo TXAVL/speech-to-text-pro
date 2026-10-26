@@ -133,8 +133,7 @@ async function transcribeWhisper(audio, cfg, language, duration) {
   const run = async (timestamps) => {
     let done = 0;
     return asr(audio, {
-      language: language && language !== 'auto' ? language : null,
-      task: 'transcribe',
+      ...(cfg.enOnly ? {} : { language: language && language !== 'auto' ? language : null, task: 'transcribe' }),
       return_timestamps: timestamps,
       chunk_length_s: 30,
       stride_length_s: 5,
