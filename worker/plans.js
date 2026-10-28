@@ -5,7 +5,7 @@
 export const PLANS = {
   guest: {
     id: 'guest', name: 'Khách', price: 'Miễn phí',
-    ttsCalls: 5, maxChars: 500,
+    ttsCalls: 5, maxChars: 500, srtCues: 0,
     perks: [
       'Giọng nói → văn bản bằng Whisper, không giới hạn (chạy trên máy bạn)',
       'Giọng Piper / Meta MMS / giọng trình duyệt, không giới hạn',
@@ -16,20 +16,21 @@ export const PLANS = {
   },
   free: {
     id: 'free', name: 'Miễn phí', price: '0đ',
-    ttsCalls: 50, maxChars: 3000,
+    ttsCalls: 50, maxChars: 3000, srtCues: 30,
     perks: [
       'Mọi thứ của gói Khách',
       '{calls} lượt giọng Edge Neural mỗi ngày, tối đa {chars} ký tự/lượt',
       'Điều chỉnh tốc độ đọc linh hoạt từ 0.75× đến 1.50×',
       'Từ điển phát âm cá nhân hóa lưu vĩnh viễn (KTX → ký túc xá...)',
       'Lưu lịch sử chuyển đổi giọng nói và file âm thanh',
+      'Đọc phụ đề SRT thành giọng khớp mốc thời gian: tối đa {srt} câu mỗi file',
       'Dùng API key Gemini / Groq của bạn: nhận diện đám mây, Gemini TTS',
       'Cần xác minh email'
     ]
   },
   premium: {
     id: 'premium', name: 'Premium', price: '',
-    ttsCalls: 500, maxChars: 20000,
+    ttsCalls: 500, maxChars: 20000, srtCues: null,
     perks: [
       'Mọi thứ của gói Miễn phí',
       'Mở khóa độc quyền Model STT Cao cấp: Whisper Large v3 Turbo, PhoWhisper (VinAI tiếng Việt), Kotoba SOTA, Moonshine...',
@@ -39,6 +40,8 @@ export const PLANS = {
       'Hạn mức vượt trội: {calls} lượt mỗi ngày, tối đa {chars} ký tự/lượt (gấp 10 lần Free, đọc cả chương truyện/kịch bản dài)',
       'Chế độ văn bản dài: tự chia đoạn và ghép thành một file, đọc tới 100.000 ký tự mỗi lần',
       'Tự tạo phụ đề SRT khớp với file giọng đọc, dùng ngay cho CapCut / Premiere',
+      'Đọc phụ đề SRT thành giọng nói không giới hạn số câu, kèm nhạc nền tự nhỏ lại khi có giọng',
+      'Studio phụ đề video: sửa thời gian từng dòng, kiểu chữ CapCut / tô từng từ, xuất video MP4 có in phụ đề',
       'Xuất âm thanh chất lượng cao: WAV 48 kHz (16-bit PCM chuẩn phòng thu) hoặc MP3',
       'Điều khiển cảm xúc ([cười], [thở dài], <laugh>...) & Thẻ nghỉ chính xác từng mili-giây ([nghỉ 2s], [nghỉ 500ms])',
       'Hoàn toàn không có câu ghi nguồn (không watermark) vào file âm thanh',

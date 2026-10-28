@@ -28,7 +28,7 @@ function build(saved) {
     }
   }
   for (const plan of Object.values(plans)) {
-    plan.perks = plan.perks.map(t => t.replace('{calls}', fmt(plan.ttsCalls)).replace('{chars}', fmt(plan.maxChars)));
+    plan.perks = plan.perks.map(t => t.replace('{calls}', fmt(plan.ttsCalls)).replace('{chars}', fmt(plan.maxChars)).replace('{srt}', fmt(plan.srtCues || 0)));
   }
   const sc = saved.credits || {};
   const credits = {
@@ -81,5 +81,5 @@ export async function saveConfig(db, patch) {
 }
 
 export function publicPlans(cfg) {
-  return Object.values(cfg.plans).map(({ id, name, price, ttsCalls, maxChars, perks }) => ({ id, name, price, ttsCalls, maxChars, perks }));
+  return Object.values(cfg.plans).map(({ id, name, price, ttsCalls, maxChars, srtCues, perks }) => ({ id, name, price, ttsCalls, maxChars, srtCues, perks }));
 }

@@ -81,6 +81,7 @@ const vkUI = (() => {
     if (!ta) return;
     const stats = $('#tts-stats');
     const refresh = () => {
+      if (typeof vkSrt !== 'undefined' && vkSrt.looks(ta.value)) { stats.textContent = ''; ta._fit?.(); return; } // thống kê phụ đề do bảng SRT hiển thị
       const t = ta.value.trim(), words = t ? t.split(/\s+/).length : 0;
       const sec = Math.round(words / 2.6); // ~155 từ / phút
       stats.textContent = words ? `${words.toLocaleString('vi-VN')} từ · ước tính ~${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}` : 'Mẹo: Ctrl + Enter để đọc ngay, kéo thả file .txt vào ô';
@@ -109,9 +110,9 @@ const vkUI = (() => {
       if (!f) return;
       e.preventDefault();
       if (!/^text\//.test(f.type) && !/\.(txt|md|srt|vtt)$/i.test(f.name)) return toast('Chỉ nhận file văn bản (.txt, .md, .srt).', 'err');
-      let t = await f.text();
-      if (/\.(srt|vtt)$/i.test(f.name)) t = t.replace(/^WEBVTT.*$/m, '').replace(/^\d+\s*$/gm, '').replace(/^[\d:.,]+ --> [\d:.,]+.*$/gm, '').replace(/\n{2,}/g, '\n').trim();
-      ta.value = t.slice(0, Number(ta.maxLength) > 0 ? ta.maxLength : 20000);
+      const t = await f.text();
+      // Phụ đề giữ nguyên mốc thời gian để đọc khớp giờ (vkSrt), không cắt theo giới hạn ký tự
+      ta.value = /\.(srt|vtt)$/i.test(f.name) ? t : t.slice(0, Number(ta.maxLength) > 0 ? ta.maxLength : 20000);
       ta.dispatchEvent(new Event('input', { bubbles: true }));
       toast(`Đã nạp nội dung từ ${f.name}.`, 'ok');
     });

@@ -620,11 +620,12 @@ input[type="range"] {
   cursor: pointer;
   user-select: none;
   -webkit-user-select: none;
-  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: pan-y; /* vuốt dọc vẫn cuộn trang, kéo ngang để tua / chỉnh âm lượng */
 }
 .audio-canvas-player:focus-visible,
 #player:focus-visible {
-  box-shadow: 0 0 0 2px #22d3ee;
+  box-shadow: 0 0 0 2px var(--accent);
 }
 
 /* ---------- Result ---------- */
@@ -882,8 +883,8 @@ input[type="range"] {
   gap: 10px;
   margin-top: 16px;
   padding: 14px;
-  background: rgba(34, 211, 238, 0.07);
-  border: 1px solid rgba(34, 211, 238, 0.3);
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--line));
   border-radius: 14px;
 }
 .tts-result audio,
@@ -4308,3 +4309,238 @@ input[type="range"] {
   line-height: 1;
 }
 
+
+/* Đọc phụ đề SRT thành giọng */
+.srt-panel {
+  margin-top: 14px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--line));
+  background: color-mix(in srgb, var(--accent) 6%, var(--card-2));
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.srt-panel[hidden] {
+  display: none;
+}
+.srt-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.srt-head > div {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.srt-ico {
+  font-size: 22px;
+}
+.srt-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--gold) 45%, var(--line));
+  background: var(--gold-soft);
+  white-space: nowrap;
+}
+.srt-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13.5px;
+  cursor: pointer;
+}
+.srt-check input {
+  accent-color: var(--accent);
+  width: 16px;
+  height: 16px;
+}
+.srt-music {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.srt-music .muted {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 220px;
+}
+.srt-panel .field {
+  margin: 0;
+}
+.srt-panel .field[hidden] {
+  display: none;
+}
+
+/* Studio phụ đề video */
+.vs-box {
+  width: min(1180px, 100%);
+  max-height: calc(100vh - 40px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.vs-box h3 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.vs-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+  gap: 18px;
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+}
+.vs-left,
+.vs-right {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  min-height: 0;
+}
+.vs-stage {
+  position: relative;
+  background: #000;
+  border-radius: 12px;
+  overflow: hidden;
+}
+.vs-stage video {
+  display: block;
+  width: 100%;
+  max-height: 52vh;
+}
+.vs-stage canvas {
+  position: absolute;
+  pointer-events: none;
+}
+.vs-styles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.vs-style {
+  border: 1px solid var(--line);
+  background: var(--card-2);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 7px 14px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+.vs-style.active {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, var(--card-2));
+  color: var(--accent-2);
+}
+.vs-opts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 14px;
+}
+.vs-opts .field {
+  margin: 0;
+}
+.vs-opts input[type='color'] {
+  width: 100%;
+  height: 38px;
+  padding: 2px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--card-2);
+}
+.vs-list-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.vs-list {
+  flex: 1;
+  min-height: 200px;
+  max-height: 62vh;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-right: 4px;
+}
+.vs-row {
+  display: grid;
+  grid-template-columns: 86px 86px minmax(0, 1fr) auto;
+  gap: 6px;
+  align-items: center;
+  padding: 6px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  cursor: pointer;
+}
+.vs-row.playing {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+.vs-row input {
+  font: inherit;
+  font-size: 13px;
+  color: var(--text);
+  background: var(--card-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 6px 8px;
+  min-width: 0;
+}
+.vs-time {
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+.vs-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+.vs-foot > .muted,
+.vs-progress {
+  flex: 1;
+  min-width: 200px;
+}
+.vs-progress[hidden],
+.vs-foot > .muted[hidden] {
+  display: none;
+}
+.vs-progress .bar {
+  margin-bottom: 4px;
+}
+@media (max-width: 860px) {
+  .vs-grid {
+    grid-template-columns: 1fr;
+  }
+  .vs-list {
+    max-height: 40vh;
+  }
+}
+@media (max-width: 520px) {
+  .vs-row {
+    grid-template-columns: 1fr 1fr auto;
+  }
+  .vs-row .vs-text {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+  .vs-opts {
+    grid-template-columns: 1fr;
+  }
+}

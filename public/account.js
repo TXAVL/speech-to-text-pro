@@ -70,6 +70,7 @@ const vkAccount = (() => {
     renderLibOptions();
     updateLibLock();
     if (typeof renderLocalEngines === 'function') renderLocalEngines();
+    if (typeof updateSrtPanel === 'function') updateSrtPanel();
     if (state.raw.length) $('#ai-row').hidden = !(isPremium() && (keyGet('gemini') || keyGet('groq')));
     if ($('#view-plans').classList.contains('active')) renderPlans();
   }

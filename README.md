@@ -45,7 +45,29 @@ Sửa số trong `worker/plans.js`.
 - Có giới hạn tổng toàn hệ thống (`GLOBAL_DAILY_TTS`, mặc định 60.000 lượt/ngày) để không chạm giới hạn 100.000 request/ngày của Cloudflare free. Các gói không phải Premium dừng ở 85% mức đó.
 - Lượt làm mới lúc 0h giờ Việt Nam. Lượt bị lỗi được hoàn lại.
 - Tính năng chạy trong trình duyệt (Whisper, Piper, MMS, Gemini/Groq bằng key riêng) không tốn tài nguyên máy chủ nên không giới hạn.
-- Chưa có thanh toán tự động: người dùng liên hệ, quản trị viên bật Premium trong trang Quản trị (tùy chọn gửi email báo).
+- Thanh toán tự động qua payOS (xem mục dưới). Quản trị viên vẫn có thể bật Premium / cộng lượt bằng tay trong trang Quản trị.
+- Đọc phụ đề SRT thành giọng: Khách không dùng được, Miễn phí tối đa 30 câu mỗi file (sửa `srtCues` trong `worker/plans.js`) và không có nhạc nền, Premium không giới hạn.
+
+## Thanh toán tự động (payOS)
+Khách quét mã VietQR, tiền vào tài khoản ngân hàng của bạn, payOS báo về Worker qua webhook và Worker tự bật Premium / cộng lượt, gửi biên lai qua email. Không cần thao tác tay.
+
+1. Đăng ký tại https://my.payos.vn (cá nhân dùng được, cần CCCD). Liên kết tài khoản ngân hàng nhận tiền (MB Bank, ACB, OCB, Kienlongbank… xem danh sách trên payOS).
+2. Tạo **Kênh thanh toán**, mở kênh đó và copy 3 khóa: **Client ID**, **Api Key**, **Checksum Key**.
+3. Lưu vào Worker (mỗi lệnh hỏi giá trị, dán vào rồi Enter):
+   ```bat
+   npx wrangler secret put PAYOS_CLIENT_ID
+   npx wrangler secret put PAYOS_API_KEY
+   npx wrangler secret put PAYOS_CHECKSUM_KEY
+   npx wrangler secret put PAYOS_DESC_MAX
+   ```
+   `PAYOS_DESC_MAX`: số ký tự nội dung chuyển khoản tối đa. Nhập `25` nếu ngân hàng liên kết qua API chính thức, không chắc thì nhập `9` (an toàn với mọi ngân hàng).
+4. Trong `wrangler.toml`, đặt `APP_URL` bằng địa chỉ website thật (vd `https://voice.ten-mien.com`, không có `/` cuối) để webhook và link quay về trỏ đúng tên miền, rồi `npm run deploy`.
+5. Đăng nhập bằng tài khoản quản trị → **Quản trị → Cài đặt** → bấm **Đăng ký webhook với payOS**. Worker tự đăng ký `https://<APP_URL>/api/payos/webhook` với payOS (payOS gửi thử một lần, phải báo thành công). Hoặc dán địa chỉ đó thủ công vào ô Webhook của kênh trên my.payos.vn.
+6. Thử: dùng một tài khoản đã xác minh email, mua gói rẻ nhất hoặc 10 lượt (2.000đ) rồi chuyển khoản thật. Trong vài giây đơn chuyển sang **Đã thanh toán**, gói được bật và email biên lai được gửi. Xem đơn trong **Quản trị → Đơn hàng** (cột "qua": `webhook` = webhook chạy tốt, `check` = trang chờ tự hỏi payOS).
+
+Webhook lỗi hoặc chưa đăng ký thì trang chờ thanh toán vẫn tự hỏi payOS mỗi vài giây và kích hoạt, nhưng chỉ khi khách còn mở trang. Có webhook thì khách đóng trang giữa chừng vẫn được kích hoạt.
+
+Chạy thử trên máy (`npm run dev:worker`): đặt các khóa `PAYOS_*` và `APP_URL` trong `.dev.vars`. payOS không gọi được webhook vào `localhost`, trang chờ sẽ tự hỏi trạng thái thay.
 
 ## Tài khoản
 Đăng ký, xác minh email (link 24 giờ), đăng nhập (phiên 30 ngày, cookie HttpOnly), quên mật khẩu (link 1 giờ, dùng một lần, đăng xuất mọi thiết bị), đổi mật khẩu. Mật khẩu băm PBKDF2-SHA256 100.000 vòng. Chống spam: tối đa 60 thao tác đăng nhập/đăng ký/gửi mail mỗi IP mỗi ngày, gửi lại mail cách nhau 60 giây.

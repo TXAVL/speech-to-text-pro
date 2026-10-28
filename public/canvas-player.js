@@ -3,41 +3,58 @@
  * Canvas Audio Player - TXA Voice
  * Trình phát âm thanh vẽ 100% trên thẻ <canvas>.
  * Khi kiểm tra DevTools (F12) chỉ thấy duy nhất thẻ <canvas>, không có thẻ <audio> trong DOM.
+ *
+ * Bố cục: [Phát] [sóng âm + tiến độ] [thời gian] [tốc độ] [loa] [thanh âm lượng]
+ * Màn hình hẹp (điện thoại): thanh âm lượng ẩn, chạm vào loa thì vùng sóng âm đổi thành thanh âm lượng
+ * cho tới khi chạm lại loa hoặc 3 giây không chạm.
+ * Màu lấy từ biến CSS của theme (--accent, --accent-2, --card-2, --line, --text, --muted).
  */
 
 (function () {
   const pad = (n) => String(Math.floor(n)).padStart(2, '0');
   function formatTime(s) {
-    if (!Number.isFinite(s) || s < 0) return '00:00';
-    const m = Math.floor(s / 60);
-    const sec = Math.floor(s % 60);
-    if (m >= 60) {
-      const h = Math.floor(m / 60);
-      return `${h}:${pad(m % 60)}:${pad(sec)}`;
-    }
-    return `${pad(m)}:${pad(sec)}`;
+    if (!Number.isFinite(s) || s < 0) return '0:00';
+    const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = Math.floor(s % 60);
+    return h ? `${h}:${pad(m)}:${pad(sec)}` : `${m}:${pad(sec)}`;
   }
 
-  // Tạo mẫu sóng giả lập chân thực theo dạng giọng nói khi chưa giải mã xong
-  function generateSpeechPeaks(seedStr, count) {
-    let hash = 0;
-    for (let i = 0; i < seedStr.length; i++) {
-      hash = ((hash << 5) - hash) + seedStr.charCodeAt(i);
-      hash |= 0;
+  const SPEEDS = [1, 1.25, 1.5, 2, 0.75];
+  const VOL_KEY = 'vk-player-volume';
+  const store = {
+    get() { try { const v = Number(localStorage.getItem(VOL_KEY)); return Number.isFinite(v) && localStorage.getItem(VOL_KEY) !== null ? v : 1; } catch { return 1; } },
+    set(v) { try { localStorage.setItem(VOL_KEY, String(v)); } catch {} }
+  };
+
+  /** Đỉnh sóng độ phân giải cao (512 cột) từ mẫu âm thanh, chuẩn hóa 0..1 */
+  const HI_RES = 512;
+  function peaksFrom(data) {
+    const out = new Float32Array(HI_RES), step = data.length / HI_RES;
+    let max = 1e-4;
+    for (let i = 0; i < HI_RES; i++) {
+      let p = 0;
+      const a = Math.floor(i * step), z = Math.min(data.length, Math.floor((i + 1) * step));
+      for (let j = a; j < z; j += 4) { const v = Math.abs(data[j]); if (v > p) p = v; }
+      out[i] = p;
+      if (p > max) max = p;
     }
-    const peaks = new Float32Array(count);
-    let val = 0.4;
-    for (let i = 0; i < count; i++) {
-      const r = Math.sin(i * 0.28 + hash * 0.1) * 0.35 + Math.cos(i * 0.72) * 0.25;
-      val = Math.max(0.12, Math.min(0.95, 0.45 + r + Math.sin(i * 1.8) * 0.15));
-      // Tạo một số đoạn ngắt giọng tự nhiên
-      if ((i % 14 === 0 || i % 19 === 0) && i > 3 && i < count - 3) {
-        peaks[i] = 0.1;
-      } else {
-        peaks[i] = val;
-      }
+    for (let i = 0; i < HI_RES; i++) out[i] = Math.sqrt(out[i] / max); // căn bậc hai cho đoạn nói nhỏ vẫn thấy rõ
+    return out;
+  }
+  /** Gom 512 cột về đúng số vạch vẽ được trên bề ngang hiện tại */
+  function resample(hi, n) {
+    const out = new Float32Array(n), r = hi.length / n;
+    for (let i = 0; i < n; i++) {
+      let p = 0;
+      for (let j = Math.floor(i * r); j < Math.max(Math.floor(i * r) + 1, Math.floor((i + 1) * r)); j++) p = Math.max(p, hi[j] || 0);
+      out[i] = p;
     }
-    return peaks;
+    return out;
+  }
+  /** Sóng tạm khi chưa giải mã xong: thấp và đều để không trông như dữ liệu thật */
+  function placeholder(n) {
+    const out = new Float32Array(n);
+    for (let i = 0; i < n; i++) out[i] = 0.18 + 0.1 * Math.abs(Math.sin(i * 0.55) * Math.cos(i * 0.21));
+    return out;
   }
 
   function attachCanvasAudioPlayer(canvas) {
@@ -47,652 +64,381 @@
     // Đối tượng Audio thuần trong bộ nhớ JS, tuyệt đối KHÔNG đưa vào DOM
     const audio = new Audio();
     audio.preload = 'metadata';
-
     const ctx = canvas.getContext('2d');
-    let peaks = null;
-    let isDragging = false;
-    let hoverState = null; // 'play' | 'track' | 'mute'
-    let hoverX = 0;
-    let animId = null;
 
-    // Bộ nhớ AudioContext nhẹ để trích xuất peaks thật nếu được hỗ trợ
-    let audioCtx = null;
+    let hiPeaks = null;      // đỉnh sóng thật (512 cột) hoặc null khi chưa có
+    let decoded = false;     // đã có sóng thật cho src hiện tại
+    let volume = Math.max(0, Math.min(1, store.get()));
+    let hover = null;        // { part, x }
+    let drag = null;         // 'track' | 'vol'
+    let volOpen = false;     // màn hình hẹp: vùng sóng đang hiển thị thanh âm lượng
+    let volTimer = 0;
+    let animId = 0;
 
-    function getAudioCtx() {
-      if (!audioCtx && (window.AudioContext || window.webkitAudioContext)) {
-        try {
-          audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        } catch (_) {}
-      }
-      return audioCtx;
+    /* ---------- Âm lượng ----------
+     * Safari trên iPhone/iPad bỏ qua audio.volume (luôn là 1), nên ở đó âm thanh đi qua GainNode của Web Audio.
+     * Trình duyệt khác chỉnh thẳng audio.volume. */
+    const volumeLocked = (() => { try { const a = new Audio(); a.volume = 0.5; return a.volume === 1; } catch { return false; } })();
+    let gain = null, actx = null;
+    function ensureGraph() {
+      if (!volumeLocked || gain) return;
+      try {
+        actx = new (window.AudioContext || window.webkitAudioContext)();
+        gain = actx.createGain();
+        actx.createMediaElementSource(audio).connect(gain).connect(actx.destination);
+      } catch { gain = null; }
     }
-
-    function extractPeaksFromBuffer(audioBuffer, numBars = 55) {
-      const channelData = audioBuffer.getChannelData(0);
-      const step = Math.floor(channelData.length / numBars) || 1;
-      const res = new Float32Array(numBars);
-      let maxPeak = 0.001;
-      for (let i = 0; i < numBars; i++) {
-        let sum = 0;
-        const start = i * step;
-        const end = Math.min(start + step, channelData.length);
-        for (let j = start; j < end; j++) {
-          const v = Math.abs(channelData[j]);
-          if (v > sum) sum = v;
-        }
-        res[i] = sum;
-        if (sum > maxPeak) maxPeak = sum;
-      }
-      // Chuẩn hóa
-      for (let i = 0; i < numBars; i++) {
-        res[i] = Math.max(0.12, Math.min(1.0, res[i] / maxPeak));
-      }
-      return res;
+    function applyVolume() {
+      const v = audio.muted ? 0 : volume;
+      if (gain) gain.gain.value = v;
+      else audio.volume = volume;
     }
-
-    function tryDecodePeaksFromUrl(url) {
-      if (!url || url.startsWith('data:audio') || url.startsWith('blob:')) {
-        // Thử fetch blob
-        fetch(url)
-          .then((r) => r.arrayBuffer())
-          .then((ab) => {
-            const ac = getAudioCtx();
-            if (!ac) return;
-            return ac.decodeAudioData(ab).then((buf) => {
-              peaks = extractPeaksFromBuffer(buf, 60);
-              draw();
-            });
-          })
-          .catch(() => {});
-      }
+    function setVolume(v, remember = true) {
+      volume = Math.max(0, Math.min(1, Math.round(v * 100) / 100));
+      if (volume > 0 && audio.muted) audio.muted = false;
+      applyVolume();
+      if (remember) store.set(volume);
+      draw();
     }
+    function toggleMute() {
+      if (audio.muted || volume === 0) {
+        audio.muted = false;
+        if (volume === 0) volume = 0.6;
+      } else audio.muted = true;
+      applyVolume();
+      draw();
+    }
+    function play() {
+      if (!audio.src) return Promise.resolve();
+      ensureGraph();
+      if (actx && actx.state === 'suspended') actx.resume().catch(() => {});
+      applyVolume();
+      return audio.play();
+    }
+    function togglePlay() { if (audio.paused) play().catch(() => {}); else audio.pause(); }
 
-    // Thiết lập mảng peaks từ dữ liệu Float32Array bên ngoài (vd từ decodeTo16kMono của app)
-    canvas.setAudioData = function (float32Array) {
-      if (!float32Array || !float32Array.length) return;
-      const numBars = 60;
-      const step = Math.floor(float32Array.length / numBars) || 1;
-      const res = new Float32Array(numBars);
-      let maxPeak = 0.001;
-      for (let i = 0; i < numBars; i++) {
-        let sum = 0;
-        const start = i * step;
-        const end = Math.min(start + step, float32Array.length);
-        for (let j = start; j < end; j++) {
-          const v = Math.abs(float32Array[j]);
-          if (v > sum) sum = v;
-        }
-        res[i] = sum;
-        if (sum > maxPeak) maxPeak = sum;
-      }
-      for (let i = 0; i < numBars; i++) {
-        res[i] = Math.max(0.12, Math.min(1.0, res[i] / maxPeak));
-      }
-      peaks = res;
+    /* ---------- Sóng âm ---------- */
+    function decodePeaks(url) {
+      if (!url || !/^(blob:|data:)/.test(url)) return;
+      fetch(url).then(r => r.arrayBuffer()).then(ab => {
+        const AC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+        const ac = AC ? new AC(1, 1, 8000) : new (window.AudioContext || window.webkitAudioContext)();
+        return ac.decodeAudioData(ab);
+      }).then(buf => {
+        if (audio.src !== url || decoded) return;
+        hiPeaks = peaksFrom(buf.getChannelData(0));
+        decoded = true;
+        draw();
+      }).catch(() => {});
+    }
+    // Dữ liệu mẫu có sẵn từ app (vd decodeTo16kMono) -> dùng luôn, khỏi giải mã lại
+    canvas.setAudioData = function (f32) {
+      if (!f32 || !f32.length) return;
+      hiPeaks = peaksFrom(f32);
+      decoded = true;
       draw();
     };
 
-    // Đảm bảo canvas sắc nét trên màn hình Retina / High-DPI
-    function getMetrics() {
-      const rect = canvas.getBoundingClientRect();
-      const dpr = window.devicePixelRatio || 1;
-      const w = Math.max(260, Math.floor(rect.width || canvas.width || 600));
-      const h = Math.max(50, Math.floor(rect.height || canvas.height || 56));
-
-      if (canvas.width !== w * dpr || canvas.height !== h * dpr) {
-        canvas.width = w * dpr;
-        canvas.height = h * dpr;
-      }
-
-      ctx.resetTransform();
-      ctx.scale(dpr, dpr);
-
-      const hasAudio = !!audio.src && Number.isFinite(audio.duration) && audio.duration > 0;
-      const duration = hasAudio ? audio.duration : 0;
-      const currentTime = hasAudio ? audio.currentTime : 0;
-      const progress = duration > 0 ? Math.min(1, Math.max(0, currentTime / duration)) : 0;
-
-      // Tính tọa độ các thành phần
-      const playBtn = { cx: 28, cy: h / 2, r: 16 };
-      const muteBtn = { cx: w - 22, cy: h / 2, r: 13 };
-      const timeBox = { x: w - 106, cy: h / 2 };
-      const track = {
-        x: 58,
-        y: h / 2,
-        endX: Math.max(80, timeBox.x - 14),
-        h: h - 18
+    /* ---------- Bố cục ---------- */
+    function theme() {
+      const cs = getComputedStyle(canvas);
+      const v = (n, d) => cs.getPropertyValue(n).trim() || d;
+      return {
+        bg: v('--card-2', '#1b2030'), line: v('--line', '#262c40'), text: v('--text', '#e9ecf5'),
+        muted: v('--muted', '#8b93ad'), accent: v('--accent', '#7c6cff'), accent2: v('--accent-2', '#22d3ee')
       };
-      track.width = Math.max(20, track.endX - track.x);
-
-      return { w, h, playBtn, muteBtn, timeBox, track, hasAudio, duration, currentTime, progress };
     }
 
-    // Vẽ toàn bộ giao diện player lên canvas
-    function draw() {
-      const m = getMetrics();
-      const { w, h, playBtn, muteBtn, timeBox, track, hasAudio, duration, currentTime, progress } = m;
+    function layout() {
+      const rect = canvas.getBoundingClientRect();
+      const dpr = Math.min(3, window.devicePixelRatio || 1);
+      const w = Math.max(220, Math.round(rect.width || 600)), h = Math.max(44, Math.round(rect.height || 56));
+      if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) {
+        canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr);
+      }
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
+      const cy = h / 2, compact = w < 400, tiny = w < 360;
+      const L = { w, h, cy, compact, tiny };
+      L.play = { x: 8, y: cy - 20, w: 40, h: 40 };
+      let right = w - 10;
+      if (!compact) { L.volBar = { x: right - 64, y: cy - 12, w: 64, h: 24 }; right -= 74; }
+      L.speaker = { x: right - 28, y: cy - 14, w: 28, h: 28 }; right -= 32;
+      if (!tiny) { L.speed = { x: right - 40, y: cy - 12, w: 40, h: 24 }; right -= 46; }
+      ctx.font = '600 12px "Be Vietnam Pro", system-ui, sans-serif';
+      const dur = audio.duration;
+      const sample = tiny ? formatTime(dur) : `${formatTime(dur)} / ${formatTime(dur)}`;
+      const tw = Math.ceil(ctx.measureText(sample).width) + 4;
+      L.time = { x: right - tw, w: tw };
+      right -= tw + 12;
+      L.track = { x: 60, y: cy - 16, w: Math.max(30, right - 60), h: 32 };
+      // Điện thoại: thanh âm lượng mở ra thay chỗ vùng sóng âm
+      if (compact && volOpen) L.volBar = { x: L.track.x + 8, y: cy - 12, w: Math.max(40, (L.speed || L.speaker).x - L.track.x - 64), h: 24 };
+      return L;
+    }
+
+    const inside = (r, p, slop = 0) => r && p.x >= r.x - slop && p.x <= r.x + r.w + slop && p.y >= r.y - slop && p.y <= r.y + r.h + slop;
+    function hitTest(L, p, touch) {
+      const s = touch ? 8 : 2;
+      if (inside(L.play, p, s)) return 'play';
+      if (inside(L.speaker, p, s)) return 'speaker';
+      if (L.speed && inside(L.speed, p, s)) return 'speed';
+      if (L.volBar && (!L.compact || volOpen) && inside({ x: L.volBar.x - 6, y: 0, w: L.volBar.w + 12, h: L.h }, p)) return 'vol';
+      if (!(L.compact && volOpen) && inside({ x: L.track.x - 4, y: 0, w: L.track.w + 8, h: L.h }, p)) return 'track';
+      return null;
+    }
+
+    /* ---------- Vẽ ---------- */
+    function rr(x, y, w, h, r) { ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x, y, w, h, r) : ctx.rect(x, y, w, h); }
+
+    function drawSpeaker(L, c) {
+      const { x, y, w, h } = L.speaker, mx = x + w / 2 - 3, my = y + h / 2;
+      const active = hover?.part === 'speaker' || volOpen;
+      if (active) { ctx.fillStyle = c.line; rr(x, y, w, h, 8); ctx.fill(); }
+      const silent = audio.muted || volume === 0;
+      ctx.fillStyle = ctx.strokeStyle = silent ? c.muted : active ? c.text : c.muted;
+      ctx.lineWidth = 1.6; ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(mx - 6, my - 3.2); ctx.lineTo(mx - 3, my - 3.2); ctx.lineTo(mx + 1.5, my - 7);
+      ctx.lineTo(mx + 1.5, my + 7); ctx.lineTo(mx - 3, my + 3.2); ctx.lineTo(mx - 6, my + 3.2);
+      ctx.closePath(); ctx.fill();
+      if (silent) {
+        ctx.beginPath(); ctx.moveTo(mx + 5, my - 3.5); ctx.lineTo(mx + 10, my + 3.5); ctx.moveTo(mx + 10, my - 3.5); ctx.lineTo(mx + 5, my + 3.5); ctx.stroke();
+      } else {
+        ctx.beginPath(); ctx.arc(mx + 2, my, 4.5, -0.9, 0.9); ctx.stroke();
+        if (volume > 0.5) { ctx.beginPath(); ctx.arc(mx + 2, my, 8, -0.9, 0.9); ctx.stroke(); }
+      }
+    }
+
+    function drawVolBar(L, c) {
+      const b = L.volBar, y = L.cy, v = audio.muted ? 0 : volume;
+      const active = drag === 'vol' || hover?.part === 'vol';
+      ctx.fillStyle = c.line; rr(b.x, y - 2.5, b.w, 5, 3); ctx.fill();
+      const g = ctx.createLinearGradient(b.x, 0, b.x + b.w, 0);
+      g.addColorStop(0, c.accent); g.addColorStop(1, c.accent2);
+      ctx.fillStyle = g; rr(b.x, y - 2.5, Math.max(5, b.w * v), 5, 3); ctx.fill();
+      ctx.save();
+      ctx.shadowColor = 'rgba(0,0,0,0.35)'; ctx.shadowBlur = 4;
+      ctx.fillStyle = '#fff';
+      ctx.beginPath(); ctx.arc(b.x + b.w * v, y, active ? 7.5 : 6, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+      if (L.compact) {
+        ctx.font = '600 12px "Be Vietnam Pro", system-ui, sans-serif';
+        ctx.textBaseline = 'middle'; ctx.textAlign = 'left'; ctx.fillStyle = c.text; ctx.fillText(Math.round(v * 100) + '%', b.x + b.w + 12, y);
+      }
+    }
+
+    function draw() {
+      const L = layout(), c = theme();
+      const { w, h, cy } = L;
+      const dur = Number.isFinite(audio.duration) ? audio.duration : 0;
+      const has = !!audio.src && dur > 0;
+      const progress = has ? Math.min(1, audio.currentTime / dur) : 0;
       ctx.clearRect(0, 0, w, h);
 
-      // 1. Nền bo góc của thẻ canvas
+      // Nền
+      ctx.fillStyle = c.bg; rr(0.5, 0.5, w - 1, h - 1, 14); ctx.fill();
+      ctx.strokeStyle = c.line; ctx.lineWidth = 1; ctx.stroke();
+
+      // Nút phát
+      const p = L.play, pcx = p.x + p.w / 2, pr = hover?.part === 'play' ? 19 : 18;
       ctx.save();
-      const bgGrad = ctx.createLinearGradient(0, 0, 0, h);
-      bgGrad.addColorStop(0, '#0f172a');
-      bgGrad.addColorStop(1, '#1e293b');
-      ctx.fillStyle = bgGrad;
-      ctx.beginPath();
-      ctx.roundRect(0.5, 0.5, w - 1, h - 1, 14);
-      ctx.fill();
-
-      // Viền tinh tế
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
-      ctx.lineWidth = 1;
-      ctx.stroke();
-
-      // Viền sáng trên đỉnh
-      const topLight = ctx.createLinearGradient(20, 1, w - 20, 1);
-      topLight.addColorStop(0, 'rgba(34, 211, 238, 0)');
-      topLight.addColorStop(0.5, 'rgba(34, 211, 238, 0.22)');
-      topLight.addColorStop(1, 'rgba(99, 102, 241, 0)');
-      ctx.strokeStyle = topLight;
-      ctx.beginPath();
-      ctx.moveTo(14, 1.5);
-      ctx.lineTo(w - 14, 1.5);
-      ctx.stroke();
+      if (audio.src) {
+        const g = ctx.createLinearGradient(p.x, p.y, p.x + p.w, p.y + p.h);
+        g.addColorStop(0, c.accent); g.addColorStop(1, c.accent2);
+        ctx.fillStyle = g;
+        if (!audio.paused || hover?.part === 'play') { ctx.shadowColor = c.accent; ctx.shadowBlur = 12; }
+      } else { ctx.fillStyle = c.line; }
+      ctx.beginPath(); ctx.arc(pcx, cy, pr, 0, Math.PI * 2); ctx.fill();
       ctx.restore();
-
-      // 2. Nút Play / Pause
-      ctx.save();
-      const isPlayHover = hoverState === 'play';
-      const playGrad = ctx.createLinearGradient(playBtn.cx - playBtn.r, playBtn.cy - playBtn.r, playBtn.cx + playBtn.r, playBtn.cy + playBtn.r);
-
-      if (!hasAudio && !audio.src) {
-        ctx.fillStyle = 'rgba(148, 163, 184, 0.16)';
-      } else if (!audio.paused) {
-        playGrad.addColorStop(0, '#06b6d4');
-        playGrad.addColorStop(1, '#6366f1');
-        ctx.fillStyle = playGrad;
-        ctx.shadowColor = 'rgba(34, 211, 238, 0.45)';
-        ctx.shadowBlur = isPlayHover ? 14 : 9;
+      ctx.fillStyle = audio.src ? '#fff' : c.muted;
+      if (audio.paused) {
+        ctx.beginPath(); ctx.moveTo(pcx - 4.5, cy - 7.5); ctx.lineTo(pcx + 8, cy); ctx.lineTo(pcx - 4.5, cy + 7.5); ctx.closePath();
+        ctx.lineJoin = 'round'; ctx.strokeStyle = ctx.fillStyle; ctx.lineWidth = 2; ctx.stroke(); ctx.fill();
       } else {
-        playGrad.addColorStop(0, isPlayHover ? '#38bdf8' : '#0ea5e9');
-        playGrad.addColorStop(1, isPlayHover ? '#818cf8' : '#6366f1');
-        ctx.fillStyle = playGrad;
-        if (isPlayHover) {
-          ctx.shadowColor = 'rgba(14, 165, 233, 0.5)';
-          ctx.shadowBlur = 12;
+        rr(pcx - 6, cy - 7, 4, 14, 1.5); ctx.fill(); rr(pcx + 2, cy - 7, 4, 14, 1.5); ctx.fill();
+      }
+
+      // Sóng âm (hoặc thanh âm lượng trên điện thoại)
+      if (L.compact && volOpen) {
+        drawVolBar(L, c);
+      } else {
+        const t = L.track, bw = 2.5, gap = 1.5, n = Math.max(8, Math.floor((t.w + gap) / (bw + gap)));
+        const peaks = hiPeaks ? resample(hiPeaks, n) : placeholder(n);
+        const hoverRatio = hover?.part === 'track' && has ? (hover.x - t.x) / t.w : null;
+        const g = ctx.createLinearGradient(t.x, 0, t.x + t.w, 0);
+        g.addColorStop(0, c.accent); g.addColorStop(1, c.accent2);
+        for (let i = 0; i < n; i++) {
+          const x = t.x + i * (bw + gap), r = (i + 0.5) / n;
+          const bh = Math.max(3, peaks[i] * t.h);
+          rr(x, cy - bh / 2, bw, bh, 1.25);
+          if (r <= progress) { ctx.fillStyle = g; ctx.globalAlpha = 1; }
+          else if (hoverRatio !== null && r <= hoverRatio) { ctx.fillStyle = g; ctx.globalAlpha = 0.45; }
+          else { ctx.fillStyle = c.text; ctx.globalAlpha = decoded ? 0.2 : 0.12; }
+          ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+        if (has && (progress > 0 || !audio.paused)) {
+          const hx = t.x + progress * t.w;
+          ctx.fillStyle = c.text; rr(hx - 1, cy - t.h / 2 - 2, 2, t.h + 4, 1); ctx.fill();
         }
       }
 
-      ctx.beginPath();
-      ctx.arc(playBtn.cx, playBtn.cy, isPlayHover && hasAudio ? playBtn.r + 1 : playBtn.r, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Icon Play hoặc Pause
-      ctx.shadowBlur = 0;
-      ctx.fillStyle = hasAudio || audio.src ? '#ffffff' : 'rgba(255, 255, 255, 0.35)';
-
-      if (audio.paused || !hasAudio) {
-        // Biểu tượng tam giác Play
-        ctx.beginPath();
-        const px = playBtn.cx - 3.5;
-        const py = playBtn.cy;
-        ctx.moveTo(px, py - 6.5);
-        ctx.lineTo(px + 10, py);
-        ctx.lineTo(px, py + 6.5);
-        ctx.closePath();
-        ctx.fill();
+      // Thời gian: rê chuột trên sóng thì hiện thời điểm sẽ nhảy tới
+      ctx.font = '600 12px "Be Vietnam Pro", system-ui, sans-serif';
+      ctx.textBaseline = 'middle'; ctx.textAlign = 'right';
+      const tx = L.time.x + L.time.w;
+      const hoverTime = hover?.part === 'track' && has ? Math.max(0, Math.min(1, (hover.x - L.track.x) / L.track.w)) * dur : null;
+      const showVol = (drag === 'vol' || hover?.part === 'vol') && !L.compact;
+      if (L.compact && volOpen) {
+        // vùng thời gian đang nhường chỗ cho thanh âm lượng
+      } else if (showVol) {
+        ctx.fillStyle = c.text; ctx.fillText(`Âm lượng ${Math.round((audio.muted ? 0 : volume) * 100)}%`, tx, cy);
+      } else if (L.tiny) {
+        ctx.fillStyle = hoverTime !== null ? c.accent2 : c.text;
+        ctx.fillText(formatTime(hoverTime ?? (audio.paused && !progress ? dur : audio.currentTime)), tx, cy);
       } else {
-        // Biểu tượng hai vạch Pause
-        const bx = playBtn.cx - 4.5;
-        const by = playBtn.cy - 6;
-        ctx.beginPath();
-        ctx.roundRect(bx, by, 3, 12, 1.5);
-        ctx.roundRect(bx + 6, by, 3, 12, 1.5);
-        ctx.fill();
-      }
-      ctx.restore();
-
-      // 3. Thanh sóng âm thanh Waveform & Progress
-      ctx.save();
-      const barWidth = 3;
-      const barGap = 2;
-      const numBars = Math.max(10, Math.floor(track.width / (barWidth + barGap)));
-
-      if (!peaks || peaks.length !== numBars) {
-        peaks = generateSpeechPeaks(audio.src || 'txa-default-wave', numBars);
+        const total = ' / ' + formatTime(dur);
+        ctx.fillStyle = c.muted; ctx.fillText(total, tx, cy);
+        ctx.fillStyle = hoverTime !== null ? c.accent2 : c.text;
+        ctx.fillText(formatTime(hoverTime ?? audio.currentTime), tx - ctx.measureText(total).width, cy);
       }
 
-      const centerY = track.y;
-      const maxH = track.h;
-      const isPlaying = !audio.paused && hasAudio;
-      const now = performance.now();
-
-      for (let i = 0; i < numBars; i++) {
-        const barX = track.x + i * (barWidth + barGap);
-        const barRatio = i / numBars;
-        const isPassed = barRatio <= progress;
-
-        let barH = Math.max(4, peaks[i] * maxH);
-
-        // Hiệu ứng nhịp chuyển động vi mô khi đang phát
-        if (isPlaying) {
-          const distToPlayhead = Math.abs(barRatio - progress);
-          if (distToPlayhead < 0.12) {
-            const waveBounce = Math.sin(now * 0.015 + i * 0.6) * 4.5;
-            barH = Math.max(5, barH + waveBounce);
-          }
-        }
-
-        const topY = centerY - barH / 2;
-
-        ctx.beginPath();
-        ctx.roundRect(barX, topY, barWidth, barH, barWidth / 2);
-
-        if (isPassed) {
-          // Các vạch đã phát qua: màu cyan ánh tím
-          const barGrad = ctx.createLinearGradient(0, topY, 0, topY + barH);
-          barGrad.addColorStop(0, '#22d3ee');
-          barGrad.addColorStop(1, '#818cf8');
-          ctx.fillStyle = barGrad;
-        } else {
-          // Các vạch chưa phát: màu mờ tinh tế
-          ctx.fillStyle = 'rgba(255, 255, 255, 0.16)';
-        }
-        ctx.fill();
+      // Tốc độ phát
+      if (L.speed) {
+        const s = L.speed, on = hover?.part === 'speed', custom = audio.playbackRate !== 1;
+        ctx.fillStyle = on ? c.line : 'transparent'; rr(s.x, s.y, s.w, s.h, 7); ctx.fill();
+        ctx.strokeStyle = custom ? c.accent : c.line; ctx.lineWidth = 1; ctx.stroke();
+        ctx.fillStyle = custom ? c.accent2 : c.muted; ctx.textAlign = 'center';
+        ctx.font = '700 11.5px "Be Vietnam Pro", system-ui, sans-serif';
+        ctx.fillText(`${audio.playbackRate}×`, s.x + s.w / 2, cy + 0.5);
       }
 
-      // Vị trí con chạy playhead
-      if (hasAudio && duration > 0) {
-        const headX = track.x + progress * track.width;
-        // Điểm đầu playhead phát sáng
-        ctx.shadowColor = '#22d3ee';
-        ctx.shadowBlur = 8;
-        ctx.fillStyle = '#ffffff';
-        ctx.beginPath();
-        ctx.arc(headX, centerY, 4.5, 0, Math.PI * 2);
-        ctx.fill();
-
-        ctx.strokeStyle = '#06b6d4';
-        ctx.lineWidth = 1.5;
-        ctx.stroke();
-      }
-
-      // Đường xem trước khi rê chuột lên thanh sóng
-      if (hoverState === 'track' && hasAudio) {
-        ctx.shadowBlur = 0;
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(hoverX, centerY - maxH / 2);
-        ctx.lineTo(hoverX, centerY + maxH / 2);
-        ctx.stroke();
-      }
-      ctx.restore();
-
-      // 4. Thời gian (Hiện tại / Tổng)
-      ctx.save();
-      ctx.font = '600 11.5px "Be Vietnam Pro", system-ui, sans-serif';
-      ctx.fillStyle = '#94a3b8';
-      ctx.textAlign = 'right';
-      ctx.textBaseline = 'middle';
-      const timeStr = `${formatTime(currentTime)} / ${formatTime(duration)}`;
-      ctx.fillText(timeStr, timeBox.x, timeBox.cy);
-      ctx.restore();
-
-      // 5. Nút Bật / Tắt tiếng (Mute)
-      ctx.save();
-      const isMuteHover = hoverState === 'mute';
-      const isMuted = audio.muted || audio.volume === 0;
-
-      ctx.fillStyle = isMuteHover ? '#ffffff' : (isMuted ? '#f43f5e' : '#94a3b8');
-      ctx.strokeStyle = ctx.fillStyle;
-      ctx.lineWidth = 1.5;
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
-
-      const mx = muteBtn.cx;
-      const my = muteBtn.cy;
-
-      // Hình loa
-      ctx.beginPath();
-      ctx.moveTo(mx - 6, my - 3.5);
-      ctx.lineTo(mx - 3, my - 3.5);
-      ctx.lineTo(mx + 1, my - 7);
-      ctx.lineTo(mx + 1, my + 7);
-      ctx.lineTo(mx - 3, my + 3.5);
-      ctx.lineTo(mx - 6, my + 3.5);
-      ctx.closePath();
-      ctx.fill();
-
-      if (isMuted) {
-        // Gạch chéo khi tắt tiếng
-        ctx.beginPath();
-        ctx.moveTo(mx + 4, my - 4);
-        ctx.lineTo(mx + 9, my + 4);
-        ctx.moveTo(mx + 9, my - 4);
-        ctx.lineTo(mx + 4, my + 4);
-        ctx.stroke();
-      } else {
-        // Sóng âm thanh
-        ctx.beginPath();
-        ctx.arc(mx + 1, my, 5, -Math.PI / 4, Math.PI / 4, false);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.arc(mx + 1, my, 8.5, -Math.PI / 4, Math.PI / 4, false);
-        ctx.stroke();
-      }
-      ctx.restore();
+      drawSpeaker(L, c);
+      if (!L.compact) drawVolBar(L, c);
     }
 
-    // Vòng lặp hoạt họa mượt mà khi đang phát
-    function loop() {
-      draw();
-      if (!audio.paused) {
-        animId = requestAnimationFrame(loop);
-      } else {
-        animId = null;
-      }
-    }
+    /* ---------- Hoạt họa ---------- */
+    function loop() { draw(); animId = audio.paused ? 0 : requestAnimationFrame(loop); }
+    function startAnim() { if (!animId) loop(); }
+    function stopAnim() { cancelAnimationFrame(animId); animId = 0; draw(); }
 
-    function startAnim() {
-      if (!animId) loop();
-    }
-
-    function stopAnim() {
-      if (animId) {
-        cancelAnimationFrame(animId);
-        animId = null;
-      }
+    /* ---------- Tương tác (chuột + cảm ứng qua Pointer Events) ---------- */
+    const pos = (e) => { const r = canvas.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
+    function seekTo(p, L) {
+      const dur = audio.duration;
+      if (!audio.src || !Number.isFinite(dur) || dur <= 0) return;
+      audio.currentTime = Math.max(0, Math.min(1, (p.x - L.track.x) / L.track.w)) * dur;
       draw();
     }
-
-    // Tương tác chuột & cảm ứng
-    function getEventPos(e) {
-      const rect = canvas.getBoundingClientRect();
-      const clientX = e.touches && e.touches.length ? e.touches[0].clientX : e.clientX;
-      const clientY = e.touches && e.touches.length ? e.touches[0].clientY : e.clientY;
-      return {
-        x: clientX - rect.left,
-        y: clientY - rect.top
-      };
+    function volTo(p, L) { setVolume((p.x - L.volBar.x) / L.volBar.w); }
+    function keepVolOpen() {
+      clearTimeout(volTimer);
+      volTimer = setTimeout(() => { if (drag !== 'vol') { volOpen = false; draw(); } }, 3000);
     }
 
-    function updateHover(pos) {
-      const m = getMetrics();
-      const dxPlay = pos.x - m.playBtn.cx;
-      const dyPlay = pos.y - m.playBtn.cy;
-      const isOverPlay = Math.sqrt(dxPlay * dxPlay + dyPlay * dyPlay) <= m.playBtn.r + 4;
-
-      const dxMute = pos.x - m.muteBtn.cx;
-      const dyMute = pos.y - m.muteBtn.cy;
-      const isOverMute = Math.sqrt(dxMute * dxMute + dyMute * dyMute) <= m.muteBtn.r + 4;
-
-      const isOverTrack = pos.x >= m.track.x - 4 && pos.x <= m.track.endX + 4 && pos.y >= m.track.y - 18 && pos.y <= m.track.y + 18;
-
-      if (isOverPlay) {
-        hoverState = 'play';
-        canvas.style.cursor = 'pointer';
-      } else if (isOverMute) {
-        hoverState = 'mute';
-        canvas.style.cursor = 'pointer';
-      } else if (isOverTrack) {
-        hoverState = 'track';
-        hoverX = Math.max(m.track.x, Math.min(m.track.endX, pos.x));
-        canvas.style.cursor = 'pointer';
-      } else {
-        hoverState = null;
-        canvas.style.cursor = 'default';
-      }
-      draw();
-    }
-
-    function seekAt(x) {
-      const m = getMetrics();
-      if (!m.hasAudio || m.duration <= 0) return;
-      const ratio = Math.max(0, Math.min(1, (x - m.track.x) / m.track.width));
-      audio.currentTime = ratio * m.duration;
-      draw();
-    }
-
-    canvas.addEventListener('mousemove', (e) => {
-      const pos = getEventPos(e);
-      if (isDragging) {
-        seekAt(pos.x);
-      } else {
-        updateHover(pos);
+    canvas.addEventListener('pointerdown', (e) => {
+      if (e.button > 0) return;
+      const L = layout(), p = pos(e), part = hitTest(L, p, e.pointerType !== 'mouse');
+      canvas.focus({ preventScroll: true });
+      if (part !== 'track' && part !== 'vol') return; // nút bấm xử lý ở 'click' (Safari iOS chỉ cho phát âm thanh trong click)
+      e.preventDefault();
+      drag = part;
+      canvas.setPointerCapture(e.pointerId);
+      if (part === 'vol') { volTo(p, L); if (L.compact) keepVolOpen(); } else seekTo(p, L);
+    });
+    canvas.addEventListener('click', (e) => {
+      const L = layout(), part = hitTest(L, pos(e), true);
+      if (part === 'play') togglePlay();
+      else if (part === 'speed') { audio.playbackRate = SPEEDS[(SPEEDS.indexOf(audio.playbackRate) + 1) % SPEEDS.length] || 1; draw(); }
+      else if (part === 'speaker') {
+        if (L.compact) { volOpen = !volOpen; if (volOpen) keepVolOpen(); draw(); }
+        else toggleMute();
       }
     });
-
-    canvas.addEventListener('mouseleave', () => {
-      isDragging = false;
-      hoverState = null;
-      canvas.style.cursor = 'default';
+    canvas.addEventListener('pointermove', (e) => {
+      const L = layout(), p = pos(e);
+      if (drag === 'track') return seekTo(p, L);
+      if (drag === 'vol') { volTo(p, L); if (L.compact) keepVolOpen(); return; }
+      if (e.pointerType !== 'mouse') return;
+      const part = hitTest(L, p, false);
+      hover = part ? { part, x: p.x } : null;
+      canvas.style.cursor = part ? 'pointer' : 'default';
       draw();
     });
-
-    canvas.addEventListener('mousedown', (e) => {
-      const pos = getEventPos(e);
-      const m = getMetrics();
-      const dxPlay = pos.x - m.playBtn.cx;
-      const dyPlay = pos.y - m.playBtn.cy;
-
-      if (Math.sqrt(dxPlay * dxPlay + dyPlay * dyPlay) <= m.playBtn.r + 4) {
-        // Bấm nút Play/Pause
-        if (!audio.src) return;
-        if (audio.paused) {
-          audio.play().catch(() => {});
-        } else {
-          audio.pause();
-        }
-        return;
-      }
-
-      const dxMute = pos.x - m.muteBtn.cx;
-      const dyMute = pos.y - m.muteBtn.cy;
-      if (Math.sqrt(dxMute * dxMute + dyMute * dyMute) <= m.muteBtn.r + 4) {
-        audio.muted = !audio.muted;
-        draw();
-        return;
-      }
-
-      if (pos.x >= m.track.x - 6 && pos.x <= m.track.endX + 6) {
-        isDragging = true;
-        seekAt(pos.x);
-      }
-    });
-
-    window.addEventListener('mouseup', () => {
-      if (isDragging) {
-        isDragging = false;
-        draw();
-      }
-    });
-
-    // Hỗ trợ Touch cho điện thoại
-    canvas.addEventListener('touchstart', (e) => {
-      const pos = getEventPos(e);
-      const m = getMetrics();
-      const dxPlay = pos.x - m.playBtn.cx;
-      const dyPlay = pos.y - m.playBtn.cy;
-
-      if (Math.sqrt(dxPlay * dxPlay + dyPlay * dyPlay) <= m.playBtn.r + 8) {
-        e.preventDefault();
-        if (!audio.src) return;
-        if (audio.paused) {
-          audio.play().catch(() => {});
-        } else {
-          audio.pause();
-        }
-        return;
-      }
-
-      const dxMute = pos.x - m.muteBtn.cx;
-      const dyMute = pos.y - m.muteBtn.cy;
-      if (Math.sqrt(dxMute * dxMute + dyMute * dyMute) <= m.muteBtn.r + 8) {
-        e.preventDefault();
-        audio.muted = !audio.muted;
-        draw();
-        return;
-      }
-
-      if (pos.x >= m.track.x - 8 && pos.x <= m.track.endX + 8) {
-        e.preventDefault();
-        isDragging = true;
-        seekAt(pos.x);
-      }
+    const endDrag = () => { if (!drag) return; drag = null; draw(); };
+    canvas.addEventListener('pointerup', endDrag);
+    canvas.addEventListener('pointercancel', endDrag);
+    canvas.addEventListener('pointerleave', (e) => { if (e.pointerType === 'mouse' && !drag) { hover = null; canvas.style.cursor = 'default'; draw(); } });
+    // Lăn chuột trên loa / thanh âm lượng để chỉnh âm lượng
+    canvas.addEventListener('wheel', (e) => {
+      const L = layout(), part = hitTest(L, pos(e), false);
+      if (part !== 'vol' && part !== 'speaker') return;
+      e.preventDefault();
+      setVolume((audio.muted ? 0 : volume) + (e.deltaY < 0 ? 0.05 : -0.05));
     }, { passive: false });
 
-    canvas.addEventListener('touchmove', (e) => {
-      if (isDragging) {
-        e.preventDefault();
-        const pos = getEventPos(e);
-        seekAt(pos.x);
-      }
-    }, { passive: false });
-
-    canvas.addEventListener('touchend', () => {
-      isDragging = false;
-      draw();
-    });
-
-    // Phím tắt bàn phím
+    // Phím tắt: Space phát/dừng, ←/→ tua 5 giây, ↑/↓ âm lượng, M tắt tiếng
     canvas.addEventListener('keydown', (e) => {
-      if (e.code === 'Space') {
-        e.preventDefault();
-        if (audio.paused) audio.play().catch(() => {});
-        else audio.pause();
-      } else if (e.code === 'ArrowLeft') {
-        e.preventDefault();
-        audio.currentTime = Math.max(0, audio.currentTime - 5);
-        draw();
-      } else if (e.code === 'ArrowRight') {
-        e.preventDefault();
-        audio.currentTime = Math.min(audio.duration || 0, audio.currentTime + 5);
-        draw();
-      } else if (e.code === 'KeyM') {
-        e.preventDefault();
-        audio.muted = !audio.muted;
-        draw();
-      }
-    });
-
-    // Đồng bộ sự kiện âm thanh từ đối tượng audio ngầm
-    audio.addEventListener('play', () => {
-      startAnim();
-      canvas.dispatchEvent(new Event('play'));
-    });
-    audio.addEventListener('pause', () => {
-      stopAnim();
-      canvas.dispatchEvent(new Event('pause'));
-    });
-    audio.addEventListener('ended', () => {
-      stopAnim();
-      canvas.dispatchEvent(new Event('ended'));
-    });
-    audio.addEventListener('timeupdate', () => {
+      const k = e.code;
+      if (k === 'Space' || k === 'Enter') togglePlay();
+      else if (k === 'ArrowLeft') audio.currentTime = Math.max(0, audio.currentTime - 5);
+      else if (k === 'ArrowRight') audio.currentTime = Math.min(audio.duration || 0, audio.currentTime + 5);
+      else if (k === 'ArrowUp') setVolume(volume + 0.1);
+      else if (k === 'ArrowDown') setVolume(volume - 0.1);
+      else if (k === 'KeyM') toggleMute();
+      else return;
+      e.preventDefault();
       draw();
-      canvas.dispatchEvent(new Event('timeupdate'));
     });
-    audio.addEventListener('loadedmetadata', () => {
-      peaks = null;
+
+    /* ---------- Đồng bộ sự kiện của audio ngầm lên canvas ---------- */
+    const relay = (type, fn) => audio.addEventListener(type, () => { fn?.(); canvas.dispatchEvent(new Event(type)); });
+    relay('play', startAnim);
+    relay('pause', stopAnim);
+    relay('ended', stopAnim);
+    relay('timeupdate', () => { if (!animId) draw(); });
+    relay('loadedmetadata', draw);
+    relay('durationchange', draw);
+    relay('canplay', draw);
+    relay('ratechange', draw);
+    relay('volumechange', draw);
+
+    /* ---------- Proxy thuộc tính HTMLAudioElement lên thẻ canvas (app.js dùng như thẻ audio) ---------- */
+    function setSrc(val) {
+      hiPeaks = null; decoded = false;
+      if (!val) { audio.removeAttribute('src'); audio.load(); draw(); return; }
+      audio.src = val;
+      audio.load();
+      decodePeaks(audio.src);
       draw();
-      canvas.dispatchEvent(new Event('loadedmetadata'));
-    });
-    audio.addEventListener('durationchange', () => {
-      draw();
-      canvas.dispatchEvent(new Event('durationchange'));
-    });
-    audio.addEventListener('canplay', () => {
-      draw();
-      canvas.dispatchEvent(new Event('canplay'));
-    });
+    }
+    const prop = (name, get, set) => Object.defineProperty(canvas, name, { get, set, configurable: true });
+    prop('src', () => audio.src, setSrc);
+    prop('currentTime', () => audio.currentTime, (v) => { audio.currentTime = Number(v) || 0; draw(); });
+    prop('duration', () => audio.duration || 0);
+    prop('paused', () => audio.paused);
+    prop('ended', () => audio.ended);
+    prop('muted', () => audio.muted, (v) => { audio.muted = !!v; applyVolume(); draw(); });
+    prop('volume', () => volume, (v) => setVolume(Number(v) || 0, false));
+    prop('playbackRate', () => audio.playbackRate, (v) => { audio.playbackRate = Number(v) || 1; });
 
-    // PROXY HOÀN HẢO CÁC THUỘC TÍNH CỦA HTMLAudioElement LÊN THẺ CANVAS
-    // Giúp code hiện tại (app.js) gọi player.src, player.play(), player.currentTime mượt mà
-    Object.defineProperty(canvas, 'src', {
-      get: () => audio.src,
-      set: (val) => {
-        if (!val) {
-          audio.removeAttribute('src');
-          audio.load();
-          peaks = null;
-          draw();
-          return;
-        }
-        audio.src = val;
-        audio.load();
-        peaks = generateSpeechPeaks(val, 60);
-        tryDecodePeaksFromUrl(val);
-        draw();
-      },
-      configurable: true
-    });
-
-    Object.defineProperty(canvas, 'currentTime', {
-      get: () => audio.currentTime,
-      set: (val) => {
-        audio.currentTime = Number(val) || 0;
-        draw();
-      },
-      configurable: true
-    });
-
-    Object.defineProperty(canvas, 'duration', {
-      get: () => audio.duration || 0,
-      configurable: true
-    });
-
-    Object.defineProperty(canvas, 'paused', {
-      get: () => audio.paused,
-      configurable: true
-    });
-
-    Object.defineProperty(canvas, 'muted', {
-      get: () => audio.muted,
-      set: (val) => {
-        audio.muted = !!val;
-        draw();
-      },
-      configurable: true
-    });
-
-    Object.defineProperty(canvas, 'volume', {
-      get: () => audio.volume,
-      set: (val) => {
-        audio.volume = Math.max(0, Math.min(1, Number(val) || 0));
-        draw();
-      },
-      configurable: true
-    });
-
-    Object.defineProperty(canvas, 'playbackRate', {
-      get: () => audio.playbackRate,
-      set: (val) => { audio.playbackRate = Number(val) || 1; },
-      configurable: true
-    });
-
-    canvas.play = () => audio.play();
+    canvas.play = play;
     canvas.pause = () => { audio.pause(); draw(); };
     canvas.load = () => { audio.load(); draw(); };
     canvas.canPlayType = (t) => audio.canPlayType(t);
-
     const origRemoveAttr = canvas.removeAttribute.bind(canvas);
     canvas.removeAttribute = function (attr) {
-      if (attr === 'src') {
-        audio.pause();
-        audio.removeAttribute('src');
-        audio.load();
-        peaks = null;
-        draw();
-      }
+      if (attr === 'src') { audio.pause(); setSrc(''); }
       return origRemoveAttr(attr);
     };
 
-    // Theo dõi co giãn cửa sổ
-    const ro = new ResizeObserver(() => draw());
-    ro.observe(canvas);
+    // Vẽ lại khi đổi kích thước hoặc đổi theme
+    new ResizeObserver(() => draw()).observe(canvas);
+    new MutationObserver(() => draw()).observe(document.documentElement, { attributes: true, attributeFilter: ['class', 'data-theme', 'style'] });
+    if (document.fonts?.ready) document.fonts.ready.then(draw);
 
+    applyVolume();
     draw();
     return canvas;
   }
@@ -700,17 +446,12 @@
   // Khởi tạo tự động cho tất cả thẻ canvas audio player
   function initAllCanvasPlayers() {
     document.querySelectorAll('canvas.audio-canvas-player, #player, #tts-player').forEach((el) => {
-      if (el.tagName === 'CANVAS') {
-        attachCanvasAudioPlayer(el);
-      }
+      if (el.tagName === 'CANVAS') attachCanvasAudioPlayer(el);
     });
   }
 
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initAllCanvasPlayers);
-  } else {
-    initAllCanvasPlayers();
-  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initAllCanvasPlayers);
+  else initAllCanvasPlayers();
 
   window.attachCanvasAudioPlayer = attachCanvasAudioPlayer;
 })();

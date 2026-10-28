@@ -18,6 +18,9 @@ import { sourceLine, langOfVoice, spokenDomain } from './worker/spoken.js';
 import { VIENEU_VOICES, SUPERTONIC_VOICES, vieneuSynthesize, supertonicSynthesize } from './worker/vieneu.js';
 
 /** Tên miền website: lấy từ URL đang truy cập (hoặc APP_URL nếu cấu hình) */
+/** Độ dài tối đa một câu phụ đề (gói không phải Premium) */
+const CUE_MAX_CHARS = 300;
+
 const siteHost = (request, env) => new URL(env.APP_URL || request.url).host;
 
 async function ttsRoute(request, env, synth, label, premiumOnly = false) {
@@ -40,6 +43,14 @@ async function ttsRoute(request, env, synth, label, premiumOnly = false) {
     if (EMOTION_REGEX.test(text) && !isPrem) {
       return json({ error: 'Thẻ cảm xúc ([cười], [thở dài]...) chỉ dành riêng cho gói Premium.', premium: true }, 403);
     }
+    // Câu phụ đề (body.cue) không bị nối câu ghi nguồn; gói thường chỉ được gửi câu ngắn để không lách watermark
+    const plan = effectivePlan(user, cfg);
+    if (body.cue && !plan.srtCues && plan.srtCues !== null) {
+      return json({ error: 'Đăng ký và xác minh email để đọc phụ đề SRT.' }, 403);
+    }
+    if (body.cue && !isPrem && text.length > CUE_MAX_CHARS) {
+      return json({ error: `Mỗi câu phụ đề tối đa ${CUE_MAX_CHARS} ký tự với gói ${plan.name}.` }, 413);
+    }
     quota = await takeTtsQuota(env.DB, request, user, text.length, cfg);
     if (!quota.ok) return json({ error: quota.error, quota: true, plan: quota.plan.id, buyCredits: !!quota.buyCredits }, quota.status);
   }
@@ -47,8 +58,11 @@ async function ttsRoute(request, env, synth, label, premiumOnly = false) {
   if (env.DB) {
     const cfg = await getConfig(env.DB);
     const user = quota ? await getUser(request, env) : null;
-    const exempt = cfg.watermark.exemptPremium && user && effectivePlan(user, cfg).id === 'premium';
-    if (!exempt) {
+    const plan = effectivePlan(user, cfg);
+    const exempt = cfg.watermark.exemptPremium && plan.id === 'premium';
+    // Đọc phụ đề SRT: mỗi câu một lượt nên không nối câu ghi nguồn vào từng câu, trình duyệt nối một lần ở cuối file
+    const cue = body.cue && (plan.srtCues || plan.srtCues === null);
+    if (!exempt && !cue) {
       const lang = label.includes('CapCut') ? 'vi' : langOfVoice(body.voice);
       const line = sourceLine(cfg, siteHost(request, env), lang);
       if (line) finalText = `${text.replace(/[\s.!?…]*$/, '')}. ${line}`;

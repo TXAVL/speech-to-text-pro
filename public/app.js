@@ -324,6 +324,7 @@ function clearMedia() {
   $('#media-card').hidden = true;
   $('#btn-run').disabled = true;
   $('#file-input').value = '';
+  if (typeof vkStudio !== 'undefined') vkStudio.updateButton();
 }
 $('#btn-clear-media').addEventListener('click', clearMedia);
 
@@ -711,6 +712,7 @@ function renderResult() {
   $('#plain').value = state.text;
   applyViewMode();
   $('#ai-row').hidden = !(isPremium() && (keyGet('gemini') || keyGet('groq')));
+  if (typeof vkStudio !== 'undefined') vkStudio.updateButton();
 }
 function syncRaw() {
   state.raw = state.view.map(s => ({ ...s }));
@@ -797,7 +799,119 @@ const LIBS = {
 };
 const tts = { lib: 'edge', format: 'mp3', edgeVoices: null, capcutVoices: null, mms: null, piper: null, speaking: false, previewAudio: null };
 
-function updateCount() { $('#tts-count').textContent = $('#tts-text').value.length.toLocaleString('vi-VN') + ' ký tự'; }
+function updateCount() { $('#tts-count').textContent = $('#tts-text').value.length.toLocaleString('vi-VN') + ' ký tự'; updateSrtPanel(); }
+
+/* ---------- Đọc phụ đề SRT theo mốc thời gian (Premium) ---------- */
+const srt = { cues: null, music: null };
+/** Số câu phụ đề tối đa mỗi lần: 0 = chưa được dùng (khách), null = không giới hạn (Premium / bản chạy riêng) */
+function srtCueLimit() {
+  if (isPremium()) return null;
+  const st = vkAccount.state;
+  if (!st.user?.verified) return 0;
+  return st.plan?.srtCues ?? 30;
+}
+function updateSrtPanel() {
+  const text = $('#tts-text').value;
+  const cues = typeof vkSrt !== 'undefined' && vkSrt.looks(text) ? vkSrt.parse(text) : [];
+  srt.cues = cues.length ? cues : null;
+  $('#srt-panel').hidden = !srt.cues;
+  if (!srt.cues) return;
+  const chars = cues.reduce((n, c) => n + c.text.length, 0);
+  $('#srt-info').textContent = `${cues.length.toLocaleString('vi-VN')} câu · dài ${clock(cues.at(-1).end)} · ${chars.toLocaleString('vi-VN')} ký tự lời thoại`;
+  const limit = srtCueLimit();
+  $('#srt-badge').textContent = limit === null ? 'Premium · không giới hạn' : limit === 0 ? 'Cần tài khoản' : `Miễn phí · tối đa ${limit} câu`;
+  // Nhạc nền chỉ dành cho Premium
+  const premium = limit === null;
+  $('#srt-music-btn').disabled = !premium;
+  $('#srt-music-lock').hidden = premium;
+  if (!premium && srt.music) setSrtMusic(null);
+}
+$('#srt-open').addEventListener('click', () => $('#srt-file').click());
+$('#srt-file').addEventListener('change', async (e) => {
+  const f = e.target.files[0]; e.target.value = '';
+  if (!f) return;
+  const ta = $('#tts-text');
+  ta.value = await f.text();
+  ta.dispatchEvent(new Event('input', { bubbles: true }));
+  if (!srt.cues) return toast(`${f.name} không có câu phụ đề nào hợp lệ.`, 'err');
+  toast(`Đã nạp ${srt.cues.length} câu phụ đề từ ${f.name}.`, 'ok');
+});
+$('#srt-fit').addEventListener('change', e => { $('#row-srt-max').hidden = !e.target.checked; });
+$('#srt-max').addEventListener('input', e => { $('#srt-max-val').textContent = Number(e.target.value).toFixed(2) + '×'; });
+$('#srt-vol').addEventListener('input', e => { $('#srt-vol-val').textContent = e.target.value + '%'; });
+$('#srt-music-btn').addEventListener('click', () => $('#srt-music-file').click());
+$('#srt-music-file').addEventListener('change', (e) => {
+  const f = e.target.files[0]; e.target.value = '';
+  if (f) setSrtMusic(f);
+});
+$('#srt-music-clear').addEventListener('click', () => setSrtMusic(null));
+function setSrtMusic(f) {
+  srt.music = f;
+  $('#srt-music-name').textContent = f ? f.name : 'Chưa chọn';
+  $('#srt-music-clear').hidden = $('#row-srt-vol').hidden = !f;
+}
+
+/** Đọc từng câu phụ đề bằng synthOne rồi ghép đúng mốc thời gian */
+async function runSrtVoice(cues, synthOne, status, lib, voice) {
+  const prep = (t) => {
+    let s = t.replace(/\[(?:nghỉ|nghi|pause|break)\s*[^\]]+\]/gi, ', ');
+    if (typeof vkDict !== 'undefined' && vkDict.apply) s = vkDict.apply(s);
+    if (typeof vkTags !== 'undefined' && vkTags.normalizeEmotions) s = vkTags.normalizeEmotions(s, lib);
+    return s;
+  };
+  const items = cues.map(c => ({ ...c, text: prep(c.text) }));
+  const allText = items.map(c => c.text).join(' ');
+  const sfx = await ttsSuffix(sourceLang(lib, voice, allText));
+
+  const serverLib = ['edge', 'capcut', 'vieneu', 'supertonic'].includes(lib);
+  if (serverLib) {
+    const need = items.length + (sfx ? 1 : 0);
+    const u = typeof vkAccount !== 'undefined' && vkAccount.state.enabled ? vkAccount.state.usage : null;
+    const left = u ? (u.remaining || 0) + (u.credits || 0) : Infinity;
+    if (left < need) throw new Error(`Phụ đề cần ${need} lượt (mỗi câu một lượt) nhưng bạn chỉ còn ${left} lượt hôm nay. Hãy mua thêm lượt hoặc chia nhỏ file phụ đề.`);
+  }
+
+  const res = await vkSrt.render(items, {
+    synth: (t) => synthOne(t),
+    decode: (blob, r) => vkAudio.decodeTo48k(blob, r),
+    concurrency: serverLib ? 3 : 1,
+    fit: $('#srt-fit').checked,
+    maxSpeed: Number($('#srt-max').value),
+    music: srt.music,
+    musicVol: Number($('#srt-vol').value) / 100,
+    tail: sfx ? await synthOne(sfx) : null,
+    onStatus: (s, pct) => status(`${s}… ${pct}%`)
+  });
+
+  const name = ttsFileName(items[0].text + ' phu de', 'wav');
+  if (tts.audioUrl) URL.revokeObjectURL(tts.audioUrl);
+  if (tts.srtUrl) URL.revokeObjectURL(tts.srtUrl);
+  tts.audioUrl = URL.createObjectURL(res.blob);
+  tts.srtUrl = URL.createObjectURL(new Blob([res.srt], { type: 'application/x-subrip' }));
+  tts.lastResult = { blob: res.blob, rawBlob: res.blob, mp3Blob: null, wavBlob: res.blob, rawText: items[0].text, timeline: [], lib, voice };
+  $('#tts-player').src = tts.audioUrl;
+  $('#tts-download').href = tts.audioUrl;
+  $('#tts-download').download = name;
+  $('#tts-download span').textContent = 'Tải WAV';
+  $('#tts-srt').href = tts.srtUrl;
+  $('#tts-srt').download = name.replace(/\.wav$/, '.srt');
+  $('#tts-srt').hidden = false;
+  $('#tts-result').hidden = false;
+  $('#tts-player').play().catch(() => {});
+
+  const notes = [];
+  if (res.sped) notes.push(`${res.sped} câu được đọc nhanh hơn`);
+  if (res.overflow) notes.push(`${res.overflow} câu vẫn dài hơn khung giờ nên lùi nhẹ (file SRT tải về đã cập nhật mốc mới)`);
+  toast(`Đã đọc xong ${items.length} câu phụ đề${notes.length ? ': ' + notes.join(', ') : ''}.`, res.overflow ? 'info' : 'ok');
+
+  if (typeof saveTtsHistory === 'function') {
+    const voiceOpt = $('#tts-voice').selectedOptions[0];
+    saveTtsHistory(res.blob, {
+      text: `[Phụ đề ${items.length} câu] ${allText.slice(0, 300)}`, fileName: name, lib, libLabel: LIBS[lib]?.badge || lib,
+      voiceLabel: voiceOpt ? voiceOpt.textContent : voice, duration: await audioDuration(res.blob)
+    });
+  }
+}
 $('#tts-text').addEventListener('input', updateCount);
 $('#tts-sample').addEventListener('click', () => { $('#tts-text').value = SAMPLE; updateCount(); });
 $('#tts-clear').addEventListener('click', () => { $('#tts-text').value = ''; updateCount(); });
@@ -1428,6 +1542,23 @@ $('#btn-tts-run').addEventListener('click', async () => {
   let rawText = $('#tts-text').value.trim();
   if (!rawText) return toast('Hãy nhập văn bản cần đọc.', 'err');
 
+  // Nội dung là phụ đề SRT: đọc từng câu theo mốc thời gian (Premium)
+  const cues = srt.cues && vkSrt.looks(rawText) ? srt.cues : null;
+  if (cues) {
+    if (lib === 'browser') return toast('Giọng của trình duyệt chỉ nghe trực tiếp, không ghép theo phụ đề được. Hãy chọn kho giọng khác.', 'err');
+    const limit = srtCueLimit();
+    if (limit === 0) {
+      const go = await customConfirm('Đọc phụ đề SRT thành giọng nói cần tài khoản đã xác minh email. Gói Miễn phí đọc được tới 30 câu mỗi file, Premium không giới hạn.', 'Cần đăng ký tài khoản', 'Đăng ký / Đăng nhập', 'Để sau');
+      if (go) openModal('#modal-account');
+      return;
+    }
+    if (limit && cues.length > limit) {
+      const go = await customConfirm(`File phụ đề có ${cues.length} câu, gói của bạn đọc tối đa ${limit} câu mỗi lần. Nâng cấp Premium để đọc không giới hạn, hoặc chia nhỏ file phụ đề.`, 'Vượt giới hạn câu phụ đề', 'Xem gói Premium', 'Để sau');
+      if (go) showView('plans');
+      return;
+    }
+  }
+
   // Kiểm tra quyền sử dụng thẻ cảm xúc: nếu tài khoản không phải Premium mà văn bản có chứa thẻ cảm xúc
   const EMOTION_REGEX = /(\[cười\]|\[thở dài\]|\[hắng giọng\]|<laugh>|<sigh>|<breath>)/i;
   if (EMOTION_REGEX.test(rawText) && !isPremium()) {
@@ -1488,7 +1619,8 @@ $('#btn-tts-run').addEventListener('click', async () => {
   try {
     let blob = null;
     const post = async (url, body) => {
-      const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      // cue: máy chủ không nối câu ghi nguồn vào từng câu phụ đề (chỉ Premium)
+      const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cues ? { ...body, cue: true } : body) });
       const account = typeof vkAccount !== 'undefined' ? vkAccount : null;
       account?.onTtsResponse(res);
       if (!res.ok) {
@@ -1509,6 +1641,8 @@ $('#btn-tts-run').addEventListener('click', async () => {
       if (lib === 'gemini') return cloudApi.tts(keyGet('gemini'), $('#tts-model').value, t, voice, $('#tts-style').value);
       throw new Error('Kho giọng không hợp lệ');
     };
+
+    if (cues) return await runSrtVoice(cues, synthOne, status, lib, voice);
 
     // 3. Phân tích các thẻ nghỉ [nghỉ 2s], [nghỉ 500ms]
     let segments = typeof vkTags !== 'undefined' && vkTags.parsePauses

@@ -338,7 +338,7 @@ export async function meResponse(request, env, cfg) {
   return shieldResponse({
     accounts: true, smtp: smtpConfigured(env),
     user: publicUser(env, user, cfg),
-    plan: { id: plan.id, name: plan.name, ttsCalls: plan.ttsCalls, maxChars: plan.maxChars },
+    plan: { id: plan.id, name: plan.name, ttsCalls: plan.ttsCalls, maxChars: plan.maxChars, srtCues: plan.srtCues },
     usage: { calls: u.calls, remaining: Math.max(0, plan.ttsCalls - u.calls), credits: user?.extra_credits || 0 },
     plans: publicPlans(cfg),
     theme: cfg.saved.theme || 'auto'
