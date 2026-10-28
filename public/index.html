@@ -144,6 +144,11 @@
             </label>
           </div>
 
+          <div class="sep-opt">
+            <label class="srt-check"><input type="checkbox" id="opt-separate"> 🎤 Tách giọng khỏi nhạc nền trước khi nhận diện <span class="srt-badge">Premium</span></label>
+            <small class="muted">Dùng cho bài hát hoặc video có nhạc to. Mô hình tải thêm ~67 MB (lần đầu), chạy trên máy bạn, nhanh nhất khi có WebGPU.</small>
+          </div>
+
           <p class="hint" id="engine-hint">Lần đầu mô hình tải về một lần (~250 MB) rồi lưu cache, các lần sau chạy ngay, kể cả offline.</p>
 
           <button class="btn primary big" id="btn-run" disabled><svg><use href="#i-spark"/></svg><span>Bắt đầu chuyển đổi</span></button>
@@ -165,6 +170,7 @@
                 </div>
               </div>
               <button class="btn sm accent" id="btn-to-tts"><svg><use href="#i-play"/></svg>Đọc lại</button>
+              <button class="btn sm" id="btn-vocals" hidden title="Tải file giọng đã tách khỏi nhạc nền (16 kHz, mono)">🎤 Giọng đã tách</button>
               <button class="btn sm gold" id="btn-video-sub" hidden title="Sửa thời gian, chọn kiểu chữ và xuất video có phụ đề (Premium)">🎬 Phụ đề video</button>
             </div>
           </div>

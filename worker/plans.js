@@ -41,6 +41,7 @@ export const PLANS = {
       'Chế độ văn bản dài: tự chia đoạn và ghép thành một file, đọc tới 100.000 ký tự mỗi lần',
       'Tự tạo phụ đề SRT khớp với file giọng đọc, dùng ngay cho CapCut / Premiere',
       'Đọc phụ đề SRT thành giọng nói không giới hạn số câu, kèm nhạc nền tự nhỏ lại khi có giọng',
+      'Tách giọng khỏi nhạc nền (MDX-Net) trước khi nhận diện: lời bài hát, video có nhạc to ra chữ chính xác hơn rõ rệt',
       'Studio phụ đề video: sửa thời gian từng dòng, kiểu chữ CapCut / tô từng từ, xuất video MP4 có in phụ đề',
       'Xuất âm thanh chất lượng cao: WAV 48 kHz (16-bit PCM chuẩn phòng thu) hoặc MP3',
       'Điều khiển cảm xúc ([cười], [thở dài], <laugh>...) & Thẻ nghỉ chính xác từng mili-giây ([nghỉ 2s], [nghỉ 500ms])',

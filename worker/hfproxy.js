@@ -3,13 +3,16 @@
 // và Cloudflare cache lại nên người dùng sau tải nhanh hơn.
 // Chỉ các repo mô hình ONNX của onnx-community (danh mục Giọng → Chữ trong public/stt-models.js), PhoWhisper của huuquyet và giọng MMS tiếng Việt
 const ALLOWED = [/^onnx-community\/[a-z0-9._-]+$/i, /^huuquyet\/PhoWhisper-(tiny|small|medium|large)$/i, /^Xenova\/mms-tts-vie$/i];
+// Repo lớn chứa nhiều mô hình: chỉ cho đúng file tách giọng MDX-Net (UVR-MDX-NET Voc FT, ~67 MB) dùng ở public/vocal-worker.js
+const ALLOWED_FILES = { 'Politrees/UVR_resources': /^models\/MDXNet\/UVR-MDX-NET-Voc_FT\.onnx$/ };
 
 export async function handleHf(request, ctx, path) {
   if (path === '/hf/health') return new Response('ok', { headers: { 'Cache-Control': 'no-store' } });
   if (request.method !== 'GET' && request.method !== 'HEAD') return new Response('Method not allowed', { status: 405 });
 
   const m = path.match(/^\/hf\/([^/]+\/[^/]+)\/resolve\/([^/]+)\/(.+)$/);
-  if (!m || !ALLOWED.some(re => re.test(m[1])) || m[3].includes('..')) return new Response('Not found', { status: 404 });
+  const allowed = m && (ALLOWED.some(re => re.test(m[1])) || ALLOWED_FILES[m[1]]?.test(m[3]));
+  if (!allowed || m[3].includes('..')) return new Response('Not found', { status: 404 });
 
   const cache = caches.default;
   const key = new Request(new URL(path, request.url).toString(), { method: 'GET' });

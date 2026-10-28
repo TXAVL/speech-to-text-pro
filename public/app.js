@@ -593,11 +593,15 @@ ${GPU_HELP}`, 'Mô hình cần tăng tốc đồ họa');
     if (proceed) showView('plans');
     return;
   }
+  const separate = $('#opt-separate').checked;
+  if (separate && !(await confirmSeparate())) return;
   setBusy(true);
   try {
+    const vocals = separate ? await getVocals() : null;
     let out;
-    if (kind === 'local') out = await runLocal(model, language);
-    else out = await runCloud(kind, model, language);
+    if (kind === 'local') out = await runLocal(model, language, vocals);
+    else out = await runCloud(kind, model, language, vocals);
+    if (vocals) out.model += ' · tách giọng';
     finishResult(out);
   } catch (e) {
     $('#progress-box').hidden = true; $('#empty').hidden = false;
@@ -606,9 +610,9 @@ ${GPU_HELP}`, 'Mô hình cần tăng tốc đồ họa');
   setBusy(false);
 }
 
-async function runLocal(modelId, language) {
+async function runLocal(modelId, language, vocals = null) {
   setProgress('Đang đọc âm thanh…');
-  const { data, duration } = await decodeTo16kMono(state.media.blob);
+  const { data, duration } = vocals ? { data: vocals.slice(), duration: vocals.length / 16000 } : await decodeTo16kMono(state.media.blob);
   state.media.duration = duration;
   if (!state.worker) state.worker = new Worker('stt-worker.js', { type: 'module' });
   const worker = state.worker;
@@ -641,16 +645,97 @@ async function runLocal(modelId, language) {
   });
 }
 
-async function runCloud(kind, model, language) {
+async function runCloud(kind, model, language, vocals = null) {
   setProgress(kind === 'gemini' ? 'Gemini đang nhận diện…' : 'Groq đang nhận diện…', 'Âm thanh được gửi thẳng tới ' + (kind === 'gemini' ? 'Google' : 'Groq') + ' bằng key của bạn.');
   const t0 = performance.now();
   const iso = { vietnamese: 'vi', english: 'en', chinese: 'zh', japanese: 'ja', korean: 'ko', french: 'fr', spanish: 'es', german: 'de', russian: 'ru', thai: 'th' }[language] || 'auto';
-  const d = await cloudApi.transcribe(kind, keyGet(kind), model, state.media.blob, state.media.name, iso, state.media.duration);
+  const d = await cloudApi.transcribe(kind, keyGet(kind), model, vocals ? f32ToWav(vocals, 16000) : state.media.blob, vocals ? 'vocals.wav' : state.media.name, iso, state.media.duration);
   return {
     text: d.text, segments: d.segments, duration: d.duration || state.media.duration,
     model: (kind === 'gemini' ? 'Gemini · ' : 'Groq · ') + model, elapsed: (performance.now() - t0) / 1000
   };
 }
+
+/* ---------------- Tách giọng khỏi nhạc nền (Premium) ---------------- */
+// MDX-Net chạy trong vocal-worker.js. WebGPU nhanh ~5 lần thời gian thực, CPU chậm ~6 lần thời gian thực.
+const VOCAL_MAX_SEC = { gpu: 20 * 60, cpu: 3 * 60 };
+const fmtEta = (s) => s >= 90 ? `${Math.round(s / 60)} phút` : `${Math.max(1, Math.round(s))} giây`;
+
+/** Kiểm tra quyền Premium, giới hạn độ dài và báo thời gian ước tính; false nếu người dùng dừng lại */
+async function confirmSeparate() {
+  if (!isPremium()) {
+    $('#opt-separate').checked = false;
+    const go = await customConfirm('Tách giọng khỏi nhạc nền để nhận diện lời bài hát chính xác hơn là tính năng của gói Premium.', 'Tính năng Premium', 'Xem gói Premium', 'Để sau');
+    if (go) showView('plans');
+    return false;
+  }
+  if (state.media.vocals) return true; // đã tách file này rồi, dùng lại kết quả
+  const hasGpu = await checkGpu(), dur = state.media.duration || 0;
+  if (dur > VOCAL_MAX_SEC[hasGpu ? 'gpu' : 'cpu']) {
+    await customAlert(`File dài ${clock(dur)}, tách giọng ${hasGpu ? 'hỗ trợ tối đa 20 phút' : 'khi máy không có WebGPU chỉ hỗ trợ tối đa 3 phút'}. Hãy cắt ngắn file hoặc tắt tùy chọn tách giọng.`, 'File quá dài để tách giọng');
+    return false;
+  }
+  if (!hasGpu && dur > 20) {
+    return customConfirm(`Máy bạn không có WebGPU nên tách giọng chạy bằng CPU, chậm khoảng 6 lần thời gian thực: file này mất cỡ ${fmtEta(dur * 6)}. Vẫn tiếp tục?
+
+${gpu.reason}`, 'Tách giọng sẽ chạy chậm', 'Vẫn tách giọng', 'Hủy');
+  }
+  return true;
+}
+
+/** Giải mã sang 44,1 kHz hai kênh (mô hình tách giọng cần đúng định dạng này) */
+async function decodeStereo44k(blob) {
+  const ctx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 44100 });
+  try {
+    const buf = await ctx.decodeAudioData(await blob.arrayBuffer());
+    const left = buf.getChannelData(0).slice();
+    return { left, right: buf.numberOfChannels > 1 ? buf.getChannelData(1).slice() : left.slice() };
+  } finally { ctx.close(); }
+}
+
+async function resampleMono(data, from, to) {
+  const off = new OfflineAudioContext(1, Math.ceil(data.length * to / from), to);
+  const buf = off.createBuffer(1, data.length, from);
+  buf.copyToChannel(data, 0);
+  const src = off.createBufferSource();
+  src.buffer = buf; src.connect(off.destination); src.start();
+  return (await off.startRendering()).getChannelData(0).slice();
+}
+
+function runVocalWorker(left, right) {
+  return new Promise((resolve, reject) => {
+    const worker = new Worker('vocal-worker.js', { type: 'module' });
+    const end = (fn, v) => { worker.terminate(); clearTitleProgress(); fn(v); };
+    worker.onerror = (e) => end(reject, new Error('Không chạy được mô hình tách giọng: ' + (e.message || 'lỗi worker')));
+    worker.onmessage = ({ data: m }) => {
+      if (m.type === 'status') setProgress(m.message, 'Đừng đóng tab này.');
+      else if (m.type === 'load-progress') setProgress('Đang tải mô hình tách giọng…', `${(m.loaded / 1e6).toFixed(0)} / ${(m.total / 1e6).toFixed(0)} MB (chỉ tải lần đầu)`, m.loaded / m.total);
+      else if (m.type === 'progress') setProgress('Đang tách giọng khỏi nhạc nền…', `Đoạn ${m.done}/${m.total}${m.done < m.total ? ` · còn khoảng ${fmtEta(m.eta)}` : ''}`, m.ratio * 0.97);
+      else if (m.type === 'result') end(resolve, m.vocals);
+      else if (m.type === 'error') end(reject, new Error(m.message));
+    };
+    worker.postMessage({ type: 'separate', left, right, cpuOnly: !gpu.ok }, [left.buffer, right.buffer]);
+  });
+}
+
+/** Giọng đã tách của file đang mở (16 kHz mono, dùng chung cho nhận diện và nút tải), lưu lại để không tách lại */
+async function getVocals() {
+  const media = state.media;
+  if (media.vocals) return media.vocals;
+  setProgress('Đang đọc âm thanh…');
+  const { left, right } = await decodeStereo44k(media.blob);
+  const mono44 = await runVocalWorker(left, right);
+  setProgress('Đang chuẩn hóa giọng đã tách…');
+  media.vocals = await resampleMono(mono44, 44100, 16000);
+  return media.vocals;
+}
+$('#btn-vocals').addEventListener('click', () => {
+  if (!state.media?.vocals) return;
+  download((state.meta.name || 'giong').replace(/\.[^.]+$/, '') + '-giong-da-tach.wav', f32ToWav(state.media.vocals, 16000), 'audio/wav');
+});
+$('#opt-separate').addEventListener('change', async (e) => {
+  if (e.target.checked && !isPremium()) await confirmSeparate();
+});
 
 /* ---------------- Hiển thị kết quả ---------------- */
 function splitSegments(segs, maxChars) {
@@ -683,6 +768,7 @@ function finishResult(r) {
   $('#progress-box').hidden = true;
   $('#result').hidden = false;
   $('#result-tools').hidden = false;
+  $('#btn-vocals').hidden = !state.media?.vocals;
   const sum = $('#summary');
   if (r.summary) { sum.textContent = r.summary; sum.hidden = false; } else sum.hidden = true;
   renderResult();

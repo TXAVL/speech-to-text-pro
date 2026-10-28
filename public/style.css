@@ -4544,3 +4544,18 @@ input[type="range"] {
     grid-template-columns: 1fr;
   }
 }
+
+/* Tùy chọn tách giọng khỏi nhạc nền */
+.sep-opt {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 4px 0 12px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px dashed var(--line);
+  background: var(--card-2);
+}
+.sep-opt .srt-check {
+  flex-wrap: wrap;
+}
