@@ -62,7 +62,10 @@ const PAID_VIA = {
 };
 
 export function renderInvoice({ order, user = {}, seller = {}, appName = 'TXA Voice', baseUrl = '' }) {
-  const inv = order.invoice ? (typeof order.invoice === 'string' ? JSON.parse(order.invoice) : order.invoice) : null;
+  // Thông tin hóa đơn trống hoặc hỏng (đơn nhập tay, dữ liệu cũ) thì in như hóa đơn bán lẻ, không báo lỗi
+  let inv = null;
+  try { inv = typeof order.invoice === 'string' ? JSON.parse(order.invoice || 'null') : order.invoice || null; } catch { inv = null; }
+  if (!inv || typeof inv !== 'object') inv = null;
   const isCompany = inv?.type === 'company';
   const buyerName = inv?.name || user.name || (user.email ? user.email.split('@')[0] : 'Khách hàng');
   const buyerEmail = inv?.email || user.email || '—';

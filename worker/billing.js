@@ -11,9 +11,16 @@ import { renderInvoice } from './invoice.js';
 const appUrl = (env, request) => (env.APP_URL || new URL(request.url).origin).replace(/\/$/, '');
 const isAdmin = (env, u) => !!u && (u.role === 'admin' || String(env.ADMIN_EMAILS || '').toLowerCase().split(',').map(s => s.trim()).includes(u.email));
 
+/** Đọc thông tin hóa đơn của đơn hàng; dữ liệu trống hoặc hỏng (đơn nhập tay, dữ liệu cũ) thì coi như không có hóa đơn */
+export function parseInvoice(v) {
+  if (!v) return null;
+  if (typeof v === 'object') return v;
+  try { const x = JSON.parse(v); return x && typeof x === 'object' ? x : null; } catch { return null; }
+}
+
 export function publicOrder(o) {
   if (!o) return null;
-  const inv = o.invoice ? (typeof o.invoice === 'string' ? JSON.parse(o.invoice) : o.invoice) : null;
+  const inv = parseInvoice(o.invoice);
   return {
     orderCode: o.order_code, packageId: o.package_id, packageName: o.package_name, days: o.days, amount: o.amount,
     status: o.status, description: o.description, checkoutUrl: o.checkout_url, qrCode: o.qr_code,
@@ -46,7 +53,7 @@ export async function activateOrder(env, request, orderCode, via, reference = nu
     const base = appUrl(env, request);
     const until = expires ? new Date(expires).toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' }) : 'vĩnh viễn';
     const money = Number(order.amount).toLocaleString('vi-VN') + 'đ';
-    const inv = order.invoice ? JSON.parse(order.invoice) : null;
+    const inv = parseInvoice(order.invoice);
     const isCredits = order.kind === 'credits';
     const itemName = isCredits ? `${Number(order.credits).toLocaleString('vi-VN')} lượt Edge/CapCut mua thêm` : `Premium ${order.package_name}`;
     const mail = await renderEmail(env.DB, 'receipt', {

@@ -510,13 +510,86 @@ const vkPay = (() => {
     });
     return (qrLib = window.qrcode);
   }
-  async function bankName(bin) {
-    if (!bin) return '—';
+  async function bankInfo(bin) {
+    if (!bin) return { text: '—', logo: '' };
     try {
       banks ||= (await (await fetch('https://api.vietqr.io/v2/banks')).json()).data || [];
       const b = banks.find(x => x.bin === String(bin));
-      return b ? `${b.shortName} (${b.name})` : bin;
-    } catch { return bin; }
+      return b ? { text: `${b.shortName} (${b.name})`, logo: b.logo || '', short: b.shortName } : { text: bin, logo: '' };
+    } catch { return { text: bin, logo: '' }; }
+  }
+  const bankName = async (bin) => (await bankInfo(bin)).text;
+
+  /* ---------- Mã QR kiểu VietQR ---------- */
+  /** Đọc chuỗi EMVCo dạng TLV (id 2 ký tự + độ dài 2 chữ số + giá trị) */
+  function parseEmv(s) {
+    const m = {};
+    for (let i = 0; i + 4 <= s.length;) {
+      const len = Number(s.slice(i + 2, i + 4));
+      if (!Number.isInteger(len) || i + 4 + len > s.length) return null;
+      m[s.slice(i, i + 2)] = s.slice(i + 4, i + 4 + len);
+      i += 4 + len;
+    }
+    return m;
+  }
+  /** CRC-16/CCITT-FALSE của chuỗi VietQR (4 ký tự cuối là CRC, tính trên phần còn lại kể cả "6304") */
+  function crc16(str) {
+    let crc = 0xFFFF;
+    for (let i = 0; i < str.length; i++) {
+      crc ^= str.charCodeAt(i) << 8;
+      for (let k = 0; k < 8; k++) crc = crc & 0x8000 ? ((crc << 1) ^ 0x1021) & 0xFFFF : (crc << 1) & 0xFFFF;
+    }
+    return crc.toString(16).toUpperCase().padStart(4, '0');
+  }
+  /** Mã QR có khớp đơn hàng không: CRC, số tiền, nội dung chuyển khoản, ngân hàng và số tài khoản */
+  function checkQr(o) {
+    const t = String(o.qrCode || '');
+    const m = parseEmv(t);
+    if (!m) return { ok: false, issues: ['không đọc được chuỗi QR'] };
+    const issues = [];
+    if (!(t.slice(-8, -4) === '6304' && crc16(t.slice(0, -4)) === t.slice(-4).toUpperCase())) issues.push('sai mã kiểm tra CRC');
+    if (Number(m['54']) !== Number(o.amount)) issues.push(`số tiền trong mã (${fmt(m['54'] || 0)}đ) khác đơn (${fmt(o.amount)}đ)`);
+    const add = m['62'] ? parseEmv(m['62']) || {} : {};
+    if (add['08'] && add['08'] !== o.description) issues.push('nội dung chuyển khoản trong mã khác đơn');
+    const acc = m['38'] ? parseEmv(m['38']) : null, who = acc && acc['01'] ? parseEmv(acc['01']) : null;
+    if (who) {
+      if (o.accountNumber && who['01'] && who['01'] !== String(o.accountNumber)) issues.push('số tài khoản trong mã khác đơn');
+      if (o.bankBin && who['00'] && who['00'] !== String(o.bankBin)) issues.push('ngân hàng trong mã khác đơn');
+    }
+    return { ok: !issues.length, issues, hasMemo: !!add['08'] };
+  }
+
+  /**
+   * Vẽ mã QR thành SVG: vùng trống 2 ô quanh mã, ô dữ liệu bo nhẹ, ba ô định vị bo tròn,
+   * chừa chỗ giữa cho logo (mức sửa lỗi Q chịu được 25%, logo chỉ che ~3%).
+   */
+  function qrSvg(make, text) {
+    const qr = make(0, 'Q');
+    qr.addData(text); qr.make();
+    const n = qr.getModuleCount(), Q = 2, S = n + Q * 2, DARK = '#0b1b3b';
+    const finder = (r, c) => (r < 7 && c < 7) || (r < 7 && c >= n - 7) || (r >= n - 7 && c < 7);
+    const logo = Math.max(7, Math.round(n * 0.17) | 1), lo = Math.floor((n - logo) / 2) - 1, hi = lo + logo + 2; // vùng logo (kèm viền 1 ô)
+    const inLogo = (r, c) => r >= lo && r < hi && c >= lo && c < hi;
+    let rects = '';
+    for (let r = 0; r < n; r++) {
+      for (let c = 0; c < n;) {
+        if (!qr.isDark(r, c) || finder(r, c) || inLogo(r, c)) { c++; continue; }
+        let e = c;
+        while (e < n && qr.isDark(r, e) && !finder(r, e) && !inLogo(r, e)) e++;
+        rects += `<rect x="${c + Q}" y="${r + Q}" width="${e - c}" height="1" rx=".32"/>`;
+        c = e;
+      }
+    }
+    const eye = (x, y) => `<rect x="${x + Q}" y="${y + Q}" width="7" height="7" rx="2"/><rect x="${x + Q + 1}" y="${y + Q + 1}" width="5" height="5" rx="1.4" fill="#fff"/><rect x="${x + Q + 2}" y="${y + Q + 2}" width="3" height="3" rx="1"/>`;
+    const mid = S / 2, bw = (hi - lo - 1) + 0.2, bx = mid - bw / 2;
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${S} ${S}" shape-rendering="geometricPrecision" role="img" aria-label="Mã QR VietQR">
+      <rect width="${S}" height="${S}" fill="#fff"/>
+      <g fill="${DARK}">${rects}${eye(0, 0)}${eye(n - 7, 0)}${eye(0, n - 7)}</g>
+      <defs><linearGradient id="vqg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#6d5dfc"/><stop offset="1" stop-color="#0ea5c6"/></linearGradient></defs>
+      <rect x="${bx}" y="${bx}" width="${bw}" height="${bw}" rx="${bw * 0.26}" fill="#fff"/>
+      <rect x="${bx + bw * 0.1}" y="${bx + bw * 0.1}" width="${bw * 0.8}" height="${bw * 0.8}" rx="${bw * 0.22}" fill="url(#vqg)"/>
+      <text x="${mid}" y="${mid + bw * 0.17}" text-anchor="middle" font-family="Be Vietnam Pro,Segoe UI,Arial,sans-serif" font-weight="800" font-size="${bw * 0.5}" fill="#fff">V</text>
+    </svg>`;
   }
 
   async function render(o) {
@@ -528,14 +601,26 @@ const vkPay = (() => {
     $('#pay-name').textContent = o.accountName || '—';
     $('#pay-desc').textContent = o.description;
     $('#pay-open').href = o.checkoutUrl || '#';
-    $('#pay-bank').textContent = await bankName(o.bankBin);
-    const box = $('#pay-qr');
-    box.textContent = '';
+    const bank = await bankInfo(o.bankBin);
+    $('#pay-bank').textContent = bank.text;
+    // Chân thẻ VietQR: logo + tên ngân hàng, chủ tài khoản, số tài khoản
+    const logo = $('#pay-bank-logo');
+    logo.hidden = !bank.logo; if (bank.logo) logo.src = bank.logo;
+    $('#pay-qr-bank').textContent = bank.short || bank.text;
+    $('#pay-qr-name').textContent = o.accountName || '—';
+    $('#pay-qr-acc').textContent = o.accountNumber || '—';
+    $('#pay-qr-amount').textContent = fmt(o.amount) + 'đ';
+    const box = $('#pay-qr'), verify = $('#pay-qr-verify');
+    box.textContent = ''; verify.hidden = true;
     if (o.qrCode) {
       try {
-        const qr = (await loadQrLib())(0, 'M');
-        qr.addData(o.qrCode); qr.make();
-        box.innerHTML = qr.createSvgTag({ cellSize: 6, margin: 0, scalable: true });
+        box.innerHTML = qrSvg(await loadQrLib(), o.qrCode);
+        const chk = checkQr(o);
+        verify.hidden = false;
+        verify.className = 'qr-verify ' + (chk.ok ? 'ok' : 'bad');
+        verify.textContent = chk.ok
+          ? `✓ Mã QR đã kiểm tra: đúng số tiền ${fmt(o.amount)}đ${chk.hasMemo ? ', đúng nội dung' : ''}, đúng tài khoản nhận`
+          : `⚠ Mã QR không khớp đơn (${chk.issues.join('; ')}). Hãy chuyển khoản theo thông tin bên cạnh hoặc bấm "Mở trang payOS".`;
       } catch { box.innerHTML = '<span class="muted small">Không vẽ được mã QR. Hãy bấm "Mở trang payOS".</span>'; }
     }
     show('pay-main');
@@ -637,6 +722,8 @@ const vkPay = (() => {
   function payLabel() {
     if (!pendingPkg) return;
     const total = fmt(pendingPkg.price) + 'đ';
+    $('#pc-sticky-amount').textContent = total;
+    $('#pc-sticky-label').textContent = payKind === 'credits' ? `Tổng thanh toán · ${pendingPkg.name}` : `Tổng thanh toán · Premium ${pendingPkg.name}`;
     $('#pc-continue').textContent = payMode() === 'redirect' ? `Tiếp tục tới payOS · ${total} →` : `Tạo mã QR · ${total}`;
   }
   $$('input[name=pc-mode]').forEach(r => r.addEventListener('change', payLabel));
@@ -690,6 +777,20 @@ const vkPay = (() => {
       }
     }
 
+    // Thanh kéo + thẻ thông tin: đơn giá, tiết kiệm, số dư sau khi mua, thời lượng đọc ước tính
+    const range = $('#pc-range');
+    range.value = Math.min(q, Number(range.max));
+    range.style.setProperty('--fill', ((range.value - range.min) / (range.max - range.min) * 100) + '%');
+    const have = vkAccount.state.usage?.credits || 0, saving = Math.max(0, baseTotal - price);
+    const maxChars = vkAccount.state.plan?.maxChars || 20000;
+    const hours = q * maxChars / 15 / 3600; // ~15 ký tự mỗi giây
+    const span = hours >= 1 ? `${hours.toFixed(hours < 10 ? 1 : 0)} giờ` : `${Math.max(1, Math.round(hours * 60))} phút`;
+    $('#pc-facts').innerHTML = `
+      <div><small>Đơn giá</small><b>${fmt(unitPrice)}đ / lượt</b></div>
+      <div class="${saving ? 'good' : ''}"><small>Tiết kiệm so với mua lẻ</small><b>${saving ? `${fmt(saving)}đ (−${discountPercent}%)` : 'Chưa có ưu đãi'}</b></div>
+      <div><small>Lượt mua thêm của bạn</small><b>${fmt(have)} → ${fmt(have + q)}</b></div>
+      <div title="Ước tính nếu mỗi lượt đọc đủ ${fmt(maxChars)} ký tự"><small>Đọc được tối đa khoảng</small><b>≈ ${span} giọng đọc</b></div>`;
+
     const noteEl = $('#pc-credits-note');
     if (noteEl) {
       if (q < 100) {
@@ -712,7 +813,10 @@ const vkPay = (() => {
     if ($('#pc-alert')) $('#pc-alert').hidden = true;
 
     const presets = Array.isArray(c.presets) && c.presets.length ? c.presets : [10, 20, 30, 50, 100];
-    $('#pc-presets').innerHTML = presets.map(q => {
+    let last = 0;
+    try { last = Math.floor(Number(localStorage.getItem('vk-last-credits'))) || 0; } catch {}
+    const chips = last >= (c.min || 10) && last <= (c.max || 10000) && !presets.includes(last) ? [...presets, last] : presets;
+    $('#pc-presets').innerHTML = chips.map(q => {
       const p = calcCreditsPrice(q, c.price);
       const discount = Math.round((1 - p / (q * c.price)) * 100);
       let badge = '';
@@ -721,6 +825,7 @@ const vkPay = (() => {
       } else if (discount > 0) {
         badge = `<span class="preset-tag">-${discount}%</span>`;
       }
+      if (q === last && !presets.includes(q)) badge = `<span class="preset-tag last">Lần trước</span>`;
       return `<button type="button" class="credit-preset" data-q="${q}">
         ${badge}
         <b>${fmt(q)}</b>
@@ -737,6 +842,8 @@ const vkPay = (() => {
     qty.min = Math.max(10, c.min || 10);
     qty.max = c.max || 10000;
     qty.step = '10';
+    const range = $('#pc-range');
+    range.min = qty.min; range.max = Math.max(Number(qty.min), Math.min(Number(qty.max), 500)); range.step = '10';
     qty.value = initialQty > 0 ? initialQty : presets.includes(30) ? 30 : (presets[1] || 20);
     $('#pc-credits').hidden = false;
     if (!$('#pc-name').value) $('#pc-name').value = u.name || '';
@@ -745,6 +852,14 @@ const vkPay = (() => {
     openModal('#modal-pay'); show('pay-confirm');
   }
   $('#pc-qty').addEventListener('input', () => { if (payKind === 'credits') syncCredits(); });
+  $('#pc-range').addEventListener('input', (e) => { $('#pc-qty').value = e.target.value; syncCredits(); });
+  const stepQty = (d) => {
+    const c = vkAccount.state.credits, q = Math.round(creditQty() / 10) * 10 + d;
+    $('#pc-qty').value = Math.max(c.min || 10, Math.min(c.max || 10000, q));
+    syncCredits();
+  };
+  $('#pc-minus').addEventListener('click', () => stepQty(-10));
+  $('#pc-plus').addEventListener('click', () => stepQty(10));
 
   $('#pc-continue').addEventListener('click', async () => {
     if (!pendingPkg) return;
@@ -759,6 +874,7 @@ const vkPay = (() => {
         if (alertBox && alertMsg) { alertMsg.textContent = msg; alertBox.hidden = false; }
         return toast(msg, 'err');
       }
+      try { localStorage.setItem('vk-last-credits', String(q)); } catch {}
     }
     const invoice = $('#pc-invoice').checked ? {
       enabled: true, type: invType, name: $('#pc-name').value.trim(), tax_code: $('#pc-tax').value.trim(),

@@ -297,6 +297,15 @@ async function mailWithToken(env, user, kind, ttl, build) {
   }
 }
 
+/** Báo cho chủ tài khoản biết mật khẩu vừa đổi (không làm hỏng luồng chính nếu gửi mail lỗi) */
+async function notifyPasswordChanged(env, request, user) {
+  if (!smtpConfigured(env) || !user) return;
+  try {
+    const when = new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour12: false, hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' });
+    await sendMail(env, { to: user.email, ...(await renderEmail(env.DB, 'password_changed', { changed_at: when }, { appName: 'TXA Voice', appUrl: appUrl(env, request), name: user.name || user.email.split('@')[0], email: user.email })) });
+  } catch (e) { console.log('password mail failed', e.message); }
+}
+
 const sendVerify = (env, request, user) =>
   mailWithToken(env, user, 'verify', VERIFY_MS, async token => renderEmail(env.DB, 'verify', {
     action_url: `${appUrl(env, request)}/?verify=${token}`, expires_hours: 24, free_calls: (await getConfig(env.DB)).plans.free.ttsCalls
@@ -520,6 +529,7 @@ export async function handleAuth(request, env, path) {
           env.DB.prepare('DELETE FROM sessions WHERE user_id = ?').bind(userId)
         ]);
         const user = await env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(userId).first();
+        await notifyPasswordChanged(env, request, user);
         return ok({ ok: true, user: publicUser(env, user, cfg) }, 200, { 'Set-Cookie': await createSession(env, request, userId) });
       }
 
@@ -535,6 +545,7 @@ export async function handleAuth(request, env, path) {
           env.DB.prepare('UPDATE users SET pass_hash = ?, pass_salt = ? WHERE id = ?').bind(await hashPassword(next, salt), salt, user.id),
           env.DB.prepare('DELETE FROM sessions WHERE user_id = ?').bind(user.id)
         ]);
+        await notifyPasswordChanged(env, request, user);
         return ok({ ok: true }, 200, { 'Set-Cookie': await createSession(env, request, user.id) });
       }
 

@@ -15,6 +15,7 @@ import { handleBilling, handleInvoice } from './worker/billing.js';
 import { handleHf } from './worker/hfproxy.js';
 import { handleFetchProxy } from './worker/fetchproxy.js';
 import { sourceLine, langOfVoice, spokenDomain } from './worker/spoken.js';
+import { sendExpiryReminders } from './worker/reminders.js';
 import { VIENEU_VOICES, SUPERTONIC_VOICES, vieneuSynthesize, supertonicSynthesize } from './worker/vieneu.js';
 
 /** Tên miền website: lấy từ URL đang truy cập (hoặc APP_URL nếu cấu hình) */
@@ -80,6 +81,11 @@ async function ttsRoute(request, env, synth, label, premiumOnly = false) {
 }
 
 export default {
+  // Cron hằng ngày: nhắc Premium sắp / đã hết hạn
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(sendExpiryReminders(env).then(r => console.log('reminders', JSON.stringify({ sent: r.sent, failed: r.failed, skipped: r.skipped }))).catch(e => console.log('reminders error', e.message)));
+  },
+
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     const path = url.pathname;

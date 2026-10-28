@@ -1,11 +1,12 @@
 // Trang Quản trị: tổng quan, người dùng, đơn hàng, cài đặt gói/giá, payOS, nhật ký.
-import { getConfig, saveConfig } from './config.js';
+import { getConfig, saveConfig, readSaved } from './config.js';
 import { calcCreditsPrice } from './plans.js';
 import { getUser, isAdmin, json, publicUser, hashPassword, readBody } from './auth.js';
 import { vnDay, sha256Hex } from './quota.js';
 import { sendMail, smtpConfigured } from './mailer.js';
-import { renderEmail, getTemplate, sampleVars, cleanBody } from './emails.js';
-import { TEMPLATES, GLOBAL_VARS, FIELDS } from './templates/index.js';
+import { renderEmail, getTemplate, sampleVars, cleanBody, cleanBrand, cleanTplStyle, getSavedStyle, DEFAULT_BRAND } from './emails.js';
+import { TEMPLATES, GLOBAL_VARS, FIELDS, TEMPLATE_GROUPS } from './templates/index.js';
+import { sendExpiryReminders } from './reminders.js';
 import { payosConfigured, confirmWebhook, cancelLink, newOrderCode, makeDescription } from './payos.js';
 import { activateOrder, syncOrder, publicOrder } from './billing.js';
 
@@ -519,6 +520,7 @@ export async function handleAdmin(request, env, path) {
         const sv = (k, n) => String(body.seller[k] || '').trim().slice(0, n);
         patch.seller = { name: sv('name', 150), tax_code: sv('tax_code', 20), address: sv('address', 250), email: sv('email', 190), phone: sv('phone', 30), note: sv('note', 500) };
       }
+      if (body.emailBrand && typeof body.emailBrand === 'object') patch.emailBrand = cleanBrand(body.emailBrand);
       if (body.theme !== undefined) { if (!THEMES.includes(body.theme)) throw Object.assign(new Error('Giao diện không hợp lệ.'), { status: 400 }); patch.theme = body.theme; }
       await saveConfig(db, patch);
       await log(env, admin, 'settings.update', null, patch);
@@ -542,11 +544,13 @@ export async function handleAdmin(request, env, path) {
     /* ---------- Mẫu email ---------- */
     if (path === '/api/admin/email-templates') {
       const list = [];
+      const { brand } = await getSavedStyle(db, '', true);
+      const tplStyles = (await readSaved(db)).emailTpl || {};
       for (const t of Object.values(TEMPLATES)) {
         const g = await getTemplate(db, t.id);
-        list.push({ id: t.id, name: t.name, description: t.description, icon: t.icon, customized: g.customized, updatedAt: g.updatedAt, updatedBy: g.updatedBy });
+        list.push({ id: t.id, name: t.name, description: t.description, icon: t.icon, group: TEMPLATE_GROUPS[t.id] || 'Khác', customized: g.customized || !!tplStyles[t.id], updatedAt: g.updatedAt, updatedBy: g.updatedBy });
       }
-      return json({ templates: list });
+      return json({ templates: list, brand, brandDefaults: DEFAULT_BRAND });
     }
     m = path.match(/^\/api\/admin\/email-templates\/([a-z0-9_-]+)(?:\/(preview|test|reset))?$/);
     if (m) {
@@ -554,11 +558,20 @@ export async function handleAdmin(request, env, path) {
       if (!TEMPLATES[id]) return fail('Không có mẫu này.', 404);
       const ctxS = { appName: 'TXA Voice', appUrl: appUrl(env, request), name: admin.name || admin.email.split('@')[0], email: admin.email };
       const draft = body && typeof body === 'object' ? Object.fromEntries(FIELDS.filter(f => typeof body[f] === 'string').map(f => [f, body[f]])) : null;
+      // Giao diện và dữ liệu mẫu đang sửa dở (chưa lưu) dùng cho xem trước / gửi thử
+      const look = { brand: body && typeof body.brand === 'object' && body.brand ? cleanBrand(body.brand) : undefined, style: body && typeof body.style === 'object' && body.style ? cleanTplStyle(body.style) : undefined };
+      const blockKeys = Object.entries(TEMPLATES[id].variables || {}).filter(([, v]) => v.block).map(([k]) => k);
+      const vars = { ...sampleVars(id) };
+      if (body && typeof body.vars === 'object' && body.vars) {
+        for (const [k, v] of Object.entries(body.vars)) if (typeof v === 'string' && /^[a-z0-9_]+$/i.test(k) && !blockKeys.includes(k) && k in vars) vars[k] = v.slice(0, 300);
+      }
       if (!sub && request.method === 'GET') {
         const g = await getTemplate(db, id);
+        const { style } = await getSavedStyle(db, id, true);
+        const sample = sampleVars(id);
         return json({
-          ...g, defaults: Object.fromEntries(FIELDS.map(f => [f, TEMPLATES[id][f]])),
-          variables: [...Object.entries(GLOBAL_VARS), ...Object.entries(TEMPLATES[id].variables || {})].map(([k, v]) => ({ key: k, desc: v.desc, block: !!v.block }))
+          ...g, style, defaults: Object.fromEntries(FIELDS.map(f => [f, TEMPLATES[id][f]])), defaultIcon: TEMPLATES[id].icon,
+          variables: [...Object.entries(GLOBAL_VARS), ...Object.entries(TEMPLATES[id].variables || {})].map(([k, v]) => ({ key: k, desc: v.desc, block: !!v.block, sample: v.block ? '' : String(sample[k] ?? '') }))
         });
       }
       if (!sub && request.method === 'POST') {
@@ -569,23 +582,43 @@ export async function handleAdmin(request, env, path) {
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET subject = excluded.subject, preheader = excluded.preheader, heading = excluded.heading,
           body = excluded.body, button_text = excluded.button_text, button_url = excluded.button_url, note = excluded.note, updated_at = excluded.updated_at, updated_by = excluded.updated_by`)
           .bind(id, v.subject, v.preheader, v.heading, v.body, v.button_text, v.button_url, v.note, Date.now(), admin.email).run();
+        if (look.style) {
+          await saveConfig(db, (cur) => {
+            const map = { ...(cur.emailTpl || {}) };
+            if (!look.style.icon && !look.style.accent && !look.style.banner && !look.style.hideIcon) delete map[id]; else map[id] = look.style;
+            return { emailTpl: map };
+          });
+        }
         await log(env, admin, 'email.save', id);
         return json({ ok: true, message: 'Đã lưu mẫu email.' });
       }
       if (sub === 'preview' && request.method === 'POST') {
-        const r = await renderEmail(db, id, sampleVars(id), ctxS, draft);
-        return json({ subject: r.subject, html: r.html, text: r.text });
+        const r = await renderEmail(db, id, vars, ctxS, draft, look);
+        return json({ subject: r.subject, preheader: r.preheader, html: r.html, text: r.text });
       }
       if (sub === 'test' && request.method === 'POST') {
-        const r = await renderEmail(db, id, sampleVars(id), ctxS, draft);
-        await sendMail(env, { to: admin.email, subject: '[Thử] ' + r.subject, html: r.html, text: r.text });
-        return json({ ok: true, message: `Đã gửi email thử tới ${admin.email}.` });
+        const to = String(body?.to || '').trim().toLowerCase() || admin.email;
+        if (!/^[^\s@]{1,64}@[^\s@]{1,190}\.[^\s@]{2,}$/.test(to)) return fail('Email nhận thử không hợp lệ.');
+        const r = await renderEmail(db, id, vars, ctxS, draft, look);
+        await sendMail(env, { to, subject: '[Thử] ' + r.subject, html: r.html, text: r.text });
+        await log(env, admin, 'email.test', id, { to });
+        return json({ ok: true, message: `Đã gửi email thử tới ${to}.` });
       }
       if (sub === 'reset' && request.method === 'POST') {
         await db.prepare('DELETE FROM email_templates WHERE id = ?').bind(id).run();
+        await saveConfig(db, (cur) => { const map = { ...(cur.emailTpl || {}) }; delete map[id]; return { emailTpl: map }; });
         await log(env, admin, 'email.reset', id);
         return json({ ok: true, message: 'Đã khôi phục mẫu mặc định.' });
       }
+    }
+
+    /* ---------- Nhắc hạn Premium ---------- */
+    if (path === '/api/admin/reminders/run' && request.method === 'POST') {
+      // Ghi nhớ địa chỉ website để cron (không có request) vẫn dựng được liên kết trong email
+      if (!env.APP_URL && cfg.saved.siteUrl !== new URL(request.url).origin) await saveConfig(db, { siteUrl: new URL(request.url).origin });
+      const r = await sendExpiryReminders(env, { dry: !!body?.dry });
+      if (!body?.dry) await log(env, admin, 'reminders.run', null, { sent: r.sent, failed: r.failed });
+      return json(r);
     }
 
     if (path === '/api/admin/logs') {

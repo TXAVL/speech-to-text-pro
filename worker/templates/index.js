@@ -6,8 +6,14 @@ import welcome from './welcome.js';
 import plan from './plan.js';
 import receipt from './receipt.js';
 import invite from './invite.js';
+import passwordChanged from './password_changed.js';
+import premiumExpiring from './premium_expiring.js';
+import premiumExpired from './premium_expired.js';
 
-export const TEMPLATES = Object.fromEntries([verify, reset, welcome, plan, receipt, invite].map(t => [t.id, t]));
+export const TEMPLATES = Object.fromEntries([verify, reset, welcome, invite, passwordChanged, receipt, plan, premiumExpiring, premiumExpired].map(t => [t.id, t]));
+
+// Nhóm hiển thị trong trang Quản trị
+export const TEMPLATE_GROUPS = { verify: 'Tài khoản', reset: 'Tài khoản', welcome: 'Tài khoản', invite: 'Tài khoản', password_changed: 'Tài khoản', receipt: 'Gói & thanh toán', plan: 'Gói & thanh toán', premium_expiring: 'Gói & thanh toán', premium_expired: 'Gói & thanh toán' };
 
 // Biến dùng được trong mọi mẫu
 export const GLOBAL_VARS = {

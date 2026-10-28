@@ -648,7 +648,10 @@
         <div class="credits-pick" id="pc-credits" hidden>
           <span class="pm-title">Số lượt muốn mua <em class="muted" id="pc-unit"></em></span>
           <div class="credit-presets" id="pc-presets"></div>
-          <div class="credit-custom"><span class="small muted">Hoặc nhập số lượt (bước 10):</span><input type="number" id="pc-qty" min="10" step="10" value="30"></div>
+          <input type="range" id="pc-range" class="credit-range" min="10" max="500" step="10" value="30" aria-label="Kéo để chọn số lượt">
+          <div class="credit-custom"><span class="small muted">Hoặc nhập số lượt:</span>
+            <div class="stepper"><button type="button" id="pc-minus" aria-label="Giảm 10 lượt">−</button><input type="number" id="pc-qty" min="10" step="10" value="30"><button type="button" id="pc-plus" aria-label="Tăng 10 lượt">+</button></div></div>
+          <div class="credit-facts" id="pc-facts"></div>
           <p class="muted small" id="pc-credits-note">Lượt mua thêm cộng dồn, không hết hạn theo ngày, chỉ dùng khi đã hết lượt trong ngày của gói Premium.</p>
         </div>
         <div class="pay-methods" id="pc-methods">
@@ -671,13 +674,29 @@
           </div>
           <label class="field"><span>Địa chỉ <em class="muted" id="pc-addr-opt">tùy chọn</em></span><input type="text" id="pc-addr" maxlength="250" autocomplete="street-address"></label>
         </div>
-        <button class="btn primary big" id="pc-continue">Tiếp tục thanh toán VietQR →</button>
+        <div class="pay-sticky">
+          <div class="pay-sticky-sum"><span id="pc-sticky-label">Tổng thanh toán</span><b id="pc-sticky-amount">0đ</b></div>
+          <button class="btn primary big" id="pc-continue">Tiếp tục thanh toán VietQR →</button>
+        </div>
       </div>
       <div id="pay-loading" class="pay-center"><div class="wave"><i></i><i></i><i></i><i></i><i></i></div><span class="muted">Đang tạo đơn thanh toán…</span></div>
       <div id="pay-main" hidden>
         <div class="pay-grid">
           <div class="pay-qr">
-            <div class="qr-frame" id="pay-qr"></div>
+            <div class="vqr-card">
+              <div class="vqr-head"><span class="vqr-logo"><b>Viet</b><i>QR</i></span><span class="vqr-tag">Quét mã để chuyển khoản</span></div>
+              <div class="vqr-body">
+                <div class="qr-frame" id="pay-qr"></div>
+                <span class="qr-corner tl"></span><span class="qr-corner tr"></span><span class="qr-corner bl"></span><span class="qr-corner br"></span>
+                <span class="qr-scan" aria-hidden="true"></span>
+              </div>
+              <div class="vqr-amount"><small>Số tiền</small><b id="pay-qr-amount">0đ</b></div>
+              <div class="vqr-foot">
+                <img id="pay-bank-logo" alt="" hidden>
+                <div><small id="pay-qr-bank">—</small><b id="pay-qr-name">—</b><span id="pay-qr-acc">—</span></div>
+              </div>
+            </div>
+            <span class="qr-verify" id="pay-qr-verify" hidden></span>
             <span class="muted small">Mở app ngân hàng, quét mã để chuyển khoản</span>
           </div>
           <div class="pay-info">

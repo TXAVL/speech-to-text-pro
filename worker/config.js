@@ -71,9 +71,20 @@ export async function getConfig(db) {
   return v;
 }
 
+/** Cấu hình đã lưu, đọc thẳng từ D1 (không qua cache của isolate) */
+export async function readSaved(db) {
+  try {
+    const row = await db.prepare("SELECT value FROM settings WHERE key = 'config'").first();
+    return row ? JSON.parse(row.value) : {};
+  } catch { return {}; /* chưa có bảng / dữ liệu hỏng -> bắt đầu từ cấu hình trống */ }
+}
+
 export async function saveConfig(db, patch) {
-  const cur = (await getConfig(db)).saved;
-  const next = { ...cur, ...patch };
+  // Luôn đọc bản mới nhất từ D1 (không dùng bản cache của isolate này): nhiều isolate chạy song song,
+  // trộn vào bản cache cũ sẽ ghi đè mất thay đổi vừa lưu ở isolate khác (vd. giao diện theo mùa).
+  // patch có thể là hàm (cấu hình hiện tại) => phần thay đổi, để cập nhật được cả mục lồng nhau.
+  const cur = await readSaved(db);
+  const next = { ...cur, ...(typeof patch === 'function' ? patch(cur) : patch) };
   await db.prepare("INSERT INTO settings (key, value) VALUES ('config', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value")
     .bind(JSON.stringify(next)).run();
   cache = null;

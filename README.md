@@ -69,6 +69,21 @@ Webhook lỗi hoặc chưa đăng ký thì trang chờ thanh toán vẫn tự h�
 
 Chạy thử trên máy (`npm run dev:worker`): đặt các khóa `PAYOS_*` và `APP_URL` trong `.dev.vars`. payOS không gọi được webhook vào `localhost`, trang chờ sẽ tự hỏi trạng thái thay.
 
+## Email
+**Studio email** (Quản trị → Email): nhóm mẫu theo loại, tìm kiếm, soạn bằng trình soạn thảo hoặc sửa thẳng mã HTML, chèn nhanh đoạn mẫu và biến, sửa giá trị dữ liệu mẫu để xem trước, xem trước như hộp thư / máy tính / điện thoại / văn bản thuần, gửi thử tới bất kỳ email nào, Ctrl + S để lưu và cảnh báo khi rời đi mà chưa lưu.
+
+Nút **🎨 Giao diện chung** chỉnh cho mọi mẫu: màu chủ đạo và màu phụ (có bộ màu chọn nhanh), logo chữ hoặc ảnh, phông chữ, độ bo góc, kiểu và góc của nút, căn trái / giữa, nền sáng / trắng / tối, thanh màu đầu thẻ, liên kết dự phòng dưới nút, chân thư (khẩu hiệu, dòng thêm, email hỗ trợ, liên kết mạng xã hội). Tab **Giao diện** của từng mẫu chỉnh riêng biểu tượng đầu thư, màu nhấn và ảnh banner.
+
+Mẫu có sẵn: xác minh email, đặt lại mật khẩu, chào mừng, lời mời, **đã đổi mật khẩu**, biên lai, đổi gói, **Premium sắp hết hạn**, **Premium đã hết hạn**.
+
+**Nhắc hạn Premium tự động:** cron trong `wrangler.toml` chạy lúc 9h sáng giờ Việt Nam, gửi mail cho tài khoản còn tối đa 3 ngày và tài khoản vừa hết hạn, mỗi kỳ hạn một lần. Cần chạy migration một lần:
+
+```bat
+npx wrangler d1 migrations apply voicekit --remote
+```
+
+Cron không có request nên cần biết địa chỉ website để dựng link trong email: điền `APP_URL` trong `wrangler.toml`, hoặc chỉ cần mở **Quản trị → Email** một lần để website tự ghi nhớ. Nút **Xem ai sẽ nhận** trong tab Email liệt kê người sẽ nhận mà không gửi gì.
+
 ## Tài khoản
 Đăng ký, xác minh email (link 24 giờ), đăng nhập (phiên 30 ngày, cookie HttpOnly), quên mật khẩu (link 1 giờ, dùng một lần, đăng xuất mọi thiết bị), đổi mật khẩu. Mật khẩu băm PBKDF2-SHA256 100.000 vòng. Chống spam: tối đa 60 thao tác đăng nhập/đăng ký/gửi mail mỗi IP mỗi ngày, gửi lại mail cách nhau 60 giây.
 
