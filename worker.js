@@ -138,6 +138,45 @@ export default {
     if (path === '/api/capcut/voices') return json({ success: true, voices: capcutVoices() }, 200, { 'Cache-Control': 'public, max-age=86400' });
     if (path === '/api/capcut/tts' && request.method === 'POST') return ttsRoute(request, env, capcutSynthesize, 'Kho giọng CapCut', true);
 
+    if (path.startsWith('/api/translate') && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const { text, texts, sl = 'auto', tl = 'vi' } = body;
+        const translateOne = async (t) => {
+          if (!t || !t.trim()) return '';
+          try {
+            const url = 'https://clients5.google.com/translate_a/t?client=dict-chrome-ex&sl=' + encodeURIComponent(sl) + '&tl=' + encodeURIComponent(tl) + '&q=' + encodeURIComponent(t);
+            const r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+            if (r.ok) {
+              const data = await r.json();
+              if (Array.isArray(data)) {
+                if (Array.isArray(data[0])) return data[0][0];
+                return data[0];
+              }
+            }
+          } catch { }
+          try {
+            const mem = 'https://api.mymemory.translated.net/get?q=' + encodeURIComponent(t) + '&langpair=' + (sl === 'auto' ? 'en' : sl) + '|' + tl;
+            const r2 = await fetch(mem);
+            if (r2.ok) {
+              const d2 = await r2.json();
+              return d2?.responseData?.translatedText || t;
+            }
+          } catch { }
+          return t;
+        };
+
+        if (texts && Array.isArray(texts)) {
+          const translations = await Promise.all(texts.map(t => translateOne(t)));
+          return json({ success: true, translations });
+        }
+        const result = await translateOne(text);
+        return json({ success: true, result });
+      } catch (err) {
+        return json({ error: err.message || 'Lỗi dịch thuật' }, 500);
+      }
+    }
+
     if (path.startsWith('/api/')) return json({ error: 'Không tìm thấy.' }, 404);
     return env.ASSETS ? env.ASSETS.fetch(request) : new Response('Not Found', { status: 404 });
   }

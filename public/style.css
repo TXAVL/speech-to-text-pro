@@ -255,10 +255,18 @@ a {
     order: 3;
     width: 100%;
     margin: 0;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    flex-wrap: nowrap;
+  }
+  .main-tabs::-webkit-scrollbar {
+    display: none;
   }
   .main-tab {
-    flex: 1;
-    padding: 8px 6px;
+    flex: 0 0 auto;
+    padding: 8px 14px;
+    white-space: nowrap;
   }
   .topbar-actions {
     margin-left: auto;

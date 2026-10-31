@@ -982,6 +982,39 @@ app.post('/api/supertonic/tts', async (req, res) => {
   }
 });
 
+async function translateHelper(text, sl = 'auto', tl = 'vi') {
+  if (!text || !text.trim()) return '';
+  try {
+    const url = 'https://clients5.google.com/translate_a/t?client=dict-chrome-ex&sl=' + encodeURIComponent(sl) + '&tl=' + encodeURIComponent(tl) + '&q=' + encodeURIComponent(text);
+    const r = await axios.get(url, { headers: { 'User-Agent': 'Mozilla/5.0' }, timeout: 8000 });
+    if (Array.isArray(r.data)) {
+      if (Array.isArray(r.data[0])) return r.data[0][0];
+      return r.data[0];
+    }
+  } catch {}
+  try {
+    const mem = 'https://api.mymemory.translated.net/get?q=' + encodeURIComponent(text) + '&langpair=' + (sl === 'auto' ? 'en' : sl) + '|' + tl;
+    const r2 = await axios.get(mem, { timeout: 8000 });
+    return r2.data?.responseData?.translatedText || text;
+  } catch {
+    return text;
+  }
+}
+
+app.post('/api/translate', async (req, res) => {
+  try {
+    const { text, texts, sl = 'auto', tl = 'vi' } = req.body;
+    if (texts && Array.isArray(texts)) {
+      const translations = await Promise.all(texts.map(t => translateHelper(t, sl, tl)));
+      return res.json({ success: true, translations });
+    }
+    const result = await translateHelper(text, sl, tl);
+    return res.json({ success: true, result });
+  } catch (err) {
+    return res.status(500).json({ error: err.message || 'Lỗi dịch thuật' });
+  }
+});
+
 // Start Server
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`\n======================================================`);

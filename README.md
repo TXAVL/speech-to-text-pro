@@ -105,3 +105,7 @@ Cron không có request nên cần biết địa chỉ website để dựng link
 | Meta MMS | Trong trình duyệt (WASM) | 1 giọng Việt (offline được) | Miễn phí |
 | Giọng trình duyệt / HĐH | Trình duyệt (chỉ nghe) | Tùy hệ điều hành | Miễn phí |
 | Google Gemini TTS | Gọi Google bằng key riêng | 30 giọng đa ngôn ngữ | Dùng API key |
+
+**Lồng tiếng Video tự động (CapCut Auto Dubbing Studio):**
+- Tab phòng thu chuyên nghiệp riêng biệt phong cách CapCut Studio: tải video/audio $\rightarrow$ STT bóc băng nhận diện mốc thời gian $\rightarrow$ AI dịch thuật kịch bản sang ngôn ngữ đích $\rightarrow$ Tạo giọng đọc mới đồng bộ timeline câu thoại $\rightarrow$ Ghép vào video (tự động hạ/giữ nhạc nền, thay thế giọng gốc, co giãn WSOLA tránh lệch khẩu hình).
+- Biên tập kịch bản phân cảnh trực tiếp dạng timeline tracks, nghe thử từng câu, chỉnh sửa lời dịch, xuất video MP4 in sẵn phụ đề CapCut (Hardsub vàng nổi bật), xuất file âm thanh WAV 48kHz và file phụ đề song ngữ SRT.

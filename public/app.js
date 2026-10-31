@@ -210,6 +210,7 @@ function showView(name) {
   $$('.view').forEach(v => v.classList.toggle('active', v.id === 'view-' + name));
   if (name === 'history' && typeof renderHistory === 'function') renderHistory();
   if (name === 'tts') initTts();
+  if (name === 'dubbing' && typeof vkDubbing !== 'undefined' && vkDubbing.onOpen) vkDubbing.onOpen();
   if (typeof vkAccount !== 'undefined') {
     if (name === 'plans') vkAccount.renderPlans();
     if (name === 'admin' && typeof vkAdmin !== 'undefined') vkAdmin.open();

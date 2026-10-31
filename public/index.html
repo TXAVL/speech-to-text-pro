@@ -9,6 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="dubbing.css">
 </head>
 <body>
   <!-- Icon sprite -->
@@ -41,6 +42,7 @@
       <nav class="main-tabs" role="tablist">
         <button class="main-tab active" data-view="stt" role="tab">Giọng → Chữ</button>
         <button class="main-tab" data-view="tts" role="tab">Chữ → Giọng</button>
+        <button class="main-tab" data-view="dubbing" role="tab">🎬 Lồng tiếng Studio</button>
         <button class="main-tab" data-view="history" role="tab" data-key-help hidden>Lịch sử</button>
         <button class="main-tab" data-view="plans" role="tab" data-acc hidden>Gói</button>
         <button class="main-tab" data-view="admin" role="tab" id="tab-admin" hidden>Quản trị</button>
@@ -368,6 +370,256 @@
           </div>
           <p class="muted small" id="tts-note">Hỗ trợ đọc tiếng Anh xen tiếng Việt mượt mà, thẻ cảm xúc và thẻ nghỉ chuẩn xác.</p>
         </div>
+      </div>
+    </section>
+
+    <!-- ============ LỒNG TIẾNG STUDIO (CAPCUT AUTO DUBBING) ============ -->
+    <section class="view" id="view-dubbing">
+      <div class="dubbing-studio">
+
+        <!-- Top Studio Control Bar -->
+        <div class="studio-topbar">
+          <div class="studio-brand-badge">
+            <div class="studio-brand-icon">🎬</div>
+            <div class="studio-brand-title">
+              <strong>CapCut Auto Dubbing Studio</strong>
+              <span>Dịch thuật & Lồng tiếng video tự động chuẩn phòng thu</span>
+            </div>
+          </div>
+
+          <div class="studio-steps-pill">
+            <div class="studio-step-item active" data-step="1">
+              <span class="studio-step-num">1</span>
+              <span>Tải Media</span>
+            </div>
+            <span class="studio-step-arrow">➔</span>
+            <div class="studio-step-item" data-step="2">
+              <span class="studio-step-num">2</span>
+              <span>Bóc băng STT</span>
+            </div>
+            <span class="studio-step-arrow">➔</span>
+            <div class="studio-step-item" data-step="3">
+              <span class="studio-step-num">3</span>
+              <span>AI Dịch</span>
+            </div>
+            <span class="studio-step-arrow">➔</span>
+            <div class="studio-step-item" data-step="4">
+              <span class="studio-step-num">4</span>
+              <span>Tạo giọng TTS</span>
+            </div>
+            <span class="studio-step-arrow">➔</span>
+            <div class="studio-step-item" data-step="5">
+              <span class="studio-step-num">5</span>
+              <span>Xuất Video</span>
+            </div>
+          </div>
+
+          <div class="studio-top-actions">
+            <button type="button" class="btn-capcut-action" id="btn-dub-auto">
+              <span>⚡ Lồng tiếng tự động (1-Click)</span>
+            </button>
+            <button type="button" class="btn-capcut-export" id="btn-dub-export">
+              <span>🎬 Xuất Video lồng tiếng</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 2-Column Main Workspace -->
+        <div class="studio-main-grid">
+
+          <!-- Left Column: Controls & Settings -->
+          <div class="studio-left-panel">
+
+            <!-- Card 1: Input Media -->
+            <div class="studio-card">
+              <div class="studio-card-head">
+                <span class="studio-card-title">📁 Tệp Video / Âm thanh</span>
+              </div>
+              <div class="dub-dropzone" id="dub-dropzone">
+                <input type="file" id="dub-file-input" accept="video/*,audio/*,.mp4,.webm,.mkv,.mp3,.wav,.m4a" hidden>
+                <span class="dub-dz-icon">📹</span>
+                <strong>Kéo thả video hoặc âm thanh vào đây</strong>
+                <span class="muted small">MP4, WEBM, MKV, MP3, WAV... để bóc băng & lồng tiếng</span>
+              </div>
+              <div class="dub-media-bar" id="dub-media-info" hidden>
+                <div class="dub-media-meta">
+                  <strong id="dub-media-name">video.mp4</strong>
+                  <small id="dub-media-meta">🎬 Video · 00:00 · 0 MB</small>
+                </div>
+              </div>
+              <label class="srt-check">
+                <input type="checkbox" id="dub-opt-separate">
+                <span>🎤 Tách giọng khỏi nhạc nền (MDX-Net) trước khi bóc băng</span>
+              </label>
+            </div>
+
+            <!-- Card 2: Dịch thuật -->
+            <div class="studio-card">
+              <div class="studio-card-head">
+                <span class="studio-card-title">🌐 Ngôn ngữ & Dịch thuật</span>
+              </div>
+              <div class="dub-grid-2">
+                <div class="dub-field">
+                  <span class="dub-field-title">Ngôn ngữ gốc</span>
+                  <select class="dub-select" id="dub-src-lang">
+                    <option value="auto" selected>✨ Tự động nhận diện</option>
+                    <option value="english">English (Tiếng Anh)</option>
+                    <option value="chinese">中文 (Tiếng Trung)</option>
+                    <option value="japanese">日本語 (Tiếng Nhật)</option>
+                    <option value="korean">한국어 (Tiếng Hàn)</option>
+                    <option value="french">Français (Tiếng Pháp)</option>
+                    <option value="spanish">Español (Tây Ban Nha)</option>
+                    <option value="vietnamese">Tiếng Việt</option>
+                  </select>
+                </div>
+                <div class="dub-field">
+                  <span class="dub-field-title">Dịch sang tiếng</span>
+                  <select class="dub-select" id="dub-target-lang">
+                    <option value="vi" selected>🇻🇳 Tiếng Việt</option>
+                    <option value="en">🇺🇸 English</option>
+                    <option value="zh">🇨🇳 中文</option>
+                    <option value="ja">🇯🇵 日本語</option>
+                    <option value="ko">🇰🇷 한국어</option>
+                    <option value="fr">🇫🇷 Français</option>
+                    <option value="es">🇪🇸 Español</option>
+                    <option value="th">🇹🇭 ไทย</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <!-- Card 3: Kho Giọng Lồng Tiếng -->
+            <div class="studio-card">
+              <div class="studio-card-head">
+                <span class="studio-card-title">🗣️ Giọng đọc lồng tiếng (Voice Cast)</span>
+              </div>
+              <div class="dub-field">
+                <span class="dub-field-title">Kho giọng AI</span>
+                <select class="dub-select" id="dub-voice-lib"></select>
+              </div>
+              <div class="dub-field">
+                <div class="dub-field-title">
+                  <span>Giọng nhân vật</span>
+                  <button type="button" class="btn-dub-preview" id="btn-dub-test-voice">▶ Nghe thử</button>
+                </div>
+                <select class="dub-select" id="dub-voice-select"></select>
+              </div>
+              <div class="dub-voice-card">
+                <div class="dub-voice-info">
+                  <strong id="dub-voice-card-name">Minh Quân</strong>
+                  <small id="dub-voice-card-desc">Tự nhiên, truyền cảm, mặc định</small>
+                </div>
+              </div>
+              <div class="dub-field">
+                <div class="dub-field-title">
+                  <span>Tốc độ đọc giọng lồng tiếng</span>
+                  <b id="dub-tts-rate-val">1.00×</b>
+                </div>
+                <input type="range" id="dub-tts-rate" min="0.80" max="1.40" step="0.05" value="1.0">
+              </div>
+              <label class="srt-check">
+                <input type="checkbox" id="dub-opt-fit" checked>
+                <span>⏱️ Tự động co giãn (WSOLA) để câu thoại khớp chuẩn khẩu hình gốc</span>
+              </label>
+            </div>
+
+            <!-- Card 4: Bộ Trộn Âm Thanh (Audio Mixer) -->
+            <div class="studio-card">
+              <div class="studio-card-head">
+                <span class="studio-card-title">🎚️ Bộ trộn âm thanh (Audio Mixer)</span>
+              </div>
+              <div class="dub-field">
+                <div class="dub-field-title">
+                  <span>Âm lượng video/giọng gốc</span>
+                  <b id="dub-vol-orig-val">0%</b>
+                </div>
+                <div class="dub-range-wrap">
+                  <input type="range" id="dub-vol-orig" min="0" max="100" step="5" value="0">
+                  <span class="muted small">(0% = Tắt hẳn tiếng cũ)</span>
+                </div>
+              </div>
+              <div class="dub-field">
+                <div class="dub-field-title">
+                  <span>Âm lượng giọng lồng tiếng mới</span>
+                  <b id="dub-vol-dub-val">100%</b>
+                </div>
+                <div class="dub-range-wrap">
+                  <input type="range" id="dub-vol-dub" min="20" max="150" step="5" value="100">
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Right Column: Studio Stage & Player -->
+          <div class="studio-stage-panel">
+            <div class="studio-monitor-wrap" id="dub-monitor-wrap">
+              <video class="studio-monitor-video" id="dub-video" playsinline hidden></video>
+              <canvas class="studio-monitor-overlay" id="dub-overlay"></canvas>
+              <div class="studio-monitor-placeholder" id="dub-monitor-placeholder">
+                <span class="studio-monitor-placeholder-icon">🎬</span>
+                <strong>Màn hình xem trước video Studio</strong>
+                <span>Tải video hoặc audio lên để bắt đầu lồng tiếng và xem trước khớp timeline</span>
+              </div>
+            </div>
+
+            <!-- Transport controls -->
+            <div class="studio-transport-bar">
+              <div class="studio-scrubber-row">
+                <button type="button" class="btn-studio-play" id="btn-dub-play" title="Phát / Tạm dừng">▶</button>
+                <button type="button" class="btn-studio-skip" id="btn-dub-skip-b" title="Lùi 5s">⏪ 5s</button>
+                <button type="button" class="btn-studio-skip" id="btn-dub-skip-f" title="Tiến 5s">5s ⏩</button>
+                <input type="range" class="studio-scrubber" id="dub-scrubber" min="0" max="100" value="0" step="0.1">
+                <span class="studio-timecode" id="dub-timecode">00:00 / 00:00</span>
+              </div>
+              <div class="studio-btn-row">
+                <div class="studio-sub-opts-row">
+                  <label><input type="checkbox" id="dub-opt-show-sub" checked> 📝 Hiển thị phụ đề CapCut trên video</label>
+                </div>
+                <div class="studio-export-quick-row">
+                  <button type="button" class="btn sm" id="btn-dub-export-audio">🎵 Tải WAV lồng tiếng</button>
+                  <button type="button" class="btn sm" id="btn-dub-export-srt">📝 Tải phụ đề SRT</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Bottom Dialogue Timeline Editor -->
+        <div class="studio-timeline-panel">
+          <div class="studio-timeline-head">
+            <div class="studio-timeline-title">
+              <h3>📋 Kịch bản phân cảnh & thoại (Dialogue Timeline)</h3>
+              <span class="studio-timeline-badge" id="dub-cue-count">0 câu</span>
+            </div>
+            <div class="studio-timeline-actions">
+              <button type="button" class="btn-tl-tool" id="btn-tl-add-cue">➕ Thêm câu thoại</button>
+              <button type="button" class="btn-tl-tool primary" id="btn-tl-translate-all">🌐 Dịch toàn bộ kịch bản</button>
+              <button type="button" class="btn-tl-tool primary" id="btn-tl-tts-all">🗣️ Tạo giọng cho tất cả</button>
+              <button type="button" class="btn-tl-tool" id="btn-tl-clear-all">🗑️ Xóa hết</button>
+            </div>
+          </div>
+
+          <div class="studio-empty" id="dub-track-empty">
+            <span class="studio-empty-icon">🎙️</span>
+            <strong>Chưa có kịch bản thoại</strong>
+            <span>Tải video/audio lên và bấm "Lồng tiếng tự động (1-Click)" hoặc bóc băng để hiển thị danh sách câu thoại tại đây.</span>
+          </div>
+
+          <div class="studio-track-list" id="dub-track-list"></div>
+        </div>
+
+        <!-- Floating HUD Progress -->
+        <div class="studio-hud-progress" id="dub-hud" hidden>
+          <div class="hud-title-row">
+            <strong id="dub-hud-msg">Đang xử lý…</strong>
+            <span class="hud-pct" id="dub-hud-pct">0%</span>
+          </div>
+          <div class="hud-bar"><div class="hud-bar-fill" id="dub-hud-bar"></div></div>
+          <span class="hud-msg">Vui lòng giữ tab này mở trong khi AI đang lồng tiếng</span>
+        </div>
+
       </div>
     </section>
 
@@ -839,6 +1091,7 @@
   <script src="app.js"></script>
   <script src="hls.js"></script>
   <script src="video-studio.js"></script>
+  <script src="dubbing.js"></script>
   <script src="history.js"></script>
   <script src="themes.js"></script>
   <script src="account.js"></script>
