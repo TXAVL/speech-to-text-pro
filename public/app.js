@@ -73,6 +73,8 @@ function applyKeyGate(allowed, userId = null) {
 }
 
 const state = {
+  yt: null,             // video YouTube đang xử lý { id, title }
+  undo: [],
   media: null,          // { blob, name, size, duration }
   raw: [],              // segments gốc từ mô hình
   view: [],             // segments hiển thị (đã chia theo độ dài phụ đề)
@@ -302,6 +304,7 @@ async function decodeTo16kMono(blob) {
 }
 
 async function setMedia(blob, name) {
+  state.yt = null;
   state.media = { blob, name, size: blob.size, duration: 0 };
   const player = $('#player');
   player.src = URL.createObjectURL(blob);
@@ -330,10 +333,15 @@ function clearMedia() {
 $('#btn-clear-media').addEventListener('click', clearMedia);
 
 const dz = $('#dropzone');
-$('#file-input').addEventListener('change', e => { const f = e.target.files[0]; if (f) setMedia(f, f.name); });
+const pickFiles = (files) => {
+  files = [...files];
+  if (files.length > 1 || (files.length === 1 && vkPro.queue.length)) vkPro.enqueue(files);
+  else if (files[0]) setMedia(files[0], files[0].name);
+};
+$('#file-input').addEventListener('change', e => { pickFiles(e.target.files); e.target.value = ''; });
 ['dragenter', 'dragover'].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.add('drag'); }));
 ['dragleave', 'drop'].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.remove('drag'); }));
-dz.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) setMedia(f, f.name); });
+dz.addEventListener('drop', e => pickFiles(e.dataTransfer.files));
 
 $('#btn-fetch-url').addEventListener('click', async () => {
   const url = $('#url-input').value.trim();
@@ -573,8 +581,8 @@ function setBusy(b) {
   if (!b) clearTitleProgress();
 }
 
-async function runTranscribe() {
-  if (!state.media || state.busy) return;
+async function runTranscribe(opts = {}) {
+  if (!state.media || state.busy) return false;
   const [kind, model] = $('#engine').value.split(/:(.+)/);
   const language = $('#language').value;
   if (kind === 'local' && STT_MODELS[model]?.gpuOnly && !(await checkGpu())) {
@@ -595,8 +603,9 @@ ${GPU_HELP}`, 'Mô hình cần tăng tốc đồ họa');
     return;
   }
   const separate = $('#opt-separate').checked;
-  if (separate && !(await confirmSeparate())) return;
+  if (separate && !opts.skipConfirm && !(await confirmSeparate())) return false;
   setBusy(true);
+  let ok = false;
   try {
     const vocals = separate ? await getVocals() : null;
     let out;
@@ -604,11 +613,13 @@ ${GPU_HELP}`, 'Mô hình cần tăng tốc đồ họa');
     else out = await runCloud(kind, model, language, vocals);
     if (vocals) out.model += ' · tách giọng';
     finishResult(out);
+    ok = true;
   } catch (e) {
     $('#progress-box').hidden = true; $('#empty').hidden = false;
     toast(e.message || 'Có lỗi xảy ra.', 'err');
   }
   setBusy(false);
+  return ok;
 }
 
 async function runLocal(modelId, language, vocals = null) {
@@ -765,11 +776,12 @@ function finishResult(r) {
   clearTitleProgress();
   state.raw = r.segments.length ? r.segments : [{ id: 1, start: 0, end: r.duration || 0, text: r.text }];
   state.text = r.text;
-  state.meta = { model: r.model, duration: r.duration, elapsed: r.elapsed, name: state.media?.name || '' };
+  state.meta = { model: r.model, duration: r.duration, elapsed: r.elapsed, name: state.media?.name || state.yt?.title || '' };
   $('#progress-box').hidden = true;
   $('#result').hidden = false;
   $('#result-tools').hidden = false;
   $('#btn-vocals').hidden = !state.media?.vocals;
+  state.undo = [];
   const sum = $('#summary');
   if (r.summary) { sum.textContent = r.summary; sum.hidden = false; } else sum.hidden = true;
   renderResult();
@@ -779,6 +791,9 @@ function finishResult(r) {
 
 function renderResult() {
   state.view = splitSegments(state.raw, Number($('#sub-len').value));
+  renderRows();
+}
+function renderRows() {
   const words = state.text.trim().split(/\s+/).filter(Boolean).length;
   $('#stats').innerHTML = [
     `<span class="stat"><b>${words}</b> từ</span>`,
@@ -788,17 +803,35 @@ function renderResult() {
   ].join('');
 
   const tl = $('#timeline'); tl.textContent = '';
+  const names = vkPro.speakers();
   state.view.forEach((s, i) => {
     const row = document.createElement('div'); row.className = 'seg-row'; row.dataset.i = i;
-    const t = document.createElement('div'); t.className = 'seg-time'; t.textContent = clock(s.start);
+    const t = document.createElement('div'); t.className = 'seg-time'; t.textContent = clock(s.start); t.title = 'Nhấp đúp để sửa mốc giờ';
+    t.addEventListener('dblclick', e => { e.stopPropagation(); vkPro.editTime(i); });
+    const body = document.createElement('div'); body.className = 'seg-body';
+    if (s.speaker) {
+      const sp = document.createElement('button'); sp.type = 'button'; sp.className = 'spk spk-' + (names.indexOf(s.speaker) % 6);
+      sp.textContent = s.speaker; sp.title = 'Nhấp để đổi tên người nói';
+      sp.addEventListener('click', e => { e.stopPropagation(); vkPro.renameSpeaker(s.speaker); });
+      body.appendChild(sp);
+    }
     const x = document.createElement('div'); x.className = 'seg-text'; x.contentEditable = 'true'; x.spellcheck = false; x.textContent = s.text;
+    x.addEventListener('focus', () => vkPro.snapshot());
     x.addEventListener('input', () => { s.text = x.textContent; syncRaw(); });
+    body.appendChild(x);
+    const act = document.createElement('div'); act.className = 'seg-act';
+    for (const [ic, tip, fn] of [['✂', 'Tách đôi tại con trỏ', () => vkPro.splitRow(i, x)], ['⤵', 'Gộp với dòng dưới', () => vkPro.mergeRow(i)], ['✕', 'Xóa dòng', () => vkPro.deleteRow(i)]]) {
+      const b = document.createElement('button'); b.type = 'button'; b.textContent = ic; b.title = tip;
+      b.addEventListener('click', e => { e.stopPropagation(); fn(); });
+      act.appendChild(b);
+    }
     row.addEventListener('click', e => { if (e.target === x && document.activeElement === x) return; seekTo(s.start); });
-    row.append(t, x); tl.appendChild(row);
+    row.append(t, body, act); tl.appendChild(row);
   });
   $('#plain').value = state.text;
   applyViewMode();
   $('#ai-row').hidden = !(isPremium() && (keyGet('gemini') || keyGet('groq')));
+  vkPro.onResult();
   if (typeof vkStudio !== 'undefined') vkStudio.updateButton();
 }
 function syncRaw() {
@@ -815,7 +848,9 @@ $$('#view-seg .seg-btn').forEach(b => b.addEventListener('click', () => { state.
 $('#plain').addEventListener('input', e => { state.text = e.target.value; });
 $('#sub-len').addEventListener('change', () => state.raw.length && renderResult());
 
-function seekTo(t) { const p = $('#player'); p.currentTime = t; p.play().catch(() => {}); }
+function seekTo(t) {
+  if (state.yt && !state.media) { window.open(`https://www.youtube.com/watch?v=${state.yt.id}&t=${Math.floor(t)}s`, '_blank', 'noopener'); return; }
+  const p = $('#player'); p.currentTime = t; p.play().catch(() => {}); }
 $('#player').addEventListener('timeupdate', () => {
   const t = $('#player').currentTime;
   const idx = state.view.findIndex(s => t >= s.start && t < s.end);
@@ -831,11 +866,13 @@ $('#player').addEventListener('timeupdate', () => {
 /* ---------------- Xuất file ---------------- */
 function build(fmt) {
   const segs = state.view;
+  const tag = (s) => s.speaker ? `${s.speaker}: ` : '';
   switch (fmt) {
-    case 'txt': return [state.text, 'text/plain'];
-    case 'srt': return [segs.map((s, i) => `${i + 1}\n${stamp(s.start, ',')} --> ${stamp(s.end, ',')}\n${s.text}\n`).join('\n'), 'text/plain'];
-    case 'vtt': return ['WEBVTT\n\n' + segs.map(s => `${stamp(s.start, '.')} --> ${stamp(s.end, '.')}\n${s.text}\n`).join('\n'), 'text/vtt'];
-    case 'json': return [JSON.stringify({ text: state.text, ...state.meta, segments: segs }, null, 2), 'application/json'];
+    case 'txt': return [vkPro.speakers().length ? vkPro.turns(segs).map(t => `${t.speaker}: ${t.text}`).join('\n\n') : state.text, 'text/plain'];
+    case 'srt': return [segs.map((s, i) => `${i + 1}\n${stamp(s.start, ',')} --> ${stamp(s.end, ',')}\n${tag(s)}${s.text}\n`).join('\n'), 'text/plain'];
+    case 'vtt': return ['WEBVTT\n\n' + segs.map(s => `${stamp(s.start, '.')} --> ${stamp(s.end, '.')}\n${s.speaker ? `<v ${s.speaker}>` : ''}${s.text}\n`).join('\n'), 'text/vtt'];
+    case 'json': return [JSON.stringify({ text: state.text, ...state.meta, summary: $('#summary').hidden ? undefined : $('#summary').textContent, segments: segs }, null, 2), 'application/json'];
+    case 'doc': return [vkPro.toDoc(), 'application/msword'];
   }
 }
 $('#btn-dl').addEventListener('click', e => { e.stopPropagation(); $('#dl-menu').hidden = !$('#dl-menu').hidden; });

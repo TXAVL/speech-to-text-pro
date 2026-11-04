@@ -75,14 +75,15 @@
             <button class="seg-btn active" data-src="file"><svg><use href="#i-upload"/></svg>Tải file</button>
             <button class="seg-btn" data-src="mic"><svg><use href="#i-mic"/></svg>Ghi âm</button>
             <button class="seg-btn" data-src="url"><svg><use href="#i-link"/></svg>Dán link</button>
+            <button class="seg-btn" data-src="yt"><svg><use href="#i-play"/></svg>YouTube</button>
           </div>
 
           <div class="src-panel active" id="src-file">
             <label class="dropzone" id="dropzone" for="file-input">
-              <input type="file" id="file-input" accept="audio/*,video/*,.mp3,.wav,.m4a,.ogg,.flac,.webm,.mp4,.mkv,.aac,.opus" hidden>
+              <input type="file" id="file-input" multiple accept="audio/*,video/*,.mp3,.wav,.m4a,.ogg,.flac,.webm,.mp4,.mkv,.aac,.opus" hidden>
               <span class="dz-icon"><svg><use href="#i-upload"/></svg></span>
               <strong>Kéo thả file vào đây</strong>
-              <span class="muted">hoặc bấm để chọn · MP3, WAV, M4A, MP4, WEBM, OGG, FLAC…</span>
+              <span class="muted">hoặc bấm để chọn · MP3, WAV, M4A, MP4, WEBM, OGG, FLAC… · chọn nhiều file để chạy hàng loạt</span>
             </label>
           </div>
 
@@ -103,6 +104,17 @@
             <p class="muted small">Dán link file âm thanh/video trực tiếp hoặc link HLS <code>.m3u8</code> (lấy ở tab Network của DevTools). Link .m3u8 sẽ được tải đủ các đoạn rồi ghép lại. Link YouTube và luồng có DRM không hỗ trợ.</p>
           </div>
 
+          <div class="src-panel" id="src-yt">
+            <div class="url-row">
+              <input type="url" id="yt-url" placeholder="https://www.youtube.com/watch?v=…" autocomplete="off">
+              <button class="btn" id="btn-yt">Lấy transcript</button>
+            </div>
+            <label class="srt-check"><input type="checkbox" id="yt-sum" checked> Tóm tắt video luôn</label>
+            <label class="srt-check"><input type="checkbox" id="yt-spk"> Phân biệt người nói</label>
+            <div class="yt-card" id="yt-card" hidden></div>
+            <p class="muted small">Chỉ dùng được với video <b>công khai</b> (không áp dụng cho video riêng tư, không công khai, giới hạn độ tuổi hoặc đang phát trực tiếp). Gemini xem thẳng link bằng <b>Gemini API key của bạn</b> (⚙ Cài đặt), không cần tải video. Video dài sẽ được chia phần và mất vài phút.</p>
+          </div>
+
           <div class="media-card" id="media-card" hidden>
             <div class="media-top">
               <div class="media-info">
@@ -112,6 +124,17 @@
               <button class="icon-btn sm" id="btn-clear-media" title="Bỏ file"><svg><use href="#i-trash"/></svg></button>
             </div>
             <canvas id="player" class="audio-canvas-player" width="600" height="56" tabindex="0" role="region" aria-label="Trình phát âm thanh"></canvas>
+          </div>
+
+          <div class="queue-card" id="queue-card" hidden>
+            <div class="q-head"><strong>Hàng đợi</strong><span class="muted small" id="q-summary"></span></div>
+            <div class="q-list" id="queue-list"></div>
+            <div class="q-actions">
+              <button class="btn sm primary" id="q-run" type="button">▶ Chạy hàng đợi</button>
+              <select id="q-fmt" class="q-fmt"><option value="srt">.srt</option><option value="txt">.txt</option><option value="vtt">.vtt</option><option value="doc">.doc</option><option value="json">.json</option></select>
+              <button class="btn sm" id="q-zip" type="button" disabled>⬇ Tải tất cả (ZIP)</button>
+              <button class="btn sm" id="q-clear" type="button">Xóa hết</button>
+            </div>
           </div>
 
           <div class="field-group">
@@ -168,6 +191,7 @@
                   <button data-fmt="txt">Văn bản (.txt)</button>
                   <button data-fmt="srt">Phụ đề (.srt)</button>
                   <button data-fmt="vtt">Phụ đề web (.vtt)</button>
+                  <button data-fmt="doc">Word (.doc)</button>
                   <button data-fmt="json">Dữ liệu (.json)</button>
                 </div>
               </div>
@@ -205,6 +229,14 @@
                 <button class="seg-btn active" data-v="timeline">Theo mốc giờ</button>
                 <button class="seg-btn" data-v="plain">Văn bản liền</button>
               </div>
+            </div>
+
+            <div class="edit-bar" id="edit-bar" hidden>
+              <input type="text" id="fr-find" placeholder="Tìm…" autocomplete="off">
+              <input type="text" id="fr-replace" placeholder="Thay bằng…" autocomplete="off">
+              <button class="chip" id="fr-all" type="button">Thay tất cả</button>
+              <button class="chip" id="btn-diarize" type="button" title="Gán nhãn Người 1, Người 2… cho từng dòng (cần Gemini hoặc Groq key)">👥 Phân biệt người nói</button>
+              <button class="chip" id="btn-undo" type="button" disabled title="Hoàn tác (Ctrl+Z)">↶ Hoàn tác</button>
             </div>
 
             <div class="ai-row" id="ai-row" hidden>
@@ -1089,6 +1121,7 @@
   <script src="srt-voice.js"></script>
   <script src="canvas-player.js"></script>
   <script src="app.js"></script>
+  <script src="pro-tools.js"></script>
   <script src="hls.js"></script>
   <script src="video-studio.js"></script>
   <script src="dubbing.js"></script>

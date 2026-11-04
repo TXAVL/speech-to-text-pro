@@ -5454,3 +5454,34 @@ input[type="range"] {
   gap: 8px;
   justify-content: flex-end;
 }
+
+/* ---------- Công cụ nâng cao: sửa transcript, người nói, hàng đợi, YouTube ---------- */
+.seg-row { grid-template-columns: 62px 1fr auto; }
+.seg-body { min-width: 0; }
+.seg-time { cursor: text; }
+.seg-act { display: flex; gap: 2px; opacity: 0; transition: opacity 0.12s; align-self: start; }
+.seg-row:hover .seg-act, .seg-row:focus-within .seg-act { opacity: 1; }
+.seg-act button { border: 0; background: transparent; color: var(--muted, #8a8fa3); cursor: pointer; font-size: 13px; padding: 2px 6px; border-radius: 6px; }
+.seg-act button:hover { background: rgba(124, 108, 255, 0.2); color: var(--text); }
+@media (hover: none) { .seg-act { opacity: 1; } }
+.spk { border: 0; font: inherit; font-size: 11.5px; font-weight: 700; padding: 1px 9px; border-radius: 999px; margin-bottom: 3px; cursor: pointer; color: #fff; background: #7c6cff; }
+.spk-1 { background: #0ea5a4; } .spk-2 { background: #e0732b; } .spk-3 { background: #c2418f; } .spk-4 { background: #4f9d2d; } .spk-5 { background: #b8860b; }
+.edit-bar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+.edit-bar input { width: 130px; flex: 1 1 110px; padding: 6px 10px; font-size: 12.5px; }
+.edit-bar .chip:disabled { opacity: 0.45; cursor: default; }
+.queue-card { border: 1px solid var(--line); border-radius: 12px; padding: 12px; margin: 14px 0; background: var(--bg-2); }
+.q-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+.q-list { max-height: 180px; overflow: auto; display: flex; flex-direction: column; gap: 4px; }
+.q-row { display: grid; grid-template-columns: 1fr auto auto; gap: 8px; align-items: center; font-size: 13px; padding: 4px 6px; border-radius: 8px; }
+.q-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.q-row.clickable .q-name { cursor: pointer; text-decoration: underline dotted; }
+.q-st { font-size: 12px; color: var(--muted, #8a8fa3); }
+.q-done .q-st { color: #22c55e; } .q-err .q-st { color: #ef4444; } .q-run .q-st { color: var(--accent-2); }
+.q-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; align-items: center; }
+.q-fmt { width: auto; padding: 5px 8px; font-size: 12.5px; }
+.yt-card { display: flex; gap: 12px; align-items: center; margin: 10px 0; padding: 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg-2); }
+.yt-card img { width: 120px; aspect-ratio: 16/9; object-fit: cover; border-radius: 8px; flex: none; }
+.yt-card div { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.yt-card .yt-msg { font-size: 12.5px; color: #22c55e; }
+.yt-card.bad { border-color: #ef4444; }
+.yt-card.bad .yt-msg { color: #ef4444; }

@@ -16,6 +16,7 @@ import { handleHf } from './worker/hfproxy.js';
 import { handleFetchProxy } from './worker/fetchproxy.js';
 import { sourceLine, langOfVoice, spokenDomain } from './worker/spoken.js';
 import { sendExpiryReminders } from './worker/reminders.js';
+import { checkYoutube } from './worker/youtube.mjs';
 import { VIENEU_VOICES, SUPERTONIC_VOICES, vieneuSynthesize, supertonicSynthesize } from './worker/vieneu.js';
 
 /** Tên miền website: lấy từ URL đang truy cập (hoặc APP_URL nếu cấu hình) */
@@ -109,6 +110,7 @@ export default {
 
     if (path.startsWith('/hf/')) return handleHf(request, ctx, path);
     if (path === '/api/fetch-proxy') return handleFetchProxy(request);
+    if (path === '/api/youtube/check') return json(await checkYoutube(url.searchParams.get('v')), 200, { 'Cache-Control': 'no-store' });
     if (path.startsWith('/invoice/')) return handleInvoice(request, env, path);
     if (path === '/api/me' || path.startsWith('/api/auth/')) return handleAuth(request, env, path);
     if (path.startsWith('/api/admin/')) return handleAdmin(request, env, path);

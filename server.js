@@ -196,6 +196,14 @@ app.post('/api/upload', (req, res) => {
   });
 });
 
+// Kiểm tra video YouTube có công khai không
+app.get('/api/youtube/check', async (req, res) => {
+  try {
+    const { checkYoutube } = await import('./worker/youtube.mjs');
+    res.json(await checkYoutube(String(req.query.v || '')));
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
 // Fetch audio from URL endpoint
 app.post('/api/fetch-url', async (req, res) => {
   const { url } = req.body;
