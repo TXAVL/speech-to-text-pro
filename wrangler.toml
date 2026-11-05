@@ -33,4 +33,4 @@ APP_URL = ""
 #   npx wrangler secret put SMTP_PORT     (587 hoặc 465 - Cloudflare chặn cổng 25)
 #   npx wrangler secret put SMTP_USER
 #   npx wrangler secret put SMTP_PASS
-#   npx wrangler secret put SMTP_FROM     (vd: VoiceKit <no-reply@ten-mien-cua-ban.com>)
+#   npx wrangler secret put SMTP_FROM     (vd: TXA Voice <no-reply@ten-mien-cua-ban.com>)

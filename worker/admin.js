@@ -209,7 +209,7 @@ export async function handleAdmin(request, env, path) {
         const { results } = await db.prepare(`SELECT o.*, u.email FROM orders o JOIN users u ON u.id = o.user_id WHERE ${where} ORDER BY o.created_at DESC LIMIT 5000`).bind(...args).all();
         const rows = results.map(r => ({ ...r, created: new Date(r.created_at).toISOString(), paid: r.paid_at ? new Date(r.paid_at).toISOString() : '' }));
         return new Response(csv(rows, ['order_code', 'email', 'package_name', 'amount', 'status', 'description', 'created', 'paid', 'paid_via', 'reference']), {
-          headers: { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': `attachment; filename="voicekit-orders-${vnDay()}.csv"` }
+          headers: { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': `attachment; filename="txavoice-orders-${vnDay()}.csv"` }
         });
       }
       const { results } = await db.prepare(`SELECT o.*, u.email FROM orders o JOIN users u ON u.id = o.user_id WHERE ${where} ORDER BY o.created_at DESC LIMIT 25 OFFSET ?`).bind(...args, page * 25).all();
@@ -255,7 +255,7 @@ export async function handleAdmin(request, env, path) {
       const { results } = await db.prepare(`SELECT id, email, name, plan, plan_expires, role, verified, banned, created_at, last_login FROM users ORDER BY id`).all();
       const rows = results.map(r => ({ ...r, created: new Date(r.created_at).toISOString(), expires: r.plan_expires ? new Date(r.plan_expires).toISOString() : '' }));
       return new Response(csv(rows, ['id', 'email', 'name', 'plan', 'expires', 'role', 'verified', 'banned', 'created']), {
-        headers: { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': `attachment; filename="voicekit-users-${vnDay()}.csv"` }
+        headers: { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': `attachment; filename="txavoice-users-${vnDay()}.csv"` }
       });
     }
 

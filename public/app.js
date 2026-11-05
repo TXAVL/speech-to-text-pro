@@ -1,5 +1,5 @@
 'use strict';
-/* VoiceKit - Giọng nói <-> Văn bản. Whisper chạy trong trình duyệt, TTS Edge Neural qua server. */
+/* TXA Voice - Giọng nói <-> Văn bản. Whisper chạy trong trình duyệt, TTS Edge Neural qua server. */
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -41,7 +41,7 @@ const keyName = (k) => keyGate.userId ? `key-${k}:u${keyGate.userId}` : `key-${k
 const keyGet = (k) => keyGate.allowed ? store.get(keyName(k)) : '';
 const KEY_RULES = {
   groq: { test: (v) => /^gsk_[A-Za-z0-9]{20,}$/.test(v), hint: 'Groq key phải bắt đầu bằng "gsk_" (lấy tại console.groq.com/keys).' },
-  gemini: { test: (v) => /^AIza[A-Za-z0-9_\-]{30,}$/.test(v), hint: 'Gemini key phải bắt đầu bằng "AIza" (lấy tại aistudio.google.com/app/apikey).' }
+  gemini: { test: (v) => /^(?:AIza|AQ\.)[A-Za-z0-9_.\-]{30,}$/.test(v), hint: 'Gemini key phải bắt đầu bằng "AQ." (hoặc "AIza" với key cũ) (lấy tại aistudio.google.com/app/apikey).' }
 };
 /** '' nếu hợp lệ (hoặc để trống), ngược lại là câu báo lỗi. */
 const keyProblem = (k, v) => !v || KEY_RULES[k].test(v) ? '' : KEY_RULES[k].hint + ' Đây không phải mật khẩu tài khoản.';
@@ -914,6 +914,7 @@ const GEMINI_VOICES = [['Zephyr', 'Sáng'], ['Puck', 'Sôi nổi'], ['Charon', '
 const LIBS = {
   edge:       { title: 'Microsoft Edge Neural — miễn phí', badge: 'Microsoft Edge Neural', free: true, needs: 'api', desc: '2 giọng Việt (HoaiMy, NamMinh) và 300+ giọng đa ngôn ngữ · miễn phí cho mọi tài khoản' },
   vieneu:     { title: 'VieNeu-TTS (Việt Nam) — 35 giọng 3 miền Studio Pro (Premium)', badge: 'VieNeu-TTS Studio Pro', free: false, premium: true, needs: 'api', desc: '35 giọng chuẩn Bắc/Trung/Nam (Review phim, VTV, Kể chuyện trinh thám, MC Bán hàng, ASMR thiền...), đọc tiếng Anh xen kẽ, xuất WAV 48 kHz · độc quyền gói Premium' },
+  vieneu3:    { title: 'VieNeu-TTS v3 Turbo (model thật trên Hugging Face) (Premium)', badge: 'VieNeu-TTS v3 Turbo', free: false, premium: true, needs: 'api', desc: 'Model VieNeu-TTS v3 Turbo chính chủ (Hugging Face), 10 giọng dựng sẵn, 48 kHz, hỗ trợ thẻ [cười] [thở dài] [hắng giọng] · giờ cao điểm có thể phải chờ vài giây · độc quyền gói Premium' },
   supertonic: { title: 'Supertonic 3 — Đa ngôn ngữ (31 thứ tiếng, 20 giọng) (Premium)', badge: 'Supertonic 3 Pro (Đa ngôn ngữ)', free: false, premium: true, needs: 'api', desc: 'Đọc 31 ngôn ngữ quốc tế (Anh, Nhật, Hàn, Pháp, Đức, Tây Ban Nha...), 20 giọng nam nữ SOTA, thẻ cảm xúc <laugh>, <breath>, <sigh> · độc quyền gói Premium' },
   capcut:     { title: 'CapCut / TikTok Global — 30+ giọng viral (Premium)', badge: 'CapCut / TikTok Global', free: false, premium: true, needs: 'api', desc: '30+ giọng viral Việt Nam và quốc tế (Review phim, US TikTok, Thái, Trung, Indo...) · độc quyền gói Premium' },
   piper:      { title: 'Piper — chạy trên máy bạn, miễn phí', badge: 'Piper (trong trình duyệt)', free: true, needs: '', desc: '5 giọng miễn phí (3 giọng Việt + 2 giọng Anh) và 29 giọng 👑 Premium (Anh Mỹ/Anh chất lượng cao, Pháp, Đức, Tây Ban Nha, Nga, Trung, Bồ, Thổ...) · chạy 100% trong trình duyệt, mỗi giọng tải ~60 MB lần đầu rồi dùng offline được' },
@@ -987,7 +988,7 @@ async function runSrtVoice(cues, synthOne, status, lib, voice) {
   const allText = items.map(c => c.text).join(' ');
   const sfx = await ttsSuffix(sourceLang(lib, voice, allText));
 
-  const serverLib = ['edge', 'capcut', 'vieneu', 'supertonic'].includes(lib);
+  const serverLib = ['edge', 'capcut', 'vieneu', 'vieneu3', 'supertonic'].includes(lib);
   if (serverLib) {
     const need = items.length + (sfx ? 1 : 0);
     const u = typeof vkAccount !== 'undefined' && vkAccount.state.enabled ? vkAccount.state.usage : null;
@@ -1281,7 +1282,7 @@ $('#btn-voice-preview')?.addEventListener('click', async () => {
   }
   btn.textContent = 'Đang tải…';
   try {
-    const url = lib === 'vieneu' ? '/api/vieneu/tts' : (lib === 'supertonic' ? '/api/supertonic/tts' : '/api/edge/tts');
+    const url = lib === 'vieneu3' ? '/api/vieneu3/tts' : lib === 'vieneu' ? '/api/vieneu/tts' : (lib === 'supertonic' ? '/api/supertonic/tts' : '/api/edge/tts');
     const body = { text: sampleText, voice: val, rate: 1.0, pitch: 0 };
     if (lib === 'supertonic') body.lang = $('#tts-st-lang')?.value || 'auto';
     const res = await fetch(url, {
@@ -1321,7 +1322,7 @@ async function applyLib() {
   $('#row-st-lang').hidden = lib !== 'supertonic';
   $('#row-rate').hidden = !['vieneu', 'supertonic', 'edge', 'capcut', 'browser'].includes(lib);
   $('#row-pitch').hidden = lib !== 'edge';
-  $('#row-format').hidden = !['vieneu', 'supertonic', 'edge', 'capcut', 'piper', 'mms'].includes(lib);
+  $('#row-format').hidden = !['vieneu', 'vieneu3', 'supertonic', 'edge', 'capcut', 'piper', 'mms'].includes(lib);
   $('#tts-note').textContent = '';
   $('#tts-result').hidden = true;
   if (lib !== 'browser') speechSynthesis?.cancel?.();
@@ -1349,6 +1350,9 @@ async function applyLib() {
       setVoiceOptions(list);
       $('#tts-voice').value = 'minh_quan';
       updateVoiceDetail();
+    } else if (lib === 'vieneu3') {
+      if (!tts.vieneu3Voices) tts.vieneu3Voices = (await api('/api/vieneu3/voices')).voices;
+      setVoiceOptions(tts.vieneu3Voices);
     } else if (lib === 'supertonic') {
       const list = typeof SUPERTONIC_VOICES !== 'undefined' ? SUPERTONIC_VOICES : (await api('/api/supertonic/voices')).voices;
       setVoiceOptions(list);
@@ -1750,12 +1754,15 @@ $('#btn-tts-run').addEventListener('click', async () => {
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         if (err.quota) account?.onQuotaError(err);
-        throw new Error(err.error || 'Lỗi tạo giọng đọc');
+        const ex = new Error(err.error || 'Lỗi tạo giọng đọc');
+        if (err.busy) { ex.busy = err.busy; ex.retryAfter = err.retryAfter; }
+        throw ex;
       }
       return res.blob();
     };
 
     const synthOne = async (t) => {
+      if (lib === 'vieneu3') return post('/api/vieneu3/tts', { text: t, voice });
       if (lib === 'vieneu') return post('/api/vieneu/tts', { text: t, voice, rate, pitch: $('#tts-pitch').value });
       if (lib === 'supertonic') return post('/api/supertonic/tts', { text: t, voice, lang: $('#tts-st-lang')?.value || 'auto', rate, pitch: $('#tts-pitch').value });
       if (lib === 'edge') return post('/api/edge/tts', { text: t, voice, rate, pitch: $('#tts-pitch').value });
@@ -1775,14 +1782,14 @@ $('#btn-tts-run').addEventListener('click', async () => {
 
     // 4. Premium: văn bản dài hơn giới hạn mỗi lượt được chia đoạn theo câu, mỗi đoạn một lượt
     const premium = isPremium();
-    const perCall = ttsCharsPerCall();
+    const perCall = lib === 'vieneu3' ? Math.min(600, ttsCharsPerCall()) : ttsCharsPerCall();
     if (premium) {
       segments = segments.flatMap(sg => sg.type === 'text' && sg.content.length > perCall
         ? splitLongText(sg.content, perCall).map(c => ({ type: 'text', content: c }))
         : [sg]);
     }
     const textParts = segments.filter(sg => sg.type === 'text').length;
-    if (textParts > 1 && ['edge', 'capcut', 'vieneu', 'supertonic'].includes(lib)) {
+    if (textParts > 1 && ['edge', 'capcut', 'vieneu', 'vieneu3', 'supertonic'].includes(lib)) {
       const u = typeof vkAccount !== 'undefined' && vkAccount.state.enabled ? vkAccount.state.usage : null;
       const left = u ? (u.remaining || 0) + (u.credits || 0) : Infinity;
       if (left < textParts) throw new Error(`Văn bản cần ${textParts} lượt nhưng bạn chỉ còn ${left} lượt hôm nay. Hãy rút ngắn văn bản hoặc mua thêm lượt.`);
@@ -1889,13 +1896,37 @@ $('#btn-tts-run').addEventListener('click', async () => {
     }
   } catch (e) {
     clearTitleProgress();
-    toast(e.message, 'err');
+    if (e.busy) showVn3Busy(e); else toast(e.message, 'err');
   } finally {
     clearTitleProgress();
     btn.disabled = false; label.textContent = 'Tạo giọng đọc';
     updateLibLock();
   }
 });
+
+/* VieNeu v3 chạy bằng GPU dùng chung: khi đông hoặc hết hạn mức thì hiện thẻ riêng, đếm ngược rồi tự thử lại */
+let vn3Timer = null;
+function hideVn3Busy() { clearInterval(vn3Timer); vn3Timer = null; $('#vn3-busy')?.remove(); }
+function showVn3Busy(e) {
+  hideVn3Busy();
+  const quota = e.busy === 'quota';
+  const box = document.createElement('div');
+  box.id = 'vn3-busy'; box.className = 'vn3-busy' + (quota ? ' quota' : ''); box.setAttribute('role', 'status');
+  box.innerHTML = `<div class="vn3-ico">${quota ? '⏳' : '🦜'}</div>
+    <div class="vn3-body"><b>${quota ? 'VieNeu v3 tạm hết hạn mức xử lý' : 'VieNeu v3 đang đông khách'}</b>
+    <p>${quota ? 'Hệ thống giọng VieNeu của chúng tôi đã hết hạn mức xử lý tạm thời, thường hồi lại sau vài phút.' : 'Hệ thống giọng VieNeu của chúng tôi đang xử lý nhiều yêu cầu cùng lúc.'} Lượt của bạn <b>đã được hoàn lại</b>.</p>
+    <div class="vn3-act"><button class="btn primary" id="vn3-retry"></button><button class="btn" id="vn3-edge">Đọc tạm bằng Edge</button></div></div>`;
+  $('#tts-note').before(box);
+  let left = Math.max(10, Math.min(120, Number(e.retryAfter) || 30));
+  const retry = $('#vn3-retry');
+  const tick = () => { retry.textContent = left > 0 ? `Tự thử lại sau ${left}s · thử ngay` : 'Đang thử lại…'; };
+  tick();
+  const go = () => { hideVn3Busy(); $('#btn-tts-run')?.click(); };
+  retry.onclick = go;
+  $('#vn3-edge').onclick = () => { hideVn3Busy(); const s = $('#tts-lib'); s.value = 'edge'; s.dispatchEvent(new Event('change')); };
+  vn3Timer = setInterval(() => { left--; if (left <= 0) go(); else tick(); }, 1000);
+}
+$('#tts-lib')?.addEventListener('change', hideVn3Busy);
 
 /* ---------------- Cài đặt / chia sẻ ---------------- */
 $('#btn-settings').addEventListener('click', async () => {

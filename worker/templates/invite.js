@@ -12,7 +12,7 @@ export default {
   button_url: '{{action_url}}',
   note: 'Liên kết có hiệu lực trong {{expires_hours}} giờ. Hết hạn thì dùng "Quên mật khẩu" ở trang đăng nhập để nhận liên kết mới.',
   variables: {
-    action_url: { desc: 'Liên kết tạo mật khẩu', sample: 'https://voicekit.example/?reset=abc123' },
+    action_url: { desc: 'Liên kết tạo mật khẩu', sample: 'https://txavoice.example/?reset=abc123' },
     expires_hours: { desc: 'Số giờ liên kết còn hiệu lực', sample: '72' },
     plan_name: { desc: 'Gói được cấp', sample: 'Premium' }
   }

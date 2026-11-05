@@ -1,5 +1,5 @@
 'use strict';
-/* VoiceKit - lịch sử chuyển đổi (IndexedDB, lưu riêng theo tài khoản trên trình duyệt này).
+/* TXA Voice - lịch sử chuyển đổi (IndexedDB, lưu riêng theo tài khoản trên trình duyệt này).
    - Giọng → Chữ: văn bản + mốc thời gian
    - Chữ → Giọng: văn bản + file âm thanh để nghe / tải lại */
 

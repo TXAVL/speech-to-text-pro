@@ -1,4 +1,4 @@
--- VoiceKit: tài khoản, phiên đăng nhập, token email, lượt dùng theo ngày
+-- TXA Voice: tài khoản, phiên đăng nhập, token email, lượt dùng theo ngày
 CREATE TABLE IF NOT EXISTS users (
   id            INTEGER PRIMARY KEY AUTOINCREMENT,
   email         TEXT NOT NULL UNIQUE,

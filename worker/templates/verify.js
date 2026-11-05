@@ -12,7 +12,7 @@ export default {
   button_url: '{{action_url}}',
   note: 'Liên kết có hiệu lực trong {{expires_hours}} giờ. Nếu bạn không đăng ký, hãy bỏ qua email này.',
   variables: {
-    action_url: { desc: 'Liên kết xác minh', sample: 'https://voicekit.example/?verify=abc123' },
+    action_url: { desc: 'Liên kết xác minh', sample: 'https://txavoice.example/?verify=abc123' },
     expires_hours: { desc: 'Số giờ liên kết còn hiệu lực', sample: '24' },
     free_calls: { desc: 'Số lượt mỗi ngày của gói Miễn phí', sample: '50' }
   }

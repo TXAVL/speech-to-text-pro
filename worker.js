@@ -1,5 +1,5 @@
 /**
- * Cloudflare Worker cho VoiceKit.
+ * Cloudflare Worker cho TXA Voice.
  * - Phục vụ giao diện tĩnh trong public/ (miễn phí, không tính vào giới hạn request).
  * - Proxy nhỏ cho Edge Neural / CapCut TTS (trình duyệt không tự gọi được), có trừ lượt theo gói.
  * - Tài khoản, gói, quản trị (D1) và email xác minh / quên mật khẩu (SMTP).
@@ -17,6 +17,7 @@ import { handleFetchProxy } from './worker/fetchproxy.js';
 import { sourceLine, langOfVoice, spokenDomain } from './worker/spoken.js';
 import { sendExpiryReminders } from './worker/reminders.js';
 import { checkYoutube } from './worker/youtube.mjs';
+import { VIENEU3_VOICES, vieneu3Synthesizer } from './worker/vieneu3.js';
 import { VIENEU_VOICES, SUPERTONIC_VOICES, vieneuSynthesize, supertonicSynthesize } from './worker/vieneu.js';
 
 /** Tên miền website: lấy từ URL đang truy cập (hoặc APP_URL nếu cấu hình) */
@@ -72,11 +73,14 @@ async function ttsRoute(request, env, synth, label, premiumOnly = false) {
   }
   try {
     const audio = await synth({ ...body, text: finalText });
-    const headers = { 'Content-Type': 'audio/mpeg', 'Cache-Control': 'no-store' };
+    const isWav = audio.byteLength > 4 && new TextDecoder().decode(new Uint8Array(audio, 0, 4)) === 'RIFF';
+    const headers = { 'Content-Type': isWav ? 'audio/wav' : 'audio/mpeg', 'Cache-Control': 'no-store' };
     if (quota) { headers['X-Quota-Remaining'] = String(quota.remaining); headers['X-Credits-Remaining'] = String(quota.credits || 0); }
     return new Response(audio, { headers });
   } catch (err) {
     if (quota) await quota.refund(); // lỗi thì trả lại lượt
+    if (err.kind) return json({ error: `${label} đang bận: ${err.message}`, busy: err.kind, retryAfter: err.retryAfter || 30 }, 503, { 'Retry-After': String(err.retryAfter || 30) });
+    if (err.name === 'TimeoutError') return json({ error: `${label} phản hồi quá lâu.`, busy: 'busy', retryAfter: 30 }, 503);
     return json({ error: `Lỗi ${label}: ${err.message}` }, 500);
   }
 }
@@ -127,6 +131,9 @@ export default {
     }
     if (path === '/api/vieneu/voices') return json({ success: true, voices: VIENEU_VOICES }, 200, { 'Cache-Control': 'public, max-age=86400' });
     if (path === '/api/vieneu/tts' && request.method === 'POST') return ttsRoute(request, env, vieneuSynthesize, 'VieNeu-TTS', true);
+
+    if (path === '/api/vieneu3/voices') return json({ success: true, voices: VIENEU3_VOICES.map(({ space, ...v }) => v) }, 200, { 'Cache-Control': 'public, max-age=86400' });
+    if (path === '/api/vieneu3/tts' && request.method === 'POST') return ttsRoute(request, env, vieneu3Synthesizer(env), 'VieNeu-TTS v3 Turbo', true);
 
     if (path === '/api/supertonic/voices') return json({ success: true, voices: SUPERTONIC_VOICES }, 200, { 'Cache-Control': 'public, max-age=86400' });
     if (path === '/api/supertonic/tts' && request.method === 'POST') return ttsRoute(request, env, supertonicSynthesize, 'Supertonic 3', true);

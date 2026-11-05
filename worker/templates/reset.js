@@ -12,7 +12,7 @@ export default {
   button_url: '{{action_url}}',
   note: 'Liên kết có hiệu lực trong {{expires_minutes}} phút và chỉ dùng được một lần. Nếu bạn không yêu cầu, hãy bỏ qua email này, mật khẩu hiện tại vẫn an toàn.',
   variables: {
-    action_url: { desc: 'Liên kết đặt lại mật khẩu', sample: 'https://voicekit.example/?reset=abc123' },
+    action_url: { desc: 'Liên kết đặt lại mật khẩu', sample: 'https://txavoice.example/?reset=abc123' },
     expires_minutes: { desc: 'Số phút liên kết còn hiệu lực', sample: '60' }
   }
 };

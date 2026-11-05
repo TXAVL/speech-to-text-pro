@@ -1,7 +1,7 @@
 // SMTP client cho Cloudflare Worker (cloudflare:sockets). Không phụ thuộc thư viện ngoài.
 // Cấu hình bằng secret/biến môi trường:
 //   SMTP_HOST, SMTP_PORT (465 | 587), SMTP_SECURE (tls | starttls | none), SMTP_USER, SMTP_PASS,
-//   SMTP_FROM ("VoiceKit <no-reply@ten-mien.com>"). Cloudflare chặn cổng 25, hãy dùng 587 hoặc 465.
+//   SMTP_FROM ("TXA Voice <no-reply@ten-mien.com>"). Cloudflare chặn cổng 25, hãy dùng 587 hoặc 465.
 import { connect } from 'cloudflare:sockets';
 
 const enc = new TextEncoder();
@@ -79,7 +79,7 @@ export async function sendMail(env, { to, subject, text, html }) {
   const port = Number(env.SMTP_PORT || 587);
   const mode = (env.SMTP_SECURE || (port === 465 ? 'tls' : port === 587 ? 'starttls' : 'none')).toLowerCase();
   const fromAddr = addrOf(env.SMTP_FROM);
-  const domain = fromAddr.split('@')[1] || 'voicekit.local';
+  const domain = fromAddr.split('@')[1] || 'txavoice.local';
 
   const socket = connect({ hostname: env.SMTP_HOST, port }, {
     secureTransport: mode === 'tls' ? 'on' : mode === 'starttls' ? 'starttls' : 'off',

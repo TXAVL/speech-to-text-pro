@@ -19,7 +19,7 @@ export default {
     description: { desc: 'Nội dung chuyển khoản', sample: 'VK8642803' },
     expires_date: { desc: 'Premium hiệu lực đến', sample: '17/01/2027' },
     paid_date: { desc: 'Thời điểm thanh toán', sample: '19/10/2026 20:43' },
-    invoice_url: { desc: 'Liên kết xem / in hóa đơn', sample: 'https://voicekit.example/invoice/2417408642803' },
+    invoice_url: { desc: 'Liên kết xem / in hóa đơn', sample: 'https://txavoice.example/invoice/2417408642803' },
     invoice_line: { desc: 'Dòng báo đã ghi nhận thông tin xuất hóa đơn (trống nếu không yêu cầu)', sample: 'Thông tin xuất hóa đơn cho CÔNG TY ABC (MST 0101234567) đã được ghi nhận.' },
     order_table: { desc: 'Bảng chi tiết đơn hàng (khối HTML có sẵn)', sample: '', block: true }
   }

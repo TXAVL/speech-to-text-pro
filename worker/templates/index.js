@@ -18,7 +18,7 @@ export const TEMPLATE_GROUPS = { verify: 'Tài khoản', reset: 'Tài khoản', 
 // Biến dùng được trong mọi mẫu
 export const GLOBAL_VARS = {
   app_name: { desc: 'Tên website', sample: 'TXA Voice' },
-  app_url: { desc: 'Địa chỉ website', sample: 'https://voicekit.example' },
+  app_url: { desc: 'Địa chỉ website', sample: 'https://txavoice.example' },
   name: { desc: 'Tên người nhận (hoặc "bạn")', sample: 'Minh Anh' },
   email: { desc: 'Email người nhận', sample: 'minhanh@example.com' },
   year: { desc: 'Năm hiện tại', sample: String(new Date().getFullYear()) }

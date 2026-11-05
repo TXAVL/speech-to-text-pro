@@ -1,5 +1,5 @@
 'use strict';
-/* VoiceKit - tài khoản, gói, lượt dùng, thanh toán payOS. Dùng chung tiện ích ($, api, toast, showView...) từ app.js. */
+/* TXA Voice - tài khoản, gói, lượt dùng, thanh toán payOS. Dùng chung tiện ích ($, api, toast, showView...) từ app.js. */
 
 const vkAccount = (() => {
   const acc = { enabled: false, smtp: false, user: null, plan: null, usage: null, plans: [], packages: [], payEnabled: false, selectedPkg: null, resetToken: null };
@@ -78,7 +78,7 @@ const vkAccount = (() => {
   /* Ô hiển thị lượt còn lại ở trang Chữ -> Giọng (chỉ cho kho chạy qua máy chủ) */
   function renderQuota() {
     const chip = $('#quota-chip');
-    const serverLib = ['edge', 'capcut', 'vieneu', 'supertonic'].includes(typeof tts !== 'undefined' ? tts.lib : '');
+    const serverLib = ['edge', 'capcut', 'vieneu', 'vieneu3', 'supertonic'].includes(typeof tts !== 'undefined' ? tts.lib : '');
     if (!acc.enabled || !serverLib) { chip.hidden = true; $('#tts-count').style.color = ''; return; }
     chip.hidden = false;
     const p = acc.plan, r = acc.usage.remaining;

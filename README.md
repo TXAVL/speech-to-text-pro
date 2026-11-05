@@ -1,4 +1,4 @@
-# VoiceKit — Giọng nói ⇄ Văn bản
+# TXA Voice — Giọng nói ⇄ Văn bản
 
 Website chuyển giọng nói thành văn bản và đọc văn bản thành giọng nói. Có tài khoản, các gói Khách / Miễn phí / Premium, email xác minh và quên mật khẩu qua SMTP. Toàn bộ chạy trên Cloudflare (gói free), không cần server riêng.
 
@@ -31,7 +31,7 @@ set PATH=C:\Program Files\nodejs;%PATH%
 | Brevo | smtp-relay.brevo.com | 587 | Free 300 mail/ngày, gửi từ tên miền riêng |
 | Zoho Mail | smtp.zoho.com | 465 | Dùng tên miền riêng |
 
-`SMTP_FROM` dạng `VoiceKit <no-reply@ten-mien.com>` (với Gmail để đúng địa chỉ Gmail của bạn). Cloudflare chặn cổng 25, chỉ dùng 587 hoặc 465.
+`SMTP_FROM` dạng `TXA Voice <no-reply@ten-mien.com>` (với Gmail để đúng địa chỉ Gmail của bạn). Cloudflare chặn cổng 25, chỉ dùng 587 hoặc 465.
 
 ## Gói và giới hạn
 Sửa số trong `worker/plans.js`.
@@ -99,6 +99,7 @@ Cron không có request nên cần biết địa chỉ website để dựng link
 |---|---|---|---|
 | Microsoft Edge Neural | Worker (giới hạn theo ngày) | 2 giọng Việt + 300+ giọng quốc tế | Mọi gói |
 | VieNeu-TTS Studio Pro | Worker (giới hạn theo ngày) | 35 giọng 3 miền (Review phim, VTV, Trinh thám, MC Bán hàng, ASMR...) | **Premium** |
+| VieNeu-TTS v3 Turbo (model thật) | Space Hugging Face miễn phí (qua Worker) | 10 giọng dựng sẵn, 48 kHz, thẻ [cười] [thở dài] [hắng giọng]. Tùy chọn `npx wrangler secret put HF_TOKEN` để tăng hạn mức ZeroGPU | **Premium** |
 | Supertonic 3 Pro | Worker (giới hạn theo ngày) | 20 giọng nam/nữ, 31 ngôn ngữ quốc tế, hỗ trợ thẻ cảm xúc | **Premium** |
 | CapCut / TikTok Global | Worker (giới hạn theo ngày) | 30+ giọng viral (Việt Nam, US, Thái, Trung, Indo...) | **Premium** |
 | Piper | Trong trình duyệt (WASM) | 1 giọng Việt (offline được) | Miễn phí |

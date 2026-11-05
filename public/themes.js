@@ -1,5 +1,5 @@
 'use strict';
-/* VoiceKit - giao diện theo mùa / ngày lễ (giờ Việt Nam).
+/* TXA Voice - giao diện theo mùa / ngày lễ (giờ Việt Nam).
    Toàn trang đổi nhẹ (màu nhấn, vài hạt rơi, biểu tượng cạnh logo); modal đăng nhập/đăng ký đổi đặc sắc.
    Xem thử: ?theme=halloween | teachers | xmas | newyear | tet | valentine | women | reunify | children | national | midautumn | none */
 

@@ -1,5 +1,5 @@
 'use strict';
-/* VoiceKit - trang Quản trị: tổng quan, người dùng, đơn hàng, gói & giá, hệ thống, nhật ký. */
+/* TXA Voice - trang Quản trị: tổng quan, người dùng, đơn hàng, gói & giá, hệ thống, nhật ký. */
 
 const vkAdmin = (() => {
   const S = { tab: 'overview', overview: null, chart: 'revenue', users: { q: '', filter: 'all', page: 0 }, orders: { q: '', status: '', page: 0 } };
@@ -160,7 +160,7 @@ const vkAdmin = (() => {
       const v = $('#ub-action').value, ids = [...sel.users.keys()].map(Number);
       if (!v) throw new Error('Hãy chọn thao tác.');
       if (v === 'export') {
-        downloadCsv(`voicekit-users-chon-${ids.length}.csv`, [...sel.users.values()], [['id', 'ID'], ['email', 'Email'], ['name', 'Tên'], ['plan', 'Gói'], ['plan_expires_text', 'Hết hạn'], ['extra_credits', 'Lượt mua thêm'], ['verified', 'Xác minh'], ['banned', 'Khóa'], ['role', 'Quyền'], ['spent', 'Đã chi']]);
+        downloadCsv(`txavoice-users-chon-${ids.length}.csv`, [...sel.users.values()], [['id', 'ID'], ['email', 'Email'], ['name', 'Tên'], ['plan', 'Gói'], ['plan_expires_text', 'Hết hạn'], ['extra_credits', 'Lượt mua thêm'], ['verified', 'Xác minh'], ['banned', 'Khóa'], ['role', 'Quyền'], ['spent', 'Đã chi']]);
         return;
       }
       const payload = { ids };
@@ -389,7 +389,7 @@ const vkAdmin = (() => {
       const v = $('#ob-action').value, codes = [...sel.orders.keys()].map(Number);
       if (!v) throw new Error('Hãy chọn thao tác.');
       if (v === 'export') {
-        downloadCsv(`voicekit-orders-chon-${codes.length}.csv`, [...sel.orders.values()], [['orderCode', 'Mã đơn'], ['email', 'Email'], ['packageName', 'Gói'], ['amount', 'Số tiền'], ['status', 'Trạng thái'], ['description', 'Nội dung CK'], ['createdText', 'Tạo lúc'], ['paidText', 'Thanh toán lúc'], ['invoiceName', 'Tên hóa đơn'], ['invoiceTax', 'MST'], ['invoiceNo', 'Số HĐĐT']]);
+        downloadCsv(`txavoice-orders-chon-${codes.length}.csv`, [...sel.orders.values()], [['orderCode', 'Mã đơn'], ['email', 'Email'], ['packageName', 'Gói'], ['amount', 'Số tiền'], ['status', 'Trạng thái'], ['description', 'Nội dung CK'], ['createdText', 'Tạo lúc'], ['paidText', 'Thanh toán lúc'], ['invoiceName', 'Tên hóa đơn'], ['invoiceTax', 'MST'], ['invoiceNo', 'Số HĐĐT']]);
         return;
       }
       const payload = { codes, action: v, send_receipt: $('#ob-receipt').checked };

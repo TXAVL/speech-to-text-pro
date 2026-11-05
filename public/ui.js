@@ -1,5 +1,5 @@
 'use strict';
-/* VoiceKit - nâng cấp ô nhập liệu toàn trang (tự áp dụng cho cả phần tử sinh động trong trang Quản trị):
+/* TXA Voice - nâng cấp ô nhập liệu toàn trang (tự áp dụng cho cả phần tử sinh động trong trang Quản trị):
    - Ô số: nút − / + , giữ chuột để tăng giảm nhanh, cuộn chuột khi đang chọn ô
    - Ô tìm kiếm / ô lọc: nút × xóa nhanh
    - Ô văn bản nhiều dòng: tự giãn theo nội dung

@@ -1,5 +1,5 @@
 'use strict';
-/* VoiceKit - công cụ nâng cao cho Giọng → Chữ:
+/* TXA Voice - công cụ nâng cao cho Giọng → Chữ:
    - Trình sửa transcript: tách / gộp / xóa dòng, sửa mốc giờ, tìm & thay, hoàn tác
    - Phân biệt người nói (dùng Gemini / Groq key của người dùng)
    - Hàng đợi nhiều file, tải tất cả bằng một file ZIP
@@ -283,7 +283,7 @@ const vkPro = (() => {
       files.push({ name: `${n}.${fmt}`, data: build(fmt)[0] });
     }
     Object.assign(state, keep);
-    download(`voicekit-${files.length}-file.zip`, makeZip(files), 'application/zip');
+    download(`txavoice-${files.length}-file.zip`, makeZip(files), 'application/zip');
   }
 
   /* ---------------- YouTube ---------------- */
